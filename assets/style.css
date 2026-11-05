@@ -403,6 +403,20 @@ body.shapes #fx-card, body.bare #fx-card { display: none; }
 
 /* ---- The picked clip's spots ---- */
 .spot-head { display: flex; justify-content: space-between; align-items: baseline; padding: 4px var(--u) 0; }
-.spot-row { display: grid; grid-template-columns: 2ch 1fr auto 7ch auto auto auto auto; gap: 4px; align-items: center; padding: 2px var(--u); font: var(--t-data); color: var(--mid); border: var(--hair) solid transparent; cursor: pointer; }
+.key-row {
+  display: grid; grid-template-columns: 2ch minmax(0, 1fr) auto auto auto;
+  gap: 4px; align-items: center; padding: 2px var(--u);
+  font: var(--t-data); color: var(--bright); white-space: nowrap;
+}
+.key-row .at { height: 22px; padding: 0 2px; min-width: 0; }
+.key-row > span { overflow: hidden; text-overflow: ellipsis; }
+.mini-sel {
+  width: 26px; height: 20px; padding: 0; text-align: center;
+  font: var(--t-label); color: var(--bright);
+  background: var(--void); border: var(--hair) solid var(--rule); cursor: pointer;
+}
+.mini-sel:hover { border-color: var(--mid); color: var(--live); }
+.spot-row { display: grid; grid-template-columns: 2ch minmax(0, 1fr) auto auto auto auto auto auto; gap: 4px; align-items: center; padding: 2px var(--u); font: var(--t-data); color: var(--mid); border: var(--hair) solid transparent; cursor: pointer; white-space: nowrap; }
+.spot-row > span { overflow: hidden; text-overflow: ellipsis; }
 .spot-row:hover { border-color: var(--rule); }
 .spot-row.on { border-color: var(--mid); color: var(--live); }

@@ -300,7 +300,8 @@ function drawTimeline(B, top) {
         if (sel) (L.keys ?? []).forEach((k, ki) => {
           const kx = X(keyBeat(SCORE, k.at));
           const held = KEY_DRAG && KEY_DRAG.ri === ri && KEY_DRAG.ci === ci && KEY_DRAG.ki === ki;
-          noStroke(); fill(held ? 255 : 0); stroke(255); strokeWeight(1);
+          const kmi = typeof k.at === "string" ? momentIndex(k.at) : -1;
+          noStroke(); fill(held ? "#ffffff" : kmi >= 0 ? momentColor(kmi) : 0); stroke(255); strokeWeight(1);
           quad(kx, y + 1.5, kx + 4.5, y + 6, kx, y + 10.5, kx - 4.5, y + 6);
           noStroke();
           if (!KEY_DRAG && Math.abs(mouseX - kx) <= 4 && mouseY >= y && mouseY < y + 13) hover = `key · ${atKeyWords(k.at)}`;
@@ -716,6 +717,25 @@ function atKey(B) {
   for (const m of SCORE.moments || []) for (const h of m.hold ? [m.hold[0]] : m.hits || []) if (Math.abs(h - B) < 0.1) return m.name;
   const bar = Math.floor(B / SCORE.beatsPerBar) + 1;
   return `${bar}:${round2(B - (bar - 1) * SCORE.beatsPerBar + 1)}`;
+}
+
+function momentIndex(name) { return (SCORE.moments || []).findIndex((m) => m.name === name); }
+
+// ◆ on a spot row: a keyframe at that moment with the spot's place — the way a
+// spot attaches to a moment.
+function pinSpotToMoment(L, i, name) {
+  rememberScore();
+  const sp = (L.spots ?? elementOf(L).spots)[i];
+  const key = { at: name, x: sp[0], y: sp[1], size: sp[2] };
+  if (sp[4]) key.deg = sp[4];
+  if (sp[3] === -1) key.flip = -1;
+  const keys = (L.keys ??= []);
+  const B = keyBeat(SCORE, name);
+  const same = keys.find((k) => Math.abs(keyBeat(SCORE, k.at) - B) < 0.1);
+  if (same) Object.assign(same, key);
+  else keys.push(key);
+  keys.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at));
+  buildLayers();
 }
 
 // A key's `at`, in words for the panel.
@@ -1742,16 +1762,27 @@ function buildLayerDetail() {
       const [x, y, size, flip = 1, deg = 0] = sp;
       const row = document.createElement("div");
       row.className = "spot-row" + (EDIT.spot === i ? " on" : "");
+      const pinMenu = L.shape && (SCORE.moments || []).length
+        ? `<select class="mini-sel" data-a="pin" title="Pin to a moment: a keyframe there with this spot's place"><option value="">◆</option>` +
+          (SCORE.moments || []).map((m) => `<option>${m.name}</option>`).join("") + `</select>`
+        : "";
       row.innerHTML = `<span class="dimmed">${i + 1}</span>` +
         `<span>${Math.round(x * 100)}, ${Math.round(y * 100)}</span>` +
-        `<span class="dimmed">×${round2(size)}</span>` +
-        `<span>${deg ? `${deg}°` : ""}${flip === -1 ? " ⇄" : ""}</span>` +
+        `<span class="dimmed">×${round2(size)}${deg ? ` ${deg}°` : ""}${flip === -1 ? " ⇄" : ""}</span>` +
+        pinMenu +
         `<button class="mini" data-a="flip" title="Mirror (X)">⇄</button>` +
         `<button class="mini" data-a="turn" title="Turn 15° (Alt-click turns back)">↻</button>` +
-        `<button class="mini" data-a="dup" title="Duplicate (D)">⧉</button>` +
+        `<button class="mini" data-a="dup" title="Another spot of this shape">⧉</button>` +
         `<button class="mini" data-a="del" title="Remove">×</button>`;
+      row.querySelector('[data-a="pin"]')?.addEventListener("change", (e) => {
+        const name = e.target.value;
+        e.target.value = "";
+        e.target.blur();
+        if (name) pinSpotToMoment(L, i, name);
+      });
       row.addEventListener("click", (e) => {
         const a = e.target.dataset.a;
+        if (a === "pin") return;
         e.target.blur?.();
         EDIT.spot = i;
         if (a === "flip") flipSpot(i);
@@ -1776,16 +1807,35 @@ function buildLayerDetail() {
     });
     L.keys.forEach((k, i) => {
       const row = document.createElement("div");
-      row.className = "spot-row";
+      row.className = "key-row";
+      const extras = `${Math.round(k.x * 100)}, ${Math.round(k.y * 100)} ×${round2(k.size)}` +
+        `${k.fade != null && k.fade !== 1 ? ` f${round2(k.fade)}` : ""}${k.flip === -1 ? " ⇄" : ""}${k.deg ? ` ${k.deg}°` : ""}`;
       row.innerHTML = `<span class="dimmed">${i + 1}</span>` +
-        `<span>${atKeyWords(k.at)}</span>` +
-        `<span class="dimmed">${Math.round(k.x * 100)}, ${Math.round(k.y * 100)}</span>` +
-        `<span class="dimmed">×${round2(k.size)}</span>` +
-        `<span class="dimmed">${k.fade != null && k.fade !== 1 ? `fade ${round2(k.fade)}` : ""}${k.flip === -1 ? " ⇄" : ""}${k.deg ? ` ${k.deg}°` : ""}</span>` +
+        `<select class="input at" title="When this key lands: a moment (it re-syncs with it), or its bar"></select>` +
+        `<span class="dimmed">${extras}</span>` +
         `<button class="mini" data-a="go" title="Play from this key">→</button>` +
         `<button class="mini" data-a="del" title="Remove">×</button>`;
+      // the key's when: a moment attaches it (shown in the moment's color)
+      const at = row.querySelector(".at"), mi = typeof k.at === "string" ? momentIndex(k.at) : -1;
+      at.innerHTML = `<option value="#bar"${mi < 0 ? " selected" : ""}>${mi < 0 ? k.at : "its bar"}</option>` +
+        (SCORE.moments || []).map((m) => `<option${k.at === m.name ? " selected" : ""}>${m.name}</option>`).join("");
+      if (mi >= 0) {
+        at.style.borderColor = momentColor(mi);
+        at.style.color = momentColor(mi);
+      }
+      at.addEventListener("change", () => {
+        rememberScore();
+        if (at.value === "#bar") {
+          const B = keyBeat(SCORE, k.at), bar = Math.floor(B / SCORE.beatsPerBar) + 1;
+          k.at = `${bar}:${round2(B - (bar - 1) * SCORE.beatsPerBar + 1)}`;
+        } else k.at = at.value;
+        L.keys.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at));
+        at.blur();
+        buildLayers();
+      });
       row.addEventListener("click", (e) => {
         const a = e.target.dataset.a;
+        if (e.target === at) return;
         e.target.blur?.();
         if (a === "go") run(() => source.seek(beatsToMs(SCORE, keyBeat(SCORE, k.at))));
         else if (a === "del") {
