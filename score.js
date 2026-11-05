@@ -58,9 +58,8 @@ const SCORE = {
   // dying away over `beats`. With from/until instead, it cycles between two
   // moments: back "snap" builds then snaps back, "fade" breathes, "decay"
   // lands bright on the beat and dies away. amount: how far it goes.
-  colorMoves: [
-    { slot: "ground", to: "#ffffff", amount: 0.35, beats: 3, on: "Pulse" },
-  ],
+  // (The background's own pulse lives on its clip now, as a pulse effect.)
+  colorMoves: [],
   // Names for the timeline. Number keys 1-6 jump to them.
   sections: [],
   // Things you hear, marked on the song (M in the studio while it plays; held
@@ -102,8 +101,21 @@ const SCORE = {
   // by: jump, blink or slide; under: an optional filter — only a tap within
   // that many beats of the tap before moves it, for a moment whose taps
   // aren't all moves }. On a raw clip the same order is spotOrder.
+  // A pulse effect (the background's): { kind: "pulse", on: a moment — one
+  // flare per tap, toward `to`, `amount` strong, dying over `beats` }.
   layers: [
-    { name: "ground", clips: [{ el: "ground", from: 1, to: 216 }] },
+    // The square is a blank canvas; the background is a clip like any other.
+    // Its pulse effect flares the ground color toward white on each tap of
+    // "Pulse", dying away over 3 beats.
+    {
+      name: "ground",
+      clips: [{
+        el: "ground",
+        from: 1,
+        to: 216,
+        fx: [{ kind: "pulse", on: "Pulse", to: "#ffffff", amount: 0.35, beats: 3 }],
+      }],
+    },
     {
       name: "eyes",
       clips: [

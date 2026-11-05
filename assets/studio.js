@@ -800,7 +800,7 @@ function removeSpot(i) {
 
 function setKeyAtPlayhead() {
   const L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
-  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && L.fx[FX_OPEN].kind !== "hop") return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (a hop has no envelope)
+  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "pulse"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (hops and pulses have no envelope)
   if (!L?.shape) return;
   rememberScore();
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
@@ -1948,17 +1948,17 @@ function buildLayers() {
       const c = document.createElement("button");
       c.className = "clip-row" + (picked ? " on" : "");
       c.dataset.ri = ri;
-      c.innerHTML = `<span class="fold-btn" title="Fold the settings away">${picked && L.shape ? (PANE_FOLD ? "▸" : "▾") : ""}</span>` +
+      c.innerHTML = `<span class="fold-btn" title="Fold the settings away">${picked ? (PANE_FOLD ? "▸" : "▾") : ""}</span>` +
         `<span class="name">${clipLabel(R, ci)}</span><span>${timeWords(L)}</span>`;
       c.addEventListener("click", (e) => {
-        if (picked && L.shape && e.target.classList.contains("fold-btn")) {
+        if (picked && e.target.classList.contains("fold-btn")) {
           PANE_FOLD = !PANE_FOLD;
           buildLayers();
         } else selectLayer(ri, ci);
       });
       $("layers").append(c);
-      // the picked shape's settings sit right under its row, unless folded
-      if (picked && L.shape && !PANE_FOLD) $("layers").append($("layer-detail"));
+      // the picked clip's settings sit right under its row, unless folded
+      if (picked && !PANE_FOLD) $("layers").append($("layer-detail"));
     });
   });
   const input = $("layers").querySelector(".lay-row input");
@@ -1992,7 +1992,7 @@ function buildLayers() {
 function buildLayerDetail() {
   const wrap = $("layer-detail"), R = SCORE.layers[EDIT.layer], L = R?.clips?.[EDIT.clip];
   wrap.replaceChildren();
-  if (!L || !L.shape || PANE_FOLD) return hideFxPanel(); // coded elements have no pane at all
+  if (!L || PANE_FOLD) return hideFxPanel(); // the square is a blank canvas: every clip on it, the background too, gets this pane
   const el = elementOf(L);
   wrap.insertAdjacentHTML("beforeend",
     `<div class="head"><span>${clipLabel(R, EDIT.clip)} <span class="dimmed">· ${el ? el.note : `no element called "${L.el}"`}</span></span>` +
@@ -2003,16 +2003,12 @@ function buildLayerDetail() {
     EDIT.clip = null;
     buildLayers();
   });
-  if (L.shape) {
-    // a drawing's timing lives on the timeline and in its keys; the pane just
-    // says which moment it rides, and lets that change
-    wrap.append(momentRow(L));
-    wrap.append(fxRow(L));
-  }
-  // coded elements show just their header: their tuning (the ground's pulse)
-  // moves into the effects system later
+  // a drawing's timing lives on the timeline and in its keys; the pane just
+  // says which moment it rides. Effects go on any clip, the background too.
+  if (L.shape) wrap.append(momentRow(L));
+  wrap.append(fxRow(L));
   // spot-motion menus (spots mode, moves on, …) are gone from the pane:
-  // that behavior returns later as effects; the score fields still play
+  // that behavior lives in the hop effect; the score fields still play
   if (hasSpots(L)) {
     wrap.insertAdjacentHTML("beforeend",
       `<div class="spot-head"><span class="label" title="Places of this one ${layerName(L)}. Duplicate makes another shape.">Spots</span></div>`);
@@ -2219,7 +2215,7 @@ function buildFxPanel(R, L) {
     const open = FX_OPEN === fi;
     const head = document.createElement("div");
     head.className = "fx-head" + (open ? " on" : "");
-    const meta = f.kind === "hop"
+    const meta = f.kind === "hop" || f.kind === "pulse"
       ? (f.on ?? "pick a moment")
       : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`;
     head.innerHTML = `<span class="caret dimmed">${open ? "▾" : "▸"}</span><span class="kind">${f.kind}</span>` +
@@ -2238,13 +2234,13 @@ function buildFxPanel(R, L) {
       buildLayerDetail();
     });
     card.append(head);
-    if (open) appendFxControls(card, f);
+    if (open) appendFxControls(card, f, L);
   });
   if (!L.fx?.length) card.insertAdjacentHTML("beforeend",
     `<div class="fx-none data dimmed">nothing yet — an effect runs on the shape for a stretch of the song</div>`);
   const add = document.createElement("div");
   add.className = "seg fx-new";
-  for (const kind of ["spin", "breathe", "wobble", "hop"]) {
+  for (const kind of fxKinds(L)) {
     const b = document.createElement("button");
     b.className = "btn";
     b.textContent = `+ ${kind}`;
@@ -2264,9 +2260,32 @@ function buildFxPanel(R, L) {
   card.style.left = `${Math.max(8, panel.left - card.offsetWidth - 10)}px`;
 }
 
+// What a clip can wear: drawn shapes move and turn; the background (and other
+// coded elements) pulse their color.
+function fxKinds(L) {
+  return L.shape ? ["spin", "breathe", "wobble", "hop"] : ["pulse"];
+}
+
 // The open effect's controls, under its header row.
-function appendFxControls(card, f) {
-  card.append(menuRow(f, "kind", "does", [["spin", "spin"], ["breathe", "breathe with the beat"], ["wobble", "wobble"], ["hop", "hop between the spots"]], "#none"));
+function appendFxControls(card, f, L) {
+  const kindWords = { spin: "spin", breathe: "breathe with the beat", wobble: "wobble", hop: "hop between the spots", pulse: "pulse the color" };
+  card.append(menuRow(f, "kind", "does", fxKinds(L).map((k) => [k, kindWords[k]]), "#none"));
+  if (f.kind === "pulse") {
+    // the pulse rides a moment: one flare per tap, toward a color, dying away
+    card.append(menuRow(f, "on", "rides", [["", "nothing — a steady cycle"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
+    const colorRow = document.createElement("label");
+    colorRow.className = "param";
+    colorRow.innerHTML = `<span>toward</span><span></span><input type="color" class="input fx-color" value="${/^#[0-9a-f]{6}$/i.test(f.to ?? "") ? f.to : "#ffffff"}">`;
+    colorRow.querySelector("input").addEventListener("change", (e) => {
+      rememberScore();
+      f.to = e.target.value;
+      buildLayerDetail();
+    });
+    card.append(colorRow);
+    card.append(fxSlider(f, "amount", 0, 1, 0.05, 0.35, "amount"));
+    card.append(fxSlider(f, "beats", 0.25, 8, 0.25, 3, "dies over (beats)"));
+    return;
+  }
   if (f.kind === "hop") {
     // the hop rides a moment: every tap moves the one copy to its next spot.
     // order says where next; "quick under" is an optional filter for a moment

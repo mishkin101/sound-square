@@ -228,7 +228,16 @@ function paletteAt(score, B) {
 // "fade" comes back down too. `to` is a hex color or another slot's name.
 function colorsNow(score, B) {
   let col = paletteAt(score, B);
-  for (const cm of score.colorMoves || []) {
+  // the background clip's pulse effects join the score's own color moves:
+  // same engine, worn by the layer like any other effect
+  const moves = [...(score.colorMoves || [])];
+  for (const R of score.layers || []) for (const L of R.clips || []) {
+    if (L.el !== "ground") continue;
+    for (const f of L.fx || []) if (f.kind === "pulse") {
+      moves.push({ slot: "ground", to: f.to ?? "#ffffff", amount: f.amount ?? 0.35, beats: f.beats ?? 3, back: f.back ?? "decay", on: f.on, from: f.from, until: f.until });
+    }
+  }
+  for (const cm of moves) {
     const base = col[cm.slot];
     if (typeof base !== "string") continue;
     if (cm.on) {
