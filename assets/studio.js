@@ -325,8 +325,10 @@ function drawTimeline(B, top) {
   }
   if (!editing()) {
     const c = CLIP_DRAG ?? (inTimeline() && !scrubbing ? clipAt() : null);
+    const overSq = mouseX >= SQ_X && mouseX <= SQ_X + SQ && mouseY >= SQ_Y && mouseY <= SQ_Y + SQ;
     const want = CLIP_DRAG ? (CLIP_DRAG.zone === "body" ? "grabbing" : "ew-resize")
       : KEY_DRAG ? "grabbing"
+      : MOMENT_MODE && overSq ? "crosshair"
       : MOMENT_DRAG || (inTimeline() && (momentMarkerAt() || keyAt())) ? "grab"
       : c ? (c.zone === "body" ? "grab" : "ew-resize") : "default";
     if (canvasCursor !== want) cursor(canvasCursor = want);
@@ -409,8 +411,7 @@ function mousePressed(e) {
     scrubMs = mouseMs();
     return;
   }
-  // while the song plays, a press on the square marks what you hear
-  if (onSquare(e) && source.playing && scrubMs == null) return pressMark();
+  if (onSquare(e) && MOMENT_MODE) return pressMark();
   if (editing() && hasSpots(editLayer()) && onSquare(e) && !liveNow()) return pressSpot();
   if (onSquare(e)) {
     const hit = shapeOnSquare(...squareMouse());
@@ -724,6 +725,7 @@ function dragKey() {
 
 // Edit mode works on the open layer that has spots, or the first one.
 function setEdit(on, layer = EDIT.layer, clip = EDIT.clip) {
+  if (on && MOMENT_MODE) setMomentMode(false);
   EDIT.on = on;
   if (layer == null || clip == null) {
     const inRow = (ri) => {
@@ -870,20 +872,15 @@ function restoreScore(json) {
 // them; markers and bands on the timeline drag.
 
 const MARKING = { at: -1e9, moment: null };
-let M_DOWN = null;
 let MOMENT_DRAG = null;
 let HIDE_MOMENTS = false; // the global toggle: no markers on the timeline at all
+let MOMENT_MODE = false;  // M: the square marks moments instead of picking shapes
 
-function momentKeyDown(e) {
-  M_DOWN = { at: songNow() - (performance.now() - e.timeStamp), t: performance.now() };
-}
-
-function momentKeyUp(e) {
-  if (!M_DOWN) return;
-  const { at, t } = M_DOWN;
-  M_DOWN = null;
-  if (performance.now() - t < 350) return markHit(at);
-  markHold(at, songNow() - (performance.now() - e.timeStamp));
+function setMomentMode(on) {
+  MOMENT_MODE = on;
+  if (on && EDIT.on) setEdit(false);
+  $("moments-rail").classList.toggle("marking", on);
+  setText("tap-status", on ? "moment mode — tap, hold or drag on the square · M leaves" : "");
 }
 
 function markHold(fromMs, toMs, path) {
@@ -899,9 +896,9 @@ function markHold(fromMs, toMs, path) {
   setText("tap-status", `moment ${n} · ${round2(hold[1] - hold[0])} beats long · rename it in Moments`);
 }
 
-// Marking on the square itself: while the song plays, a press marks what you
-// hear — a tap is a hit, held longer a hold, and dragging records the motion's
-// path into the moment (the hold spans the drag).
+// Marking on the square itself (moment mode): a press marks what you hear — a
+// tap is a hit, held longer a hold, and dragging records the motion's path
+// into the moment (the hold spans the drag).
 let SQ_MARK = null;
 
 function pressMark() {
@@ -917,8 +914,11 @@ function dragMark() {
 function releaseMark() {
   const { atMs, t, path } = SQ_MARK;
   SQ_MARK = null;
-  if (performance.now() - t < 350 && path.length <= 2) return markHit(atMs);
-  markHold(atMs, songNow(), path);
+  const endMs = songNow();
+  const span = Math.abs(msToBeats(SCORE, endMs) - msToBeats(SCORE, atMs));
+  // a quick tap, or a hold with no song time under it (paused), is a hit
+  if ((performance.now() - t < 350 && path.length <= 2) || span < 0.1) return markHit(atMs);
+  markHold(atMs, endMs, path);
 }
 
 // The path so far, while the mouse draws it.
@@ -1870,18 +1870,15 @@ function wireControls() {
     else if ((e.key === "d" || e.key === "D") && editing() && EDIT.clip != null) duplicateClip();
     else if ((e.key === "r" || e.key === "R") && editing() && EDIT.spot != null) rotateSpot(EDIT.spot, e.shiftKey ? -15 : 15);
     else if (e.key === "k" || e.key === "K") setKeyAtPlayhead();
+    else if (e.key === "Escape" && MOMENT_MODE) setMomentMode(false);
     else if (e.key === "Escape" && editing() && EDIT.spot != null) EDIT.spot = null;
     else if (e.key === "Escape") undoTaps();
-    else if (e.key === "m" || e.key === "M") { if (!e.repeat) momentKeyDown(e); }
+    else if (e.key === "m" || e.key === "M") { if (!e.repeat) setMomentMode(!MOMENT_MODE); }
     else if (e.key === "s" || e.key === "S") toggleSound();
     else if (e.key === "h" || e.key === "H") toggleBare();
     else if (e.key === "f" || e.key === "F") toggleFullscreen();
     else return;
     e.preventDefault();
-  });
-  document.addEventListener("keyup", (e) => {
-    if (document.body.classList.contains("shapes") || e.target.matches('input[type="text"], textarea')) return;
-    if (e.key === "m" || e.key === "M") momentKeyUp(e);
   });
 }
 
