@@ -1808,11 +1808,12 @@ function buildLayerDetail() {
     L.keys.forEach((k, i) => {
       const row = document.createElement("div");
       row.className = "key-row";
-      const extras = `${Math.round(k.x * 100)}, ${Math.round(k.y * 100)} ×${round2(k.size)}` +
-        `${k.fade != null && k.fade !== 1 ? ` f${round2(k.fade)}` : ""}${k.flip === -1 ? " ⇄" : ""}${k.deg ? ` ${k.deg}°` : ""}`;
+      const full = `at ${Math.round(k.x * 100)}, ${Math.round(k.y * 100)} (% of the square) · size ${round2(k.size)}` +
+        `${k.fade != null && k.fade !== 1 ? ` · fade ${round2(k.fade)} (0 is invisible)` : ""}` +
+        `${k.flip === -1 ? " · mirrored" : ""}${k.deg ? ` · turned ${k.deg}°` : ""}`;
       row.innerHTML = `<span class="dimmed">${i + 1}</span>` +
         `<select class="input at" title="When this key lands: a moment (it re-syncs with it), or its bar"></select>` +
-        `<span class="dimmed">${extras}</span>` +
+        `<span class="dimmed" title="${full}">${Math.round(k.x * 100)}, ${Math.round(k.y * 100)}</span>` +
         `<button class="mini" data-a="go" title="Play from this key">→</button>` +
         `<button class="mini" data-a="del" title="Remove">×</button>`;
       // the key's when: a moment attaches it (shown in the moment's color)
