@@ -327,7 +327,10 @@ body.bare #moments-rail { display: none; }
   position: absolute; left: calc(100% + 6px); top: 0; width: 250px; z-index: 6;
   background: var(--void); border-left: 3px solid var(--mc);
 }
-.mo-path { width: 100%; aspect-ratio: 1; border: var(--hair) solid var(--rule); }
+.mo-path { width: 100%; aspect-ratio: 1; border: var(--hair) solid var(--rule); display: block; }
+.mo-anim { position: relative; }
+.mo-anim .fx { position: absolute; top: 4px; right: 4px; display: flex; gap: 3px; }
+.mo-anim .fx .mini { background: rgba(0, 0, 0, 0.7); }
 .mo-shapes { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .mo-shapes .input { flex: 1; min-width: 90px; height: 24px; padding: 0 4px; }
 .mo-shape {

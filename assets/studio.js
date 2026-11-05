@@ -1165,9 +1165,10 @@ function moChip(m, mi) {
 function moCard(m, mi) {
   const card = document.createElement("div");
   card.className = "moment-card mo-card";
+  const penBtn = `<button class="mini pen${DRAW_INTO === mi ? " on" : ""}" title="Draw on the square: each gesture becomes a stroke of this moment's drawing">✎</button>`;
   card.innerHTML =
     `<div class="moment-row"><input class="input name" type="text" spellcheck="false" autocomplete="off">` +
-    `<button class="mini pen${DRAW_INTO === mi ? " on" : ""}" title="Draw on the square: each gesture becomes a stroke of this moment's drawing">✎</button>` +
+    (m.path ? "" : penBtn) +
     `<button class="mini eye" title="${m.hide ? "Show its marker on the timeline" : "Hide its marker (it still anchors and triggers)"}">${m.hide ? EYE_OFF : EYE}</button>` +
     `<button class="mini" data-del title="Remove the moment (what used it falls back to bars)">×</button></div>` +
     `<span class="data dimmed">${momentMeta(m)}</span>` +
@@ -1190,27 +1191,25 @@ function moCard(m, mi) {
     renderMoments();
   });
   card.querySelector("[data-del]").addEventListener("click", () => deleteMoment(mi));
+  if (m.path) {
+    // the ▶ and ✎ live inside the animation, top right
+    const anim = document.createElement("div");
+    anim.className = "mo-anim";
+    anim.append(pathPreview(m));
+    anim.insertAdjacentHTML("beforeend",
+      `<div class="fx"><button class="mini play" title="Run the drawing once on the square">▶</button>${penBtn}</div>`);
+    anim.querySelector(".play").addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      PATH_PLAY = { mi, t0: millis() };
+    });
+    card.append(anim);
+  }
   card.querySelector(".pen").addEventListener("click", (e) => {
     e.currentTarget.blur();
     DRAW_INTO = DRAW_INTO === mi ? null : mi;
     if (DRAW_INTO != null && MOMENT_MODE) setMomentMode(false);
     renderMoments();
   });
-  if (m.path) card.append(pathPreview(m));
-  if (m.path) {
-    const seg = document.createElement("div");
-    seg.className = "seg";
-    const play = document.createElement("button");
-    play.className = "btn";
-    play.textContent = "▶ Preview";
-    play.title = "Run the drawing once on the square";
-    play.addEventListener("click", (e) => {
-      e.currentTarget.blur();
-      PATH_PLAY = { mi, t0: millis() };
-    });
-    seg.append(play);
-    card.append(seg);
-  }
   card.append(moShapes(m));
   return card;
 }
