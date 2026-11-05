@@ -936,9 +936,9 @@ function renderMoments() {
       : `${m.hits.length} hit${m.hits.length === 1 ? "" : "s"} · ${atWords(m.hits[0] ?? 0)}`;
     card.innerHTML =
       `<div class="moment-row"><input class="input name" type="text" spellcheck="false" autocomplete="off">` +
-      `<span class="dimmed">${meta}</span>` +
       `<button class="mini eye" title="${m.hide ? "Show its marker on the timeline" : "Hide its marker (it still anchors and triggers)"}">${m.hide ? EYE_OFF : EYE}</button>` +
       `<button class="mini" data-del title="Remove the moment (what used it falls back to bars)">×</button></div>` +
+      `<span class="data dimmed">${meta}</span>` +
       `<input class="input note" type="text" spellcheck="false" autocomplete="off" placeholder="a note about what you heard">`;
     const name = card.querySelector(".name");
     name.value = m.name;
