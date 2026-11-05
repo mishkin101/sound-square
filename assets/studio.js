@@ -299,8 +299,18 @@ function drawTimeline(B, top) {
   // moments: a marker per hit, named at the first; hidden ones stay off the ruler
   y += 22;
   let hover = null;
+  // Shift makes any grab take the whole moment; the blue box says which one
+  const shiftAll = !MOMENT_DRAG && keyIsDown(SHIFT) ? momentMarkerAt() : null;
   if (!HIDE_MOMENTS) (SCORE.moments || []).forEach((m, mi) => {
     if (m.hide) return;
+    const whole = (MOMENT_DRAG?.all && MOMENT_DRAG.mi === mi) || (shiftAll?.mi === mi && !m.hold);
+    if (whole && m.hits?.length) {
+      const xs = m.hits.map(X);
+      noFill(); stroke("#4da3ff"); strokeWeight(1);
+      rect(Math.min(...xs) - 6, y - 14, Math.max(...xs) - Math.min(...xs) + 12, 30);
+      strokeWeight(1);
+      if (!MOMENT_DRAG) hover = `${m.name} — drag moves the whole moment`;
+    }
     if (m.hold) { // a hold is a band, dragged at its ends or as a whole
       const a = X(m.hold[0]), b = X(m.hold[1]);
       const picked = MOMENT_DRAG && MOMENT_DRAG.mi === mi;
@@ -1700,7 +1710,11 @@ function momentMarkerAt() {
     }
     if (onName) continue;
     for (let hi = (m.hits || []).length - 1; hi >= 0; hi--) {
-      if (Math.abs(mouseX - timelineX(m.hits[hi])) <= 5) return { mi, hi };
+      if (Math.abs(mouseX - timelineX(m.hits[hi])) <= 5) {
+        // Shift grabs the whole moment from any of its markers
+        if (keyIsDown(SHIFT)) return { mi, all: true, grab: msToBeats(SCORE, mouseMs()) - m.hits[0] };
+        return { mi, hi };
+      }
     }
   }
   return null;
