@@ -165,12 +165,12 @@ function drawClapLines(B, s) {
 }
 
 // ---- Timeline ----------------------------------------------------------------
-// Bars, sections, one row per layer, and the events: bongos, claps, held keys.
+// Bars, sections, moments, and the layers' rows.
 
 // On short windows the layer rows are left out so the square keeps its room.
 function timelineHeight() {
   if (document.body.classList.contains("bare")) return 0;
-  return showLayerRows() ? 104 + SCORE.layers.reduce((n, R) => n + layerRows(R), 0) * 13 : 100;
+  return showLayerRows() ? 88 + SCORE.layers.reduce((n, R) => n + layerRows(R), 0) * 13 : 84;
 }
 
 // The timeline shows a layer as one strip (layer view), or opened: a header
@@ -358,21 +358,10 @@ function drawTimeline(B, top) {
     });
   }
 
-  // events: bongos, claps, held keys
-  y += 4;
-  const ev = WORLD.tracks;
-  strokeWeight(1);
-  stroke(64);
-  for (const t of ev.bongos?.hits || []) { const x = Math.round(X(t)) + 0.5; line(x, y, x, y + 4); }
-  stroke(160);
-  for (const t of ev.claps?.hits || []) { const x = Math.round(X(t)) + 0.5; line(x, y + 5, x, y + 9); }
-  noStroke(); fill(160);
-  for (const h of ev.keys?.holds || []) rect(X(h.s), y + 11, Math.max(1, X(h.e) - X(h.s) - 1), 3);
-
   // playhead
   const head = X(B);
   stroke(255); strokeWeight(2);
-  line(head, top + 8, head, y + 16);
+  line(head, top + 8, head, y + 4);
 
   if (hover) {
     noStroke(); textAlign(LEFT, BOTTOM);
@@ -1848,11 +1837,9 @@ function buildLayerDetail() {
     // says which moment it rides, and lets that change
     wrap.append(momentRow(L));
     wrap.append(fxRow(L));
-  } else {
-    wrap.append(whenRow(L, "from", "from"), whenRow(L, "to", "until"));
-    wrap.append(menuRow(L, "in", "comes in by", [["cut", "cutting in"], ["fade", "fading in"], ["clap", "a clap line"]], "cut"));
-    wrap.append(menuRow(L, "out", "leaves by", [["cut", "cutting out"], ["fade", "fading out"], ["clap", "a clap line"]], "cut"));
   }
+  // coded elements show just their header: their tuning (the ground's pulse)
+  // moves into the effects system later
   if (L.shape && !L.keys?.length && (L.spots ?? el?.spots ?? []).length > 1) {
     wrap.append(menuRow(L, "spotsMode", "spots", [["all", "still — all show"], ["turns", "appear one per hit"], ["one", "one copy, moving"]], "all"));
     if ((L.spotsMode ?? "all") !== "all") {
@@ -1970,23 +1957,6 @@ function buildLayerDetail() {
       loadShape(L.shape);
       buildLayers();
     });
-    wrap.append(row);
-  }
-  for (const [name, [def, min, max, step]] of Object.entries(el ? el.params : {})) {
-    if (L.shape && name === "size") continue; // size lives in the square's toolbar
-    const val = L[name] ?? def, dec = decimals(step);
-    const row = document.createElement("label");
-    row.className = "param";
-    row.innerHTML = `<span>${name}</span><span class="val">${val.toFixed(dec)}</span>` +
-      `<input type="range" min="${min}" max="${max}" step="${step}" value="${val}">`;
-    const out = row.querySelector(".val"), slider = row.querySelector("input");
-    slider.addEventListener("input", (e) => {
-      if (!SLIDING) { rememberScore(); SLIDING = true; }
-      const v = parseFloat(e.target.value);
-      L[name] = v;
-      out.textContent = v.toFixed(dec);
-    });
-    slider.addEventListener("change", () => { SLIDING = false; });
     wrap.append(row);
   }
   renderShapeMenus();
