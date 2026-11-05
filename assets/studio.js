@@ -293,12 +293,17 @@ function drawTimeline(B, top) {
       // open: a dim header row, each shape nested on its own row under it
       const open = layerOpen(R);
       if (R.clips.length) {
-        noStroke(); fill(0); rect(0, y + 1, 13 + textWidth(R.name) + 8, 11);
+        // packed, the title only shows when the bars start past it (never
+        // under a bar); the ▸ glyph alone always fits
+        const need = 13 + textWidth(R.name) + 8;
+        const minA = open ? Infinity : Math.min(...R.clips.map((L) => X(layerTiming(SCORE, WORLD, L).s)));
+        const titled = open || minA > need;
+        noStroke(); fill(0); rect(0, y + 1, titled ? need : 11, 11);
         fill(open ? 170 : 110); textAlign(LEFT, CENTER);
-        text(`${open ? "▾" : "▸"} ${R.name}`, 2, y + 7);
+        text(titled ? `${open ? "▾" : "▸"} ${R.name}` : "▸", 2, y + 7);
         textAlign(LEFT, TOP);
         if (open) { stroke(50); strokeWeight(1); line(4.5, y + 13, 4.5, y + layerRows(R) * 13 - 3); noStroke(); }
-        if (!CLIP_DRAG && mouseY >= y && mouseY < y + 12 && mouseX <= 13 + textWidth(R.name) + 8)
+        if (!CLIP_DRAG && mouseY >= y && mouseY < y + 12 && mouseX <= (open ? need : 11))
           hover = open ? `${R.name} — click packs its shapes into one strip` : `${R.name} — click gives each shape its row (V flips all)`;
       }
       R.clips.forEach((L, ci) => {
@@ -418,8 +423,10 @@ function tlCaretAt() {
   let y = TL_ROWS_Y;
   for (let ri = 0; ri < SCORE.layers.length; ri++) {
     const R = SCORE.layers[ri];
+    // packed, only the ▸ glyph itself takes the click, so the bars beside it
+    // stay draggable; the open header row has no bars and is all clickable
     if (R.clips.length && mouseY >= y && mouseY < y + 12 &&
-        mouseX <= 13 + textWidth(R.name) + 8) return ri;
+        mouseX <= (layerOpen(R) ? 13 + textWidth(R.name) + 8 : 11)) return ri;
     y += layerRows(R) * 13;
   }
   return null;
