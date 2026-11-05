@@ -9,8 +9,9 @@ const SCORE = {
     artist: "Divorce from New York",
     spotifyId: "",
   },
-  // Timing grid: a placeholder until we tap along to the real song.
-  bpm: 120,
+  // Timing grid: the song sits at 126 BPM throughout; bar 1 still needs
+  // marking against the real recording.
+  bpm: 126,
   beatsPerBar: 4,
   firstDownbeatMs: 0,
   bars: 48,
@@ -56,10 +57,10 @@ const SCORE = {
   // Color pulses: a palette slot moving toward a color between two moments.
   // beats: the cycle. back: "snap" builds then snaps back, "fade" breathes,
   // "decay" lands bright on the beat and dies away. amount: how far it goes.
-  // The opening: the ground pulses on each of the three waiting beats, and
-  // the pulse dies right as the eye flashes across.
+  // The opening: the ground breathes slowly, a pulse every three beats, the
+  // whole time the eyes are up — gone when the bongos come in.
   colorMoves: [
-    { slot: "ground", to: "#ffffff", amount: 0.35, beats: 1, back: "decay", from: "stick tap", until: "fast taps" },
+    { slot: "ground", to: "#ffffff", amount: 0.35, beats: 3, back: "fade", from: "stick tap", until: "bongos in" },
   ],
   // Names for the timeline. Number keys 1-6 jump to them.
   sections: [],
@@ -95,19 +96,24 @@ const SCORE = {
     {
       name: "eyes",
       clips: [
-        // The opening: one eye waits top left for three beats (facing right),
-        // then the fast 4/5 flashes it to the top right, mirrored to face back.
+        // The opening, her first square: an eye in each top corner, facing
+        // each other. The left one opens on the stick tap; the right one
+        // flashes in on the fast 4/5. Both hold until the bongos come in.
         {
           shape: "eye",
           from: "stick tap",
           to: "bongos in",
           out: "fade",
           outBeats: 2,
-          spots: [[0.11, 0.11, 0.055], [0.89, 0.11, 0.055, -1]],
-          keys: [
-            { at: "stick tap", x: 0.11, y: 0.11, size: 0.055 },
-            { at: "1:4.5", x: 0.89, y: 0.11, size: 0.055, flip: -1, ease: "snap" },
-          ],
+          spots: [[0.11, 0.11, 0.055]],
+        },
+        {
+          shape: "eye",
+          from: "fast taps",
+          to: "bongos in",
+          out: "fade",
+          outBeats: 2,
+          spots: [[0.89, 0.11, 0.055, -1]],
         },
       ],
     },
