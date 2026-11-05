@@ -39,14 +39,15 @@ ELEMENTS.shape = {
     const mode = P.spots.length > 1 ? P.spotsMode ?? "all" : "all";
     const step = mode === "all" ? null : spotStep(P, s, st);
     if (mode === "one") return drawOneSpot(sh, P, s, st, step);
+    const fx = fxNow(P, s, st);
     P.spots.forEach(([x, y, size, flip = 1, deg = 0], i) => {
       if (step && i > step.n) return; // take turns: spot i waits for the i-th hit
       const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
       if (frame?.hidden) return;
       push();
-      translate(x, y);
-      if (deg) rotate((deg * Math.PI) / 180);
-      scale(flip * size * P.size, size * P.size);
+      translate(x + fx.dx, y + fx.dy);
+      if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
+      scale(flip * size * P.size * fx.k, size * P.size * fx.k);
       drawShape(sh, s.col, drawingContext, frame);
       pop();
     });
@@ -59,13 +60,41 @@ function drawKeyed(sh, P, s, st) {
   if (k.fade <= 0.001 || k.size <= 0.001) return;
   const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, 0) : null;
   if (frame?.hidden) return;
+  const fx = fxNow(P, s, st);
   push();
   drawingContext.globalAlpha *= clamp01(k.fade);
-  translate(k.x, k.y);
-  if (k.deg) rotate((k.deg * Math.PI) / 180);
-  scale(k.flip * k.size * P.size, k.size * P.size);
+  translate(k.x + fx.dx, k.y + fx.dy);
+  if (k.deg || fx.rot) rotate((k.deg * Math.PI) / 180 + fx.rot);
+  scale(k.flip * k.size * P.size * fx.k, k.size * P.size * fx.k);
   drawShape(sh, s.col, drawingContext, frame);
   pop();
+}
+
+// What the clip's effects do to it right now: a shift, a turn, a scale. Each
+// effect runs inside its own window (from/to like a clip's, or the clip's own).
+const NO_FX = { dx: 0, dy: 0, rot: 0, k: 1 };
+
+function fxNow(P, s, st) {
+  if (!P.fx?.length) return NO_FX;
+  let dx = 0, dy = 0, rot = 0, k = 1;
+  for (const f of P.fx) {
+    const from = f.from == null ? st.T?.s ?? 0
+      : typeof f.from === "string" ? momentStart(SCORE, f.from) ?? 0 : barToBeats(SCORE, f.from);
+    const to = f.to == null ? st.T?.e ?? 1e9
+      : typeof f.to === "string" ? momentEnd(SCORE, f.to) ?? 1e9 : barToBeats(SCORE, f.to + 1);
+    if (s.B < from || s.B >= to) continue;
+    const amt = f.amount ?? 0.5, rate = f.rate ?? 1;
+    if (f.kind === "spin") {
+      rot += ((s.B - from) / (rate * s.bpb)) * 2 * Math.PI; // rate: bars per turn
+    } else if (f.kind === "breathe") {
+      const phase = (((s.B - from) % rate) + rate) % rate; // rate: beats per breath
+      k *= 1 + 0.4 * amt * Math.exp(-3 * phase);
+    } else if (f.kind === "wobble") {
+      dx += 0.08 * amt * (noise(s.B * 1.5 * rate, 7) - 0.5) * 2; // rate: how fast it shivers
+      dy += 0.08 * amt * (noise(s.B * 1.5 * rate, 13) - 0.5) * 2;
+    }
+  }
+  return { dx, dy, rot, k };
 }
 
 // How many times the spots have stepped since the layer came in, and when the
@@ -123,10 +152,11 @@ function drawOneSpot(sh, P, s, st, step) {
   }
   const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
   if (frame?.hidden) return;
+  const fx = fxNow(P, s, st);
   push();
-  translate(x, y);
-  if (deg) rotate((deg * Math.PI) / 180);
-  scale(flip * size * P.size, size * P.size);
+  translate(x + fx.dx, y + fx.dy);
+  if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
+  scale(flip * size * P.size * fx.k, size * P.size * fx.k);
   if (squash !== 1) scale(1, squash);
   drawShape(sh, s.col, drawingContext, frame);
   pop();

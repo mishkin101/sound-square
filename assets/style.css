@@ -327,6 +327,21 @@ body.bare #moments-rail { display: none; }
   position: absolute; left: calc(100% + 6px); top: 0; width: 250px; z-index: 6;
   background: var(--void); border-left: 3px solid var(--mc);
 }
+/* Effects: chips on the shape pane, each opening its card beside the panel */
+.fx-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 0 var(--u); }
+.fx-chip {
+  padding: 2px 9px; font: var(--t-data); color: var(--bright);
+  background: var(--void); border: var(--hair) solid var(--mark); border-radius: 9px; cursor: pointer;
+}
+.fx-chip.on, .fx-chip:hover { background: var(--mark); color: #000; }
+.fx-add { height: 22px; padding: 0 4px; flex: 1; min-width: 86px; }
+#fx-card {
+  position: fixed; z-index: 10; width: 232px; padding: var(--u);
+  display: grid; gap: 2px;
+  background: var(--void); border: var(--hair) solid var(--rule); border-right: 3px solid var(--mark);
+}
+#fx-card .head { display: flex; justify-content: space-between; align-items: center; padding: 0 var(--u); font: var(--t-data); color: var(--mark); }
+body.shapes #fx-card, body.bare #fx-card { display: none; }
 .mo-path { width: 100%; aspect-ratio: 1; border: var(--hair) solid var(--rule); display: block; }
 .mo-anim { position: relative; }
 .mo-anim .fx { position: absolute; top: 4px; right: 4px; display: flex; gap: 3px; }

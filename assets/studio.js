@@ -145,7 +145,7 @@ function paramsFor(el, L) {
   for (const [k, def] of Object.entries(el.params)) P[k] = L[k] ?? def[0];
   if (el.spots) P.spots = L.spots ?? el.spots;
   if (L.shape) P.shape = L.shape;
-  for (const k of ["spotsMode", "moveOn", "thenEvery", "moveBars", "switchBy", "keys"]) if (L[k] != null) P[k] = L[k];
+  for (const k of ["spotsMode", "moveOn", "thenEvery", "moveBars", "switchBy", "keys", "fx"]) if (L[k] != null) P[k] = L[k];
   return P;
 }
 
@@ -289,6 +289,13 @@ function drawTimeline(B, top) {
         if (typeof L.from === "string") triangle(a - 3, y, a + 3, y, a, y + 5);
         if (typeof L.to === "string") triangle(b - 4, y, b + 2, y, b - 1, y + 5);
         if (sel) { noFill(); stroke(255); strokeWeight(1); rect(a - 0.5, y + 1.5, b - a, 10); noStroke(); }
+        // the picked clip's effects, as strips along its row
+        if (sel) (L.fx ?? []).forEach((f) => {
+          const fs = f.from == null ? T.s : typeof f.from === "string" ? momentStart(SCORE, f.from) ?? T.s : barToBeats(SCORE, f.from);
+          const fe = f.to == null ? T.e : typeof f.to === "string" ? momentEnd(SCORE, f.to) ?? T.e : barToBeats(SCORE, f.to + 1);
+          noStroke(); fill("#55d187");
+          rect(X(fs), y + 11, Math.max(2, X(fe) - X(fs) - 1), 1.5);
+        });
         // the picked clip's keyframes, as diamonds
         if (sel) (L.keys ?? []).forEach((k, ki) => {
           const kx = X(keyBeat(SCORE, k.at));
@@ -1513,6 +1520,7 @@ function selectLayer(ri, ci, reveal = false) {
   EDIT.clip = ci ?? null;
   if (ci != null) FOLDED.delete(SCORE.layers[ri]?.name); // the pane nests under its row
   if (ci != null) PANE_FOLD = false; // picking a shape opens its pane
+  FX_OPEN = null;
   if (ci != null) flashPick();
   buildLayers();
   if (reveal) revealLayerPanel();
@@ -1703,6 +1711,7 @@ function buildLayerDetail() {
     // a drawing's timing lives on the timeline and in its keys; the pane just
     // says which moment it rides, and lets that change
     wrap.append(momentRow(L));
+    wrap.append(fxRow(L));
   } else {
     wrap.append(whenRow(L, "from", "from"), whenRow(L, "to", "until"));
     wrap.append(menuRow(L, "in", "comes in by", [["cut", "cutting in"], ["fade", "fading in"], ["clap", "a clap line"]], "cut"));
@@ -1848,6 +1857,95 @@ function spotsWords(L) {
 function timeWords(L) {
   const w = (v, edge) => (v == null ? edge : typeof v === "string" ? v : `bar ${v}`);
   return `${w(L.from, "start")} → ${w(L.to, "end")}`;
+}
+
+// ---- Effects --------------------------------------------------------------------
+// A shape's effects live as chips on its pane; each opens a small card beside
+// the panel (its own submenu, so nothing nests deeper), with the effect's
+// amount, rate and window. On the timeline the picked shape's effects show as
+// green strips along its row.
+let FX_OPEN = null; // the open effect's index on the picked clip
+
+function fxRow(L) {
+  const row = document.createElement("div");
+  row.className = "fx-row";
+  if (FX_OPEN != null && !L.fx?.[FX_OPEN]) FX_OPEN = null;
+  (L.fx ?? []).forEach((f, fi) => {
+    const chip = document.createElement("button");
+    chip.className = "fx-chip" + (FX_OPEN === fi ? " on" : "");
+    chip.textContent = f.kind;
+    chip.addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      FX_OPEN = FX_OPEN === fi ? null : fi;
+      buildLayerDetail();
+    });
+    row.append(chip);
+    if (FX_OPEN === fi) requestAnimationFrame(() => placeFxCard(chip, L, fi));
+  });
+  const add = document.createElement("select");
+  add.className = "input fx-add";
+  add.title = "An effect on this shape: it can run for a stretch of the song";
+  add.innerHTML = `<option value="">+ effect…</option><option>spin</option><option>breathe</option><option>wobble</option>`;
+  add.addEventListener("change", () => {
+    const kind = add.value;
+    add.value = "";
+    add.blur();
+    if (!kind) return;
+    rememberScore();
+    (L.fx ??= []).push({ kind });
+    FX_OPEN = L.fx.length - 1;
+    buildLayerDetail();
+  });
+  row.append(add);
+  if (FX_OPEN == null) hideFxCard();
+  return row;
+}
+
+function hideFxCard() { $("fx-card").hidden = true; }
+
+function placeFxCard(anchor, L, fi) {
+  const card = $("fx-card"), f = L.fx?.[fi];
+  if (!f || !anchor.isConnected) return hideFxCard();
+  card.hidden = false;
+  card.replaceChildren();
+  card.insertAdjacentHTML("beforeend",
+    `<div class="head"><span>effect</span><button class="mini" data-x title="Remove the effect">×</button></div>`);
+  card.querySelector("[data-x]").addEventListener("click", () => {
+    rememberScore();
+    L.fx.splice(fi, 1);
+    if (!L.fx.length) delete L.fx;
+    FX_OPEN = null;
+    buildLayerDetail();
+  });
+  card.append(menuRow(f, "kind", "does", [["spin", "spin"], ["breathe", "breathe with the beat"], ["wobble", "wobble"]], "#none"));
+  if (f.kind !== "spin") card.append(fxSlider(f, "amount", 0, 1, 0.05, 0.5, "amount"));
+  const rates = {
+    spin: ["bars per turn", 0.25, 8, 0.25],
+    breathe: ["beats per breath", 0.25, 8, 0.25],
+    wobble: ["speed", 0.25, 4, 0.25],
+  };
+  const [label, mn, mx, st] = rates[f.kind] ?? ["rate", 0.25, 8, 0.25];
+  card.append(fxSlider(f, "rate", mn, mx, st, 1, label));
+  card.append(whenRow(f, "from", "from"), whenRow(f, "to", "until"));
+  const r = anchor.getBoundingClientRect();
+  card.style.top = `${Math.max(8, Math.min(window.innerHeight - card.offsetHeight - 8, r.top - 4))}px`;
+  card.style.left = `${Math.max(8, r.left - card.offsetWidth - 10)}px`;
+}
+
+function fxSlider(f, key, min, max, step, def, label) {
+  const row = document.createElement("label");
+  row.className = "param";
+  const val = f[key] ?? def;
+  row.innerHTML = `<span>${label}</span><span class="val">${val}</span>` +
+    `<input type="range" min="${min}" max="${max}" step="${step}" value="${val}">`;
+  const out = row.querySelector(".val"), slider = row.querySelector("input");
+  slider.addEventListener("input", (e) => {
+    if (!SLIDING) { rememberScore(); SLIDING = true; }
+    f[key] = parseFloat(e.target.value);
+    out.textContent = f[key];
+  });
+  slider.addEventListener("change", () => { SLIDING = false; });
+  return row;
 }
 
 // Which moment the shape rides: named, and switchable. Picking one anchors the
@@ -2439,7 +2537,9 @@ const SCORE_NOTES = {
     "(K in the studio); at is \"bar:beat\" or a moment's name; flip: -1 mirrors",
     "from that key on; ease: \"line\" keeps the approach linear. Keys replace the",
     "spot modes. keysFrom names the moment whose drawn path made them: editing",
-    "that path in the studio re-samples the keys.",
+    "that path in the studio re-samples the keys. fx: [{ kind, amount, rate,",
+    "from, to }] are effects on the shape (spin, breathe, wobble), each running",
+    "in its own window or the clip's whole life.",
   ],
 };
 
