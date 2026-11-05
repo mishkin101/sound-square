@@ -970,7 +970,7 @@ function drawMarkPath() {
 // Rings under the marking press: growing while held, a pulse that fades on release.
 let MARK_FX = null;
 
-function markFxGrown() { return Math.min(0.09, 0.015 + (millis() - MARK_FX.t0) / 9000); }
+function markFxGrown() { return Math.min(0.045, 0.012 + (millis() - MARK_FX.t0) / 240000); }
 
 function drawMarkFx() {
   if (!MARK_FX) return;
@@ -980,19 +980,16 @@ function drawMarkFx() {
   scale(SQ);
   drawingContext.save();
   drawingContext.globalCompositeOperation = "difference";
-  noFill(); strokeWeight(px(2.5));
+  noFill(); strokeWeight(px(1.5));
   if (f.released == null) {
-    stroke(255, 230);
+    stroke(255, 170);
     circle(f.x, f.y, 2 * markFxGrown());
   } else {
-    const t = (millis() - f.released) / 700;
+    const t = (millis() - f.released) / 1200;
     if (t >= 1) MARK_FX = null;
     else {
-      const a = 255 * (1 - t);
-      stroke(255, a);
-      circle(f.x, f.y, 2 * (f.r + 0.06 * t));
-      stroke(255, a * 0.5);
-      circle(f.x, f.y, 2 * (f.r + 0.09 * t + 0.015 * Math.sin(t * 12)));
+      stroke(255, 170 * (1 - t) * (1 - t));
+      circle(f.x, f.y, 2 * (f.r + 0.02 * t));
     }
   }
   drawingContext.restore();
