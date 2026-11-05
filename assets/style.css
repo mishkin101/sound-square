@@ -395,6 +395,7 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
 .fx-none { padding: 4px var(--u) 6px; border-top: var(--hair) solid var(--rule); }
 .fx-new { padding: 4px var(--u) 0; border-top: var(--hair) solid var(--rule); }
 .mo-path { width: 100%; aspect-ratio: 1; border: var(--hair) solid var(--rule); display: block; }
+.mo-rhythm { width: 100%; display: block; }
 .mo-anim { position: relative; }
 .mo-anim .fx { position: absolute; top: 4px; right: 4px; display: flex; gap: 3px; }
 .mo-anim .fx .mini { background: rgba(0, 0, 0, 0.7); }

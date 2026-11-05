@@ -1342,6 +1342,7 @@ function moCard(m, mi) {
     `<button class="mini eye" title="${m.hide ? "Show its marker on the timeline" : "Hide its marker (it still anchors and triggers)"}">${m.hide ? EYE_OFF : EYE}</button>` +
     `<button class="mini" data-del title="Remove the moment (what used it falls back to bars)">×</button></div>` +
     `<span class="data dimmed">${momentMeta(m)}</span>` +
+    moRhythm(m) +
     `<input class="input note" type="text" spellcheck="false" autocomplete="off" placeholder="a note about what you heard">`;
   const name = card.querySelector(".name");
   name.value = m.name;
@@ -1382,6 +1383,37 @@ function moCard(m, mi) {
   });
   card.append(moShapes(m));
   return card;
+}
+
+// The moment's rhythm, drawn: its taps as ticks on a beat grid (a hold as a
+// band), so the spacing — where each hit lands inside the beats — reads at a
+// glance. Numbers under the grid are the counts (1 2 3 4); hits off the lines
+// are the "ands". Hovering a tick names its exact beat.
+function moRhythm(m) {
+  const bpb = SCORE.beatsPerBar, hits = m.hold ? m.hold : m.hits ?? [];
+  if (!hits.length) return "";
+  const a = Math.min(...hits), b = Math.max(...hits);
+  // at least one bar of grid, padded a quarter beat so edge taps stay off the border
+  let from = Math.floor(a), to = Math.max(Math.ceil(b), from + bpb);
+  const wide = to - from > 9; // a long span keeps only the downbeats readable
+  if (wide) { from = Math.floor(from / bpb) * bpb; to = Math.ceil(to / bpb) * bpb; }
+  const lo = from - 0.25, hi = to + 0.25;
+  const W = 236, H = 34, X = (B) => round2(((B - lo) / (hi - lo)) * W);
+  let s = "";
+  for (let g = from; g <= to; g += wide ? bpb : 0.5) {
+    const onBeat = Number.isInteger(g), down = onBeat && g % bpb === 0;
+    if (!onBeat) { s += `<line x1="${X(g)}" y1="14" x2="${X(g)}" y2="19" stroke="var(--rule)" stroke-width="0.75"/>`; continue; }
+    s += `<line x1="${X(g)}" y1="${down ? 7 : 10}" x2="${X(g)}" y2="23" stroke="var(--${down ? "mid" : "rule"})"/>`;
+    s += `<text x="${X(g)}" y="${H - 2}" fill="var(--mid)" font-size="8" text-anchor="middle">${wide ? Math.floor(g / bpb) + 1 : (g % bpb) + 1}</text>`;
+  }
+  if (m.hold) {
+    s += `<rect x="${X(a)}" y="10" width="${X(b) - X(a)}" height="13" fill="var(--mc)" opacity="0.35"/>` +
+      `<line x1="${X(a)}" y1="4" x2="${X(a)}" y2="23" stroke="var(--mc)" stroke-width="2"/>` +
+      `<line x1="${X(b)}" y1="4" x2="${X(b)}" y2="23" stroke="var(--mc)" stroke-width="2"/>`;
+  } else for (const h of hits) {
+    s += `<line x1="${X(h)}" y1="4" x2="${X(h)}" y2="23" stroke="var(--mc)" stroke-width="2"><title>${atWords(h)}</title></line>`;
+  }
+  return `<svg class="mo-rhythm" viewBox="0 0 ${W} ${H}" title="${wide ? "Numbers are bars" : "Numbers are the counts"}">${s}</svg>`;
 }
 
 // The moment's shapes: a small image per attached shape (click opens it), and
