@@ -177,7 +177,7 @@ function timelineHeight() {
 // row with each shape nested on its own row under it (shape view). The ▸ on
 // the strip opens one layer; V flips them all.
 const TL_OPEN = new Set(); // layer names open on the timeline
-function layerRows(R) { return TL_OPEN.has(R.name) && R.clips.length > 1 ? R.clips.length + 1 : 1; }
+function layerRows(R) { return TL_OPEN.has(R.name) && R.clips.length ? R.clips.length + 1 : 1; }
 function layerOpen(R) { return layerRows(R) > 1; }
 function clipRowY(ri, ci) {
   let y = TL_ROWS_Y;
@@ -289,7 +289,7 @@ function drawTimeline(B, top) {
     SCORE.layers.forEach((R, ri) => {
       // open: a dim header row, each shape nested on its own row under it
       const open = layerOpen(R);
-      if (R.clips.length > 1) {
+      if (R.clips.length) {
         noStroke(); fill(0); rect(0, y + 1, 13 + textWidth(R.name) + 8, 11);
         fill(open ? 170 : 110); textAlign(LEFT, CENTER);
         text(`${open ? "▾" : "▸"} ${R.name}`, 2, y + 7);
@@ -415,7 +415,7 @@ function tlCaretAt() {
   let y = TL_ROWS_Y;
   for (let ri = 0; ri < SCORE.layers.length; ri++) {
     const R = SCORE.layers[ri];
-    if (R.clips.length > 1 && mouseY >= y && mouseY < y + 12 &&
+    if (R.clips.length && mouseY >= y && mouseY < y + 12 &&
         mouseX <= 13 + textWidth(R.name) + 8) return ri;
     y += layerRows(R) * 13;
   }
@@ -423,7 +423,7 @@ function tlCaretAt() {
 }
 
 function flipTimelineView() {
-  const many = SCORE.layers.filter((R) => R.clips.length > 1);
+  const many = SCORE.layers.filter((R) => R.clips.length);
   if (!many.length) return;
   if (many.every((R) => TL_OPEN.has(R.name))) TL_OPEN.clear();
   else for (const R of many) TL_OPEN.add(R.name);
