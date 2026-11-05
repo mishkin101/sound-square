@@ -1927,9 +1927,11 @@ function placeFxCard(anchor, L, fi) {
   const [label, mn, mx, st] = rates[f.kind] ?? ["rate", 0.25, 8, 0.25];
   card.append(fxSlider(f, "rate", mn, mx, st, 1, label));
   card.append(whenRow(f, "from", "from"), whenRow(f, "to", "until"));
+  // beside the panel, never over it: flush against its left edge, at chip height
   const r = anchor.getBoundingClientRect();
+  const panel = document.querySelector(".panel").getBoundingClientRect();
   card.style.top = `${Math.max(8, Math.min(window.innerHeight - card.offsetHeight - 8, r.top - 4))}px`;
-  card.style.left = `${Math.max(8, r.left - card.offsetWidth - 10)}px`;
+  card.style.left = `${Math.max(8, panel.left - card.offsetWidth - 10)}px`;
 }
 
 function fxSlider(f, key, min, max, step, def, label) {
