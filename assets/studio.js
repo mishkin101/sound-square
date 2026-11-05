@@ -18,6 +18,9 @@ const TL_PAD = 16;    // timeline side padding
 
 function songNow() { return scrubMs ?? source.now(); }
 
+// Playing or scrubbing: the song is moving, so playback wins over Edit.
+function liveNow() { return source.playing || scrubMs != null; }
+
 // Runs a source action; if it fails, the reason shows in the Song panel.
 function run(action, src = source) {
   Promise.resolve().then(action).catch((e) => { src.label = e.message; });
@@ -26,6 +29,7 @@ function run(action, src = source) {
 // ---- p5 ----------------------------------------------------------------------
 
 function setup() {
+  restoreWork(); // edits made in the studio survive a reload
   const signingIn = restoreAfterSignIn();
   WORLD = prepare(SCORE);
   const r = stageRect();
@@ -39,6 +43,8 @@ function setup() {
   wireSong(signingIn ? "spotify" : "standIn");
   wireListen();
   setInterval(followSong, 1000);
+  setInterval(keepWork, 2000);
+  window.addEventListener("pagehide", keepWork);
   wireEditor();
   // drawings load in the background; coming back to this window picks up any you changed
   loadShapes();
@@ -66,8 +72,8 @@ function draw() {
   SQ_X = Math.round((width - SQ) / 2);
   SQ_Y = Math.round((height - tl - SQ) / 2);
   renderSquare(B, SQ_X, SQ_Y);
-  if (editing() && hasSpots(editLayer()) && !(source.playing && scrubMs == null)) drawEditOverlay();
-  else if (editing()) setText("sq-edit-hint", "playing — pause to drag");
+  if (editing() && hasSpots(editLayer()) && !liveNow()) drawEditOverlay();
+  else if (editing()) setText("sq-edit-hint", scrubMs != null ? "scrubbing — the keys play" : "playing — pause to drag");
   if (tl) drawTimeline(B, height - tl);
   // no preview clicks while listening: they'd be heard too and pull the beat toward the old grid
   Sound.update(SCORE, WORLD, B, source.playing && scrubMs == null && !Listen.on);
@@ -96,9 +102,9 @@ function renderSquare(B, x, y) {
     R.clips.forEach((L, ci) => {
       const el = elementOf(L);
       if (!el) return;
-      const picked = ri === EDIT.layer && ci === EDIT.clip && !(source.playing && scrubMs == null);
+      const picked = ri === EDIT.layer && ci === EDIT.clip && !liveNow();
       // the clip being edited shows fully, wherever the song is; while the song
-      // plays, playback wins, so keyed motion shows with Edit still on
+      // plays or scrubs, playback wins, so keyed motion shows with Edit still on
       const st = editing() && picked
         ? { T: layerTiming(SCORE, WORLD, L), vis: 1, clip: null, age: 1e4, local: 1e4 }
         : el.always
@@ -391,7 +397,7 @@ function mousePressed(e) {
     scrubMs = mouseMs();
     return;
   }
-  if (editing() && hasSpots(editLayer()) && onSquare(e) && !(source.playing && scrubMs == null)) return pressSpot();
+  if (editing() && hasSpots(editLayer()) && onSquare(e) && !liveNow()) return pressSpot();
   if (onSquare(e)) {
     const hit = shapeOnSquare(...squareMouse());
     if (hit) selectLayer(hit.ri, hit.ci, true);
@@ -421,7 +427,7 @@ function mouseReleased() {
 }
 function doubleClicked(e) {
   if (inTimeline()) { TL_VIEW.zoom = 1; TL_VIEW.startMs = 0; return; }
-  if (editing() && hasSpots(editLayer()) && onSquare(e) && !(source.playing && scrubMs == null) && !spotAt(...squareMouse())) addSpot(...squareMouse());
+  if (editing() && hasSpots(editLayer()) && onSquare(e) && !liveNow() && !spotAt(...squareMouse())) addSpot(...squareMouse());
 }
 
 // ---- Edit mode ---------------------------------------------------------------
@@ -735,6 +741,39 @@ function drawEditOverlay() {
   if (canvasCursor !== want) cursor(canvasCursor = want);
 }
 let canvasCursor = null;
+
+// ---- Keeping work ----------------------------------------------------------------
+// The working score lives in this browser, so edits survive a reload. It's
+// saved every couple of seconds and when the page closes. "Copy score.js"
+// stays the way to bake it into the file; "Reset to score.js" drops it.
+
+const WORK = "soundsquare.work";
+let WORK_SAVED = "";
+
+function keepWork() {
+  const now = JSON.stringify(SCORE);
+  if (now === WORK_SAVED) return;
+  WORK_SAVED = now;
+  try { localStorage.setItem(WORK, now); } catch {}
+}
+
+function restoreWork() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(WORK));
+    if (!saved?.layers) return;
+    for (const k of Object.keys(SCORE)) delete SCORE[k];
+    Object.assign(SCORE, saved);
+    WORK_SAVED = JSON.stringify(SCORE);
+  } catch {}
+}
+
+function forgetWork() {
+  if (!confirm("Drop the edits kept in this browser and reload from score.js?")) return;
+  try { localStorage.removeItem(WORK); } catch {}
+  window.removeEventListener("pagehide", keepWork);
+  WORK_SAVED = JSON.stringify(SCORE); // keep the interval from saving it back
+  location.reload();
+}
 
 // ---- Undo --------------------------------------------------------------------
 // ⌘Z / ⇧⌘Z on the square: snapshots of the score around every edit — spots,
@@ -1121,7 +1160,7 @@ function buildLayerDetail() {
   if (!L) return;
   const el = elementOf(L);
   wrap.insertAdjacentHTML("beforeend",
-    `<div class="head"><span class="dimmed">${el ? el.note : `No element called "${L.el}" in elements.js.`}</span>` +
+    `<div class="head"><span>${clipLabel(R, EDIT.clip)} <span class="dimmed">· ${el ? el.note : `no element called "${L.el}"`}</span></span>` +
     `<button class="mini" id="layer-remove" title="Take this shape off the square">×</button></div>`);
   $("layer-remove").addEventListener("click", () => {
     rememberScore();
@@ -1145,7 +1184,7 @@ function buildLayerDetail() {
   }
   if (hasSpots(L)) {
     wrap.insertAdjacentHTML("beforeend",
-      `<div class="spot-head"><span class="label">Spots</span><span class="data dimmed">E places them on the square</span></div>`);
+      `<div class="spot-head"><span class="label">Spots</span><span class="data dimmed">places of this one ${layerName(L)} — Duplicate makes another</span></div>`);
     (L.spots ?? el.spots).forEach((sp, i) => {
       const [x, y, size, flip = 1, deg = 0] = sp;
       const row = document.createElement("div");
@@ -1398,6 +1437,7 @@ function wireControls() {
   button("sound", toggleSound);
   button("hide", toggleBare);
   button("copy", copyScore);
+  button("forget", forgetWork);
   button("edit", () => { setEdit(!EDIT.on); if (EDIT.on) { buildLayers(); revealLayerPanel(); } });
   // the spot toolbar over the square, acting on the selected spot
   button("sq-dup", duplicateClip);
