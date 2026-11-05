@@ -365,6 +365,13 @@ body.bare #moments-rail { display: none; }
   position: absolute; left: calc(100% + 6px); top: 0; width: 250px; z-index: 6;
   background: var(--void); border-left: 3px solid var(--mc);
 }
+/* The Timing line: click it and the numbers become fields */
+#grid { cursor: pointer; }
+#grid:hover { color: var(--bright); }
+#grid .input { display: inline-block; width: 58px; height: 20px; padding: 0 4px; }
+#grid input::-webkit-outer-spin-button, #grid input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+#grid input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
 /* Side panels: secondary interfaces docked left of the main panel (effects now, more later) */
 .side-panel {
   position: fixed; z-index: 10; width: 248px; padding: var(--u);

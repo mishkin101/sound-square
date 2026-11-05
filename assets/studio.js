@@ -2446,7 +2446,7 @@ function updatePanel(B) {
   setText("play", source.playing ? "Pause" : "Play");
   $("play").classList.toggle("on", source.playing);
   setText("song-status", source.label);
-  setText("grid", `${Math.round(SCORE.bpm * 100) / 100} BPM · bar 1 at ${(SCORE.firstDownbeatMs / 1000).toFixed(3)} s · ${SCORE.bars} bars`);
+  if (!GRID_EDIT) setText("grid", `${Math.round(SCORE.bpm * 100) / 100} BPM · bar 1 at ${(SCORE.firstDownbeatMs / 1000).toFixed(3)} s · ${SCORE.bars} bars`);
   setText("listen", Listen.on ? "Stop" : "Listen");
   $("listen").classList.toggle("on", Listen.on);
   if (Listen.status) setText("listen-status", Listen.status);
@@ -2600,7 +2600,7 @@ function wireControls() {
       e.shiftKey || e.key.toLowerCase() === "y" ? redoScore() : undoScore();
       return;
     }
-    if (e.metaKey || e.ctrlKey || e.altKey || e.target.matches('input[type="text"], textarea')) return;
+    if (e.metaKey || e.ctrlKey || e.altKey || e.target.matches('input[type="text"], input[type="number"], textarea')) return;
     if (e.key === " ") { e.preventDefault(); togglePlay(); return; }
     if (e.key.startsWith("Arrow") && e.target.matches("input, select")) return; // sliders keep their arrow keys
     const bar = Math.floor(Math.max(0, msToBeats(SCORE, songNow())) / SCORE.beatsPerBar) + 1;
@@ -2758,6 +2758,54 @@ function wireListen() {
   });
   $("listen-device").addEventListener("change", () => startListening($("listen-device").value));
   Listen.onLock = saveGrid;
+  wireGridEdit();
+}
+
+// ---- Setting the grid by hand --------------------------------------------------
+// The Timing line itself edits: click it and the numbers (BPM, where bar 1
+// falls, how many bars) become fields. Enter applies, Esc cancels. A grid set
+// by hand is kept for the song, like a tapped or heard one.
+let GRID_EDIT = false; // while true, updatePanel leaves the grid line alone
+
+function wireGridEdit() {
+  const g = $("grid");
+  g.title = "Click to set the tempo by hand";
+  const done = (apply) => {
+    if (!GRID_EDIT) return;
+    GRID_EDIT = false;
+    if (apply) {
+      const bpm = parseFloat($("grid-bpm").value), at = parseFloat($("grid-at").value), bars = parseInt($("grid-bars").value, 10);
+      rememberScore();
+      if (bpm >= 20 && bpm <= 300) SCORE.bpm = Math.round(bpm * 1000) / 1000;
+      if (Number.isFinite(at)) SCORE.firstDownbeatMs = Math.round(at * 1000);
+      if (bars >= 1) SCORE.bars = Math.min(999, bars);
+      if (gridFor === songKey()) saveGrid();
+      setText("tap-status", "set by hand");
+    }
+    shown.grid = null; // the readout takes the line back over
+    g.replaceChildren();
+  };
+  g.addEventListener("click", () => {
+    if (GRID_EDIT) return;
+    GRID_EDIT = true;
+    g.replaceChildren();
+    g.insertAdjacentHTML("beforeend",
+      `<input type="number" class="input" id="grid-bpm" step="0.001" min="20" max="300" value="${Math.round(SCORE.bpm * 100) / 100}" title="Beats per minute"> BPM · bar 1 at ` +
+      `<input type="number" class="input" id="grid-at" step="0.001" value="${(SCORE.firstDownbeatMs / 1000).toFixed(3)}" title="Where bar 1 lands, in seconds into the song"> s · ` +
+      `<input type="number" class="input" id="grid-bars" step="1" min="1" max="999" value="${SCORE.bars}" title="How many bars the square runs"> bars`);
+    for (const input of g.querySelectorAll("input")) {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") done(true);
+        else if (e.key === "Escape") done(false);
+      });
+    }
+    $("grid-bpm").focus({ preventScroll: true });
+    $("grid-bpm").select();
+  });
+  // clicking away applies too, once focus leaves the whole line
+  g.addEventListener("focusout", (e) => {
+    if (!g.contains(e.relatedTarget)) done(true);
+  });
 }
 
 async function startListening(deviceId) {
