@@ -942,10 +942,16 @@ function keepWork() {
   try { localStorage.setItem(WORK, now); } catch {}
 }
 
+// Seeded layers retired from score.js: saved work made before the trim still
+// carries them, so they're dropped on restore (only when all-coded, so a
+// layer of drawings that happens to share a name survives).
+const RETIRED_LAYERS = new Set(["bongo line", "bongos rise", "triangles", "split", "fringes"]);
+
 function restoreWork() {
   try {
     const saved = JSON.parse(localStorage.getItem(WORK));
     if (!saved?.layers) return;
+    saved.layers = saved.layers.filter((R) => !(RETIRED_LAYERS.has(R.name) && R.clips.every((L) => L.el)));
     for (const k of Object.keys(SCORE)) delete SCORE[k];
     Object.assign(SCORE, saved);
     WORK_SAVED = JSON.stringify(SCORE);
@@ -2319,7 +2325,7 @@ function addShapeLayer(name) {
 function addShapeInto(ri, name) {
   rememberScore();
   const bar = Math.floor(Math.max(0, msToBeats(SCORE, songNow())) / SCORE.beatsPerBar) + 1;
-  const clip = { shape: name, from: bar, to: Math.min(SCORE.bars, bar + 7), in: "fade", out: "fade", spots: [[0.5, 0.5, 0.15]] };
+  const clip = { shape: name, from: bar, to: Math.min(SCORE.bars, bar + 3), in: "fade", out: "fade", spots: [[0.5, 0.5, 0.15]] };
   if (ri == null || !SCORE.layers[ri]) {
     SCORE.layers.push({ name, clips: [] });
     ri = SCORE.layers.length - 1;
