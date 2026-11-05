@@ -1,0 +1,341 @@
+/* ==========================================================================
+   sound-square studio
+   The UI follows the Listening Journal design system (audiovisual-codebook-ideas):
+   monochrome on black, one monospace face, hairlines, square corners.
+   The square is the only thing in color.
+   ========================================================================== */
+
+:root {
+  --void:   #000000;
+  --slab:   #0d0d0d;
+  --rule:   #262626;
+  --dim:    #4d4d4d;
+  --mid:    #8c8c8c;
+  --bright: #d9d9d9;
+  --live:   #ffffff;
+
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --t-body:  400 13px/1.5 var(--mono);
+  --t-data:  400 12px/1.5 var(--mono);
+  --t-label: 500 10px/1 var(--mono);
+  --track-label: 0.16em;
+
+  --u: 8px;
+  --u2: 16px;
+  --bar: 44px;
+  --panel: 320px;
+  --hair: 1px;
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; border-radius: 0; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--void);
+  color: var(--bright);
+  font: var(--t-body);
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--panel);
+  grid-template-rows: var(--bar) minmax(0, 1fr);
+  grid-template-areas: "top top" "stage panel";
+}
+body.bare {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "stage";
+}
+body.bare .topbar, body.bare .panel { display: none; }
+
+/* ---- Text roles ---- */
+.label {
+  font: var(--t-label);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--mid);
+}
+.data { font: var(--t-data); color: var(--bright); }
+.dimmed { color: var(--dim); }
+
+/* ---- Top bar ---- */
+.topbar {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  gap: var(--u2);
+  padding: 0 var(--u2);
+  border-bottom: var(--hair) solid var(--rule);
+  white-space: nowrap;
+}
+.topbar .brand { color: var(--bright); }
+.topbar .seg { flex-wrap: nowrap; }
+.spacer { flex: 1; }
+
+/* ---- Stage: the canvas with the square and the timeline ---- */
+#stage { grid-area: stage; position: relative; overflow: hidden; }
+#stage canvas { display: block; }
+
+/* ---- Side panel ---- */
+.panel {
+  grid-area: panel;
+  border-left: var(--hair) solid var(--rule);
+  overflow-y: auto;
+}
+.panel section {
+  display: grid;
+  gap: var(--u);
+  padding: var(--u2);
+  border-bottom: var(--hair) solid var(--rule);
+}
+.stack { display: grid; gap: var(--u); }
+[hidden] { display: none !important; }
+
+/* ---- Song: a row of choices, text fields ---- */
+.seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.field { display: grid; gap: 4px; }
+.input {
+  width: 100%;
+  height: 28px;
+  padding: 0 var(--u);
+  font: var(--t-data);
+  color: var(--bright);
+  background: var(--void);
+  border: var(--hair) solid var(--rule);
+}
+.input:focus { outline: none; border-color: var(--mid); }
+#sp-redirect { user-select: all; }
+
+/* ---- Controls: rectangles, hairline, invert when active ---- */
+.btn {
+  font: var(--t-label);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--bright);
+  background: var(--void);
+  border: var(--hair) solid var(--rule);
+  height: 28px;
+  padding: 0 var(--u2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--mid); color: var(--live); }
+.btn.on { background: var(--live); border-color: var(--live); color: var(--void); }
+
+/* ---- Layers: one box each, bright while the layer is on ---- */
+.layer { border: var(--hair) solid var(--rule); }
+.layer.active { border-color: var(--mid); }
+.layer > summary {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--u);
+  padding: var(--u);
+  font: var(--t-data);
+  color: var(--dim);
+  cursor: pointer;
+  list-style: none;
+}
+.layer > summary::-webkit-details-marker { display: none; }
+.layer.active > summary { color: var(--live); }
+.layer .note {
+  margin: 0;
+  padding: 0 var(--u) var(--u);
+  font: var(--t-data);
+  color: var(--mid);
+}
+.param {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px var(--u);
+  padding: 0 var(--u) var(--u);
+  font: var(--t-data);
+  color: var(--mid);
+}
+.param .val { color: var(--bright); }
+.layer.editing { border-color: var(--live); }
+
+/* ---- Small square buttons ---- */
+.mini {
+  font: var(--t-label);
+  color: var(--bright);
+  background: var(--void);
+  border: var(--hair) solid var(--rule);
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  cursor: pointer;
+}
+.mini:hover { border-color: var(--mid); color: var(--live); }
+.mini:disabled { opacity: 0.3; cursor: default; border-color: var(--rule); }
+.param .input { grid-column: 1 / -1; height: 24px; padding: 0 4px; }
+.param.flush { padding: 0; }
+.btn:disabled { opacity: 0.3; cursor: default; }
+.btn:disabled:hover { border-color: var(--rule); color: var(--bright); }
+
+/* ---- Colors ---- */
+.palette { display: grid; gap: 4px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+.swatches input[type="color"] {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: var(--hair) solid var(--rule);
+  background: none;
+  cursor: pointer;
+}
+.swatches input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.swatches input[type="color"]::-webkit-color-swatch { border: none; }
+
+/* ---- Shapes tab: library | canvas | tools, in place of the stage and panel ---- */
+#shapes-view { display: none; }
+body.shapes { grid-template-areas: "top top" "shapes shapes"; }
+body.shapes #stage, body.shapes .panel { display: none; }
+body.shapes #shapes-view {
+  grid-area: shapes;
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr) var(--panel);
+  min-height: 0;
+}
+.ed-lib {
+  display: grid;
+  align-content: start;
+  gap: var(--u);
+  padding: var(--u2);
+  border-right: var(--hair) solid var(--rule);
+  overflow-y: auto;
+}
+.lib-item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--u);
+  padding: 6px var(--u);
+  font: var(--t-data);
+  color: var(--mid);
+  background: var(--void);
+  border: var(--hair) solid var(--rule);
+  cursor: pointer;
+  text-align: left;
+}
+.lib-item:hover { border-color: var(--mid); color: var(--bright); }
+.lib-item.on { border-color: var(--live); color: var(--live); }
+#ed-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.zoom-bar { position: absolute; right: var(--u2); bottom: var(--u2); display: flex; gap: 4px; }
+.zoom-bar .btn { padding: 0 var(--u); min-width: 28px; }
+.zoom-bar #ed-zoom-fit { min-width: 56px; }
+#ed-canvas { display: block; cursor: none; touch-action: none; }
+.ed-tools { border-left: var(--hair) solid var(--rule); overflow-y: auto; }
+.ed-tools section { display: grid; gap: var(--u); padding: var(--u2); border-bottom: var(--hair) solid var(--rule); }
+.swatches button.swatch { width: 24px; height: 24px; padding: 0; border: var(--hair) solid var(--rule); cursor: pointer; }
+.swatches button.swatch.on { outline: 2px solid var(--live); outline-offset: 1px; }
+.swatches button.swatch.none {
+  background: linear-gradient(to top right, transparent calc(50% - 1px), var(--mid) calc(50% - 1px), var(--mid) calc(50% + 1px), transparent calc(50% + 1px)), var(--void);
+}
+.prop { display: grid; gap: 4px; }
+.prop .swatches button.swatch { width: 22px; height: 22px; }
+.part-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  gap: 4px;
+  align-items: center;
+  padding: 2px 4px;
+  font: var(--t-data);
+  color: var(--mid);
+  border: var(--hair) solid transparent;
+  cursor: pointer;
+}
+.part-row:hover { border-color: var(--rule); }
+.part-row.on { border-color: var(--mid); color: var(--live); }
+.part-row.picked { background: var(--slab); box-shadow: inset 2px 0 0 #2f6bff; }
+.part-row .input { height: 22px; padding: 0 4px; }
+.paint { display: grid; grid-template-columns: 14px 8ch 1fr; gap: var(--u); align-items: center; font: var(--t-data); color: var(--mid); }
+.paint .chip { width: 14px; height: 14px; border: var(--hair) solid var(--rule); }
+.paint .input { height: 24px; padding: 0 4px; }
+
+/* ---- Shapes tab: Draw or Motion, and the motion cards ---- */
+.ed-tools:not([data-mode="motion"]) .motion-only { display: none; }
+.ed-tools[data-mode="motion"] .draw-only { display: none; }
+.motion { display: grid; gap: 6px; padding: var(--u); border: var(--hair) solid var(--rule); }
+.motion-head { display: grid; grid-template-columns: 1fr auto; gap: 4px; align-items: center; }
+.motion-row { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.motion .input { height: 26px; padding: 0 4px; }
+
+/* ---- Shapes tab: the toolbar on the canvas, and folding sections ---- */
+.ed-toolbar {
+  position: absolute; top: var(--u2); left: var(--u2); right: var(--u2);
+  width: fit-content; margin: 0 auto;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
+  padding: 4px; background: var(--void); border: var(--hair) solid var(--rule);
+}
+.ed-toolbar .btn { padding: 0 var(--u); }
+.tb-gap { width: var(--u); }
+.tb-group { position: relative; }
+.tb-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 2;
+  display: grid; min-width: 160px; padding: 4px; gap: 2px;
+  background: var(--void); border: var(--hair) solid var(--rule);
+}
+.tb-menu .btn { display: flex; justify-content: space-between; gap: var(--u2); border-color: transparent; }
+.tb-menu .btn:hover { border-color: var(--mid); }
+.ed-toolbar.motion > :not(#ed-undo):not(#ed-redo) { display: none; } /* Motion: only undo and redo */
+#sq-toolbar .data { align-self: center; padding: 0 var(--u); white-space: nowrap; }
+details.fold { padding: var(--u2); border-bottom: var(--hair) solid var(--rule); }
+details.fold > summary { cursor: pointer; list-style: none; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::after { content: " +"; }
+details.fold[open] > summary::after { content: " −"; }
+details.fold[open] > summary { margin-bottom: var(--u); }
+.keys { display: grid; gap: 4px; }
+
+/* ---- Parts: drag to layer, hide ---- */
+.part-row .grip { color: var(--dim); cursor: grab; letter-spacing: -2px; user-select: none; }
+.part-row.off > span:not(.grip) { color: var(--dim); text-decoration: line-through; }
+.part-row .eye { display: grid; place-items: center; }
+.part-row.off .eye { color: var(--dim); }
+.part-row.drop-above { box-shadow: inset 0 2px 0 #2f6bff; }
+.part-row.drop-below { box-shadow: inset 0 -2px 0 #2f6bff; }
+
+/* ---- Shapes tab: checkboxes ---- */
+.check { display: grid; grid-template-columns: auto 1fr; gap: var(--u); align-items: start; font: var(--t-data); color: var(--mid); cursor: pointer; }
+.check input { margin: 3px 0 0; accent-color: var(--live); }
+
+/* ---- Moments and color pulses ---- */
+.moment-card { display: grid; gap: 4px; padding: var(--u); border: var(--hair) solid var(--rule); }
+.moment-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 4px; align-items: center; font: var(--t-data); color: var(--dim); }
+.moment-row .input, .moment-card .note { height: 24px; padding: 0 4px; }
+.moment-card .eye { display: grid; place-items: center; }
+.pulse { display: grid; gap: 4px; padding: var(--u); border: var(--hair) solid var(--rule); }
+.pulse-row { display: flex; gap: 4px; align-items: center; }
+.pulse-row .input { height: 24px; padding: 0 2px; min-width: 0; flex: 1; }
+.pulse-row input[type="color"] { width: 24px; height: 24px; flex: none; padding: 0; border: var(--hair) solid var(--rule); background: none; cursor: pointer; }
+
+/* ---- Layers: a compact list, and the picked layer's controls ---- */
+.lay-row { display: flex; justify-content: space-between; gap: var(--u); padding: 4px var(--u); font: var(--t-data); color: var(--dim); background: var(--void); border: var(--hair) solid var(--rule); cursor: pointer; text-align: left; }
+.lay-row:hover { border-color: var(--mid); color: var(--bright); }
+.lay-row.active { color: var(--bright); }
+.lay-row.on { border-color: var(--live); color: var(--live); }
+.lay-row.editing { background: var(--live); color: var(--void); }
+#layer-detail:not(:empty) { border: var(--hair) solid var(--rule); display: grid; gap: 2px; padding-top: var(--u); }
+#layer-detail .head { display: flex; justify-content: space-between; align-items: center; padding: 0 var(--u); font: var(--t-data); color: var(--live); }
+#layer-detail .note { margin: 0; padding: 4px var(--u) var(--u); font: var(--t-data); color: var(--mid); }
+
+/* ---- Layers as rows of shape clips ---- */
+.lay-row { align-items: center; }
+.lay-row .name { flex: 1; }
+.lay-row .input { height: 22px; padding: 0 4px; flex: 1; }
+.lay-row .grip { color: var(--dim); cursor: grab; letter-spacing: -2px; user-select: none; }
+.lay-row .eye { display: grid; place-items: center; }
+.lay-row.off .name { color: var(--dim); text-decoration: line-through; }
+.lay-row.drop-above { box-shadow: inset 0 2px 0 #2f6bff; }
+.lay-row.drop-below { box-shadow: inset 0 -2px 0 #2f6bff; }
+.clip-row { display: flex; justify-content: space-between; gap: var(--u); margin-left: var(--u2); padding: 3px var(--u); font: var(--t-data); color: var(--dim); background: var(--void); border: var(--hair) solid var(--rule); cursor: pointer; text-align: left; }
+.clip-row:hover { border-color: var(--mid); color: var(--bright); }
+.clip-row.on { border-color: var(--live); color: var(--live); }
+.panel details.fold > .stack { display: grid; gap: var(--u); }
+
+/* ---- The picked clip's spots ---- */
+.spot-head { display: flex; justify-content: space-between; align-items: baseline; padding: 4px var(--u) 0; }
+.spot-row { display: grid; grid-template-columns: 2ch 1fr auto 7ch auto auto auto auto; gap: 4px; align-items: center; padding: 2px var(--u); font: var(--t-data); color: var(--mid); border: var(--hair) solid transparent; cursor: pointer; }
+.spot-row:hover { border-color: var(--rule); }
+.spot-row.on { border-color: var(--mid); color: var(--live); }

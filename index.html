@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>sound-square · studio</title>
+  <script>
+    // Spotify only accepts 127.0.0.1 for a local sign-in, so the studio always runs there.
+    if (location.hostname === "localhost") location.replace(location.href.replace("//localhost", "//127.0.0.1"));
+  </script>
+  <link rel="stylesheet" href="assets/style.css?v=31">
+</head>
+<body>
+  <header class="topbar">
+    <span class="label brand">sound-square</span>
+    <div class="seg">
+      <button class="btn on" data-view="square">Square</button>
+      <button class="btn" data-view="shapes">Shapes</button>
+    </div>
+    <button class="btn" id="play" title="Space">Play</button>
+    <span class="data" id="pos">bar 1 · beat 1</span>
+    <span class="data dimmed" id="time">0:00.0</span>
+    <span class="spacer"></span>
+    <button class="btn" id="edit" title="E: drag the eyes on the square">Edit</button>
+    <button class="btn" id="sound" title="S">Sound off</button>
+    <button class="btn" id="hide" title="H">Hide UI</button>
+  </header>
+
+  <main id="stage">
+    <!-- Edit mode: spot actions over the square, like the Shapes toolbar -->
+    <div class="ed-toolbar" id="sq-toolbar" hidden>
+      <button class="btn" id="sq-dup" title="D">Duplicate</button>
+      <button class="btn" id="sq-flip" title="X">Mirror</button>
+      <button class="btn" id="sq-turn" title="R · Alt-click turns back">Rotate 15°</button>
+      <button class="btn" id="sq-order" title="Then click the spots in the order they open">Order</button>
+      <button class="btn" id="sq-del" title="⌫">Delete</button>
+      <span class="tb-gap"></span>
+      <span class="data dimmed" id="sq-edit-hint"></span>
+    </div>
+  </main>
+
+  <!-- The Shapes tab: library, the shape on a large canvas, tools -->
+  <div id="shapes-view">
+    <nav class="ed-lib">
+      <span class="label">Shapes</span>
+      <div class="stack" id="ed-library"></div>
+      <div class="seg">
+        <button class="btn" id="ed-new">New</button>
+        <button class="btn" id="ed-import">Import SVG</button>
+        <input type="file" id="ed-import-file" accept=".svg,image/svg+xml" hidden>
+      </div>
+    </nav>
+    <div id="ed-stage">
+      <canvas id="ed-canvas"></canvas>
+      <!-- the tools, on the canvas; the shapes sit behind one button -->
+      <div class="ed-toolbar">
+        <button class="btn" data-tool="select" title="Select (V)">Select</button>
+        <button class="btn" data-tool="points" title="Points (A): drag points and curve handles">Points</button>
+        <button class="btn" data-tool="pencil" title="Pencil (N)">Pencil</button>
+        <div class="tb-group">
+          <button class="btn" id="ed-shape-btn" title="Shapes: rectangle (R), ellipse (O), line (L), arrow (Shift L), polygon, star">Shape ▾</button>
+          <div class="tb-menu" id="ed-shape-menu" hidden>
+            <button class="btn" data-tool="rect"><span>Rectangle</span><span class="dimmed">R</span></button>
+            <button class="btn" data-tool="ellipse"><span>Ellipse</span><span class="dimmed">O</span></button>
+            <button class="btn" data-tool="line"><span>Line</span><span class="dimmed">L</span></button>
+            <button class="btn" data-tool="arrow"><span>Arrow</span><span class="dimmed">⇧L</span></button>
+            <button class="btn" data-tool="polygon"><span>Polygon</span><span></span></button>
+            <button class="btn" data-tool="star"><span>Star</span><span></span></button>
+          </div>
+        </div>
+        <button class="btn" data-tool="eraser" title="Eraser (E)">Eraser</button>
+        <button class="btn" data-tool="photo" title="Photo (P): a sketch under the drawing, to trace">Photo</button>
+        <span class="tb-gap"></span>
+        <button class="btn" id="ed-undo" title="Undo (⌘Z)">Undo</button>
+        <button class="btn" id="ed-redo" title="Redo (⇧⌘Z)">Redo</button>
+      </div>
+      <div class="zoom-bar" title="Pinch or ⌘-scroll to zoom · scroll, middle-drag or hold H to pan">
+        <button class="btn" id="ed-zoom-out" title="⌘−">−</button>
+        <button class="btn" id="ed-zoom-fit" title="Fit (⌘0)">100%</button>
+        <button class="btn" id="ed-zoom-in" title="⌘+">+</button>
+      </div>
+    </div>
+    <aside class="ed-tools">
+      <section>
+        <span class="label">Shape</span>
+        <input class="input" id="ed-name" type="text" spellcheck="false" autocomplete="off" title="Saves as shapes/<name>.svg">
+        <div class="seg">
+          <button class="btn" id="ed-save">Save</button>
+          <button class="btn" id="ed-to-square">Add to square</button>
+          <button class="btn" id="ed-delete" title="Delete this shape. Its file moves to shapes/deleted/, so you can get it back.">Delete</button>
+        </div>
+        <span class="data dimmed" id="ed-status"></span>
+      </section>
+      <section>
+        <div class="seg">
+          <button class="btn on" data-mode="draw">Draw</button>
+          <button class="btn" data-mode="motion">Motion</button>
+        </div>
+      </section>
+      <!-- the tool in use: only its own options -->
+      <section class="draw-only" id="ed-tool-section">
+        <span class="label" id="ed-tool-label"></span>
+        <span class="data dimmed" id="ed-cursor-note"></span>
+        <div class="stack" id="ed-style">
+          <div class="prop" id="ed-new-fill-row"><span class="data dimmed">Fill</span><div class="swatches" id="ed-new-fill"></div></div>
+          <div class="prop"><span class="data dimmed">Line</span><div class="swatches" id="ed-slots"></div></div>
+          <label class="param flush"><span>line weight</span><span class="val" id="ed-size-val"></span><input type="range" id="ed-size" min="1" max="120" step="1"></label>
+          <label class="param flush" data-for="pencil"><span>pressure</span><span class="val"></span><input type="range" data-opt="taper" min="0" max="0.95" step="0.05" title="How much the line swells and thins with the pen: 0 is even"></label>
+          <label class="param flush" data-for="pencil"><span>pointed ends</span><span class="val"></span><input type="range" data-opt="ends" min="0" max="1" step="0.05"></label>
+          <label class="check" id="ed-redraw-row"><input type="checkbox" id="ed-redraw" checked><span>Redraw: draw over a line to reshape it, or on from its end to carry it on. Alt draws a new line.</span></label>
+          <label class="param flush" data-for="rect"><span>corner radius</span><span class="val"></span><input type="range" data-opt="corners" min="0" max="300" step="1"></label>
+          <label class="param flush" data-for="polygon"><span>sides</span><span class="val"></span><input type="range" data-opt="sides" min="3" max="12" step="1"></label>
+          <label class="param flush" data-for="star"><span>points</span><span class="val"></span><input type="range" data-opt="points" min="3" max="12" step="1"></label>
+          <label class="param flush" data-for="star"><span>inner depth</span><span class="val"></span><input type="range" data-opt="inner" min="0.1" max="0.95" step="0.05"></label>
+        </div>
+        <div class="seg"><button class="btn" id="ed-fewer" title="Smooth the line to fewer points" hidden>Fewer points</button></div>
+        <div class="stack" id="ed-photo-opts" hidden>
+          <div class="seg">
+            <button class="btn" id="ed-photo-pick">Choose photo</button>
+            <button class="btn" id="ed-photo-fit" title="The whole photo in the box">Fit</button>
+            <button class="btn" id="ed-photo-hide">Hide</button>
+            <button class="btn" id="ed-photo-remove">Remove</button>
+          </div>
+          <input type="file" id="ed-photo-file" accept="image/*" hidden>
+          <div class="stack" id="ed-photo-place">
+            <label class="param flush"><span>size (% of the box)</span><span class="val"></span><input type="range" data-photo="w" min="10" max="600" step="1"></label>
+            <label class="param flush"><span>turn</span><span class="val"></span><input type="range" data-photo="rot" min="-45" max="45" step="0.5"></label>
+            <label class="param flush"><span>photo strength</span><span class="val"></span><input type="range" data-photo="alpha" min="0.05" max="1" step="0.05"></label>
+            <span class="label">Auto-trace</span>
+            <label class="param flush"><span>sensitivity (fainter marks count)</span><span class="val"></span><input type="range" data-trace="sensitivity" min="0" max="100" step="1"></label>
+            <label class="param flush"><span>ignore specks under (pixels)</span><span class="val"></span><input type="range" data-trace="specks" min="0" max="200" step="1"></label>
+            <label class="check"><input type="checkbox" id="ed-trace-show" checked><span>Show what traces, in blue</span></label>
+            <div class="seg">
+              <button class="btn" id="ed-trace-lines" title="A pencil line down the middle of each mark">Trace lines</button>
+              <button class="btn" id="ed-trace-shapes" title="Each mark's outline, filled: for shading and blobs">Trace shapes</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="draw-only" id="ed-sel-section" hidden>
+        <span class="label">Selection</span>
+        <span class="data dimmed" id="ed-sel-count"></span>
+        <div class="prop"><span class="data dimmed">Fill</span><div class="swatches" id="ed-fill"></div></div>
+        <div class="prop"><span class="data dimmed">Line</span><div class="swatches" id="ed-line"></div></div>
+        <label class="param flush"><span>line weight</span><span class="val" id="ed-weight-val"></span><input type="range" id="ed-weight" min="0" max="120" step="0.5"></label>
+        <div class="stack" id="ed-sel-strokes">
+          <label class="param flush"><span>pressure</span><span class="val" id="ed-taper-val"></span><input type="range" id="ed-taper" min="0" max="0.95" step="0.05" title="How much pencil lines swell and thin: 0 is even"></label>
+          <label class="param flush"><span>pointed ends</span><span class="val" id="ed-ends-val"></span><input type="range" id="ed-ends" min="0" max="1" step="0.05"></label>
+        </div>
+        <select class="input" id="ed-sel-part" title="Move to another part"></select>
+        <div class="seg">
+          <button class="btn" id="ed-sel-smooth" title="Smooth out wobbles; again for more">Smooth</button>
+          <button class="btn" id="ed-sel-dup" title="⌘D">Duplicate</button>
+          <button class="btn" id="ed-sel-del" title="Delete">Delete</button>
+        </div>
+      </section>
+      <section class="draw-only">
+        <span class="label">Parts</span>
+        <div class="stack" id="ed-parts"></div>
+        <div class="seg"><button class="btn" id="ed-add-part">+ Part</button></div>
+      </section>
+      <details class="draw-only fold" id="ed-colors-section" hidden>
+        <summary class="label">Imported colors</summary>
+        <div class="stack" id="ed-colors"></div>
+      </details>
+      <details class="draw-only fold">
+        <summary class="label">Shortcuts</summary>
+        <div class="data dimmed keys">
+          <span>V select · A points · N pencil · E eraser · P photo</span>
+          <span>Pencil over a line redraws it · Alt draws a new line</span>
+          <span>R rectangle · O ellipse · L line · ⇧L arrow</span>
+          <span>⌘Z undo · ⇧⌘Z redo · ⌘A all · ⌘D duplicate · Delete · arrows nudge</span>
+          <span>Pinch or ⌘-scroll zoom · ⌘0 fit · scroll or hold H to pan</span>
+          <span>Parts: drag to layer · eye hides · Shift-click selects their lines · double-click renames</span>
+          <span>The dashed circle is one spot's size on the square</span>
+        </div>
+      </details>
+      <section class="motion-only">
+        <span class="label">Motion</span>
+        <span class="data dimmed" id="ed-motion-pos"></span>
+        <div class="seg">
+          <button class="btn" id="ed-add-motion">+ Motion</button>
+          <button class="btn" id="ed-replay" title="Play the entrance again">Replay entrance</button>
+        </div>
+        <div class="stack" id="ed-motions"></div>
+      </section>
+      <section class="data dimmed motion-only">Motions save with the shape and run at every spot. The preview shows one.</section>
+    </aside>
+  </div>
+
+  <aside class="panel">
+    <section>
+      <span class="label">Song</span>
+      <div class="seg">
+        <button class="btn" data-tab="standIn">Stand-in</button>
+        <button class="btn" data-tab="file">File</button>
+        <button class="btn" data-tab="spotify">Spotify</button>
+      </div>
+      <div class="stack" id="file-ui" hidden>
+        <button class="btn" id="file-pick">Choose file</button>
+        <input type="file" id="file-input" accept="audio/*" hidden>
+      </div>
+      <div class="stack" id="spotify-ui" hidden>
+        <label class="field">
+          <span class="data dimmed">Client ID</span>
+          <input class="input" id="sp-client" type="text" spellcheck="false" autocomplete="off">
+        </label>
+        <span class="data dimmed">Redirect URI <span class="data" id="sp-redirect"></span></span>
+        <button class="btn" id="sp-connect">Connect</button>
+        <label class="field">
+          <span class="data dimmed">Song link</span>
+          <input class="input" id="sp-track" type="text" spellcheck="false" autocomplete="off" placeholder="https://open.spotify.com/track/…">
+        </label>
+        <div class="seg">
+          <button class="btn" id="sp-tab">This tab</button>
+          <button class="btn" id="sp-app">Spotify app</button>
+        </div>
+        <span class="data dimmed" id="sp-state"></span>
+      </div>
+      <span class="data" id="song-status"></span>
+    </section>
+    <section>
+      <span class="label">Timing</span>
+      <span class="data" id="grid"></span>
+      <div class="seg"><button class="btn" id="listen">Listen</button></div>
+      <select class="input" id="listen-device" hidden></select>
+      <span class="data dimmed" id="listen-status"></span>
+      <span class="data dimmed" id="tap-status"></span>
+    </section>
+    <details class="fold" open>
+      <summary class="label">Moments</summary>
+      <div class="stack">
+      <label class="check"><input type="checkbox" id="moments-hide-all"><span>Hide all markers on the timeline</span></label>
+      <div class="stack" id="moments"></div>
+      <span class="data dimmed">M while the song plays marks what you hear; quick presses make one moment. The eye keeps its marker off the timeline.</span>
+      </div>
+    </details>
+    <section>
+      <span class="label">Now</span>
+      <span class="data" id="now"></span>
+    </section>
+    <details class="fold" open id="layers-fold">
+      <summary class="label">Layers</summary>
+      <div class="stack">
+      <div class="stack" id="layers"></div>
+      <div class="seg">
+        <select class="input" id="add-shape" title="Add a shape into the picked layer; it comes in at the playhead"></select>
+        <button class="btn" id="add-layer" title="A new empty layer on top">+ Layer</button>
+      </div>
+      <span class="data dimmed">Drag a shape's bar to move it, its ends to trim — they snap to bars and moments. Drag layers to restack; double-click renames.</span>
+      </div>
+    </details>
+    <details class="fold" open id="shape-fold">
+      <summary class="label">Shape</summary>
+      <div class="stack">
+      <div class="stack" id="layer-detail"></div>
+      </div>
+    </details>
+    <details class="fold">
+      <summary class="label">Colors</summary>
+      <div class="stack">
+      <div class="stack" id="colors"></div>
+      <div class="stack" id="pulses"></div>
+      <div class="seg"><button class="btn" id="add-pulse" title="A color breathing toward another between two moments">+ Pulse</button></div>
+      </div>
+    </details>
+    <section>
+      <button class="btn" id="copy">Copy score.js</button>
+      <span class="data dimmed" id="copied"></span>
+    </section>
+    <section class="data dimmed">
+      Space play · ←→ bar · M moment · T tap · E edit · S sound · H hide · F full
+      <br>Timeline: drag scrubs · pinch or ⌘-scroll zooms · double-click fits
+    </section>
+  </aside>
+
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.1/lib/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chroma-js@2.4.2/chroma.min.js"></script>
+  <!-- perfect-freehand: pen lines that thin and swell with pressure -->
+  <script type="module">
+    import { getStroke } from "https://cdn.jsdelivr.net/npm/perfect-freehand@1.2.2/dist/esm/index.mjs";
+    window.getStroke = getStroke;
+  </script>
+  <!-- ?v=N: bump it when files change, so browsers load the new ones instead of old copies -->
+  <script src="score.js?v=31"></script>
+  <script src="assets/engine.js?v=31"></script>
+  <script src="assets/elements.js?v=31"></script>
+  <script src="assets/geom.js?v=31"></script>
+  <script src="assets/motions.js?v=31"></script>
+  <script src="assets/shapes.js?v=31"></script>
+  <script src="assets/shapedoc.js?v=31"></script>
+  <script src="assets/tools.js?v=31"></script>
+  <script src="assets/trace.js?v=31"></script>
+  <script src="assets/editor.js?v=31"></script>
+  <script src="assets/sound.js?v=31"></script>
+  <script src="assets/sources.js?v=31"></script>
+  <script src="assets/spotify.js?v=31"></script>
+  <script src="assets/tempo.js?v=31"></script>
+  <script src="assets/listen.js?v=31"></script>
+  <script src="assets/studio.js?v=31"></script>
+</body>
+</html>
