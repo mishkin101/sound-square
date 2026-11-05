@@ -824,7 +824,7 @@ function selectLayer(ri, ci, reveal = false) {
 }
 
 function revealLayerPanel() {
-  $("shape-fold").open = true;
+  $("layers-fold").open = true;
   $("layer-detail").scrollIntoView({ block: "nearest" });
 }
 
@@ -860,6 +860,7 @@ function buildLayers() {
     const R = SCORE.layers[EDIT.layer];
     if (EDIT.clip != null) EDIT.clip = R.clips.length ? Math.min(EDIT.clip, R.clips.length - 1) : null;
   }
+  $("detail-home").append($("layer-detail")); // parked while the rows rebuild
   $("layers").replaceChildren();
   LAYER_BOXES = [];
   SCORE.layers.forEach((R, ri) => {
@@ -903,6 +904,8 @@ function buildLayers() {
       c.innerHTML = `<span>${layerName(L)}</span><span>${timeWords(L)}</span>`;
       c.addEventListener("click", () => selectLayer(ri, ci));
       $("layers").append(c);
+      // the picked shape's settings sit right under its row
+      if (ri === EDIT.layer && ci === EDIT.clip) $("layers").append($("layer-detail"));
     });
   });
   const input = $("layers").querySelector(".lay-row input");
@@ -927,20 +930,15 @@ function buildLayers() {
   if (EDIT.on) setEdit(true);
 }
 
-// The picked shape's controls, in the Shape section of the panel.
+// The picked shape's controls, nested under its row in the layer list.
 function buildLayerDetail() {
   const wrap = $("layer-detail"), R = SCORE.layers[EDIT.layer], L = R?.clips?.[EDIT.clip];
   wrap.replaceChildren();
-  if (!L) {
-    wrap.insertAdjacentHTML("beforeend",
-      `<p class="note">No shape picked. Click one on the square or on the timeline.</p>`);
-    return;
-  }
+  if (!L) return;
   const el = elementOf(L);
   wrap.insertAdjacentHTML("beforeend",
-    `<div class="head"><span>${layerName(L)} <span class="dimmed">· in layer</span> ${R.name}</span>` +
-    `<button class="mini" id="layer-remove" title="Take this shape off the square">×</button></div>` +
-    `<p class="note">${el ? el.note : `No element called "${L.el}" in elements.js.`}</p>`);
+    `<div class="head"><span class="dimmed">${el ? el.note : `No element called "${L.el}" in elements.js.`}</span>` +
+    `<button class="mini" id="layer-remove" title="Take this shape off the square">×</button></div>`);
   $("layer-remove").addEventListener("click", () => {
     rememberScore();
     R.clips.splice(EDIT.clip, 1);
