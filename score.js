@@ -58,14 +58,7 @@ const SCORE = {
     { slot: "ground", to: "#ffffff", beats: 4, back: "snap", from: "stick tap", until: "bongos in" },
   ],
   // Names for the timeline. Number keys 1-6 jump to them.
-  sections: [
-    { name: "eyes", from: 1 },
-    { name: "bongo line", from: 9 },
-    { name: "bongos rise", from: 17 },
-    { name: "triangles", from: 25 },
-    { name: "split", from: 33 },
-    { name: "fringes", from: 41 },
-  ],
+  sections: [],
   // Things you hear, marked on the song (M in the studio while it plays; held
   // down, M marks a hold: [start, end] in beats, a span like the bongo section).
   // Layers come in and leave on them, spots move on their hits, pulses run between them.

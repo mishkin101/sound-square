@@ -170,7 +170,8 @@ function drawClapLines(B, s) {
 // On short windows the layer rows are left out so the square keeps its room.
 function timelineHeight() {
   if (document.body.classList.contains("bare")) return 0;
-  return showLayerRows() ? 88 + SCORE.layers.reduce((n, R) => n + layerRows(R), 0) * 13 : 84;
+  const sec = SCORE.sections?.length ? 16 : 0; // the sections row, when there are any
+  return showLayerRows() ? 72 + sec + SCORE.layers.reduce((n, R) => n + layerRows(R), 0) * 13 : 68 + sec;
 }
 
 // The timeline shows a layer as one strip (layer view), or opened: a header
@@ -251,9 +252,9 @@ function drawTimeline(B, top) {
       const a = X(m.hold[0]), b = X(m.hold[1]);
       const picked = MOMENT_DRAG && MOMENT_DRAG.mi === mi;
       noStroke(); fill(picked ? "#ffffff" : momentColor(mi));
-      rect(a, y + 4, Math.max(2, b - a), 7);
-      fill(140); text(m.name, a + 3, y - 1);
-      if (mouseX >= a - 5 && mouseX <= b + 5 && mouseY >= y && mouseY <= y + 13) {
+      rect(a, y + 7, Math.max(2, b - a), 7); // the name sits clear above the band
+      fill(140); text(m.name, a + 3, y - 4);
+      if (mouseX >= a - 5 && mouseX <= b + 5 && mouseY >= y && mouseY <= y + 16) {
         hover = `${m.name} · ${round2(m.hold[1] - m.hold[0])} beats${m.note ? ` · ${m.note}` : ""}`;
       }
       return;
@@ -261,25 +262,27 @@ function drawTimeline(B, top) {
     (m.hits || []).forEach((h, hi) => {
       const x = X(h), picked = MOMENT_DRAG && MOMENT_DRAG.mi === mi && MOMENT_DRAG.hi === hi;
       noStroke(); fill(picked ? "#ffffff" : momentColor(mi));
-      triangle(x - 4, y + 4, x + 4, y + 4, x, y + 11);
-      if (hi === 0) { fill(140); text(m.name, x + 6, y); }
-      if (Math.abs(mouseX - x) <= 5 && mouseY >= y && mouseY <= y + 13) hover = m.note ? `${m.name} · ${m.note}` : m.name;
+      triangle(x - 4, y + 7, x + 4, y + 7, x, y + 14);
+      if (hi === 0) { fill(140); text(m.name, x + 6, y - 4); }
+      if (Math.abs(mouseX - x) <= 5 && mouseY >= y && mouseY <= y + 16) hover = m.note ? `${m.name} · ${m.note}` : m.name;
     });
   });
 
   // sections
-  y += 16;
-  SCORE.sections.forEach((sec, i) => {
-    const next = SCORE.sections[i + 1];
-    const a = barToBeats(SCORE, sec.from), b = next ? barToBeats(SCORE, next.from) : total;
-    const on = B >= a && B < b;
-    noStroke(); fill(on ? 38 : 13);
-    rect(X(a), y, X(b) - X(a) - 1, 16);
-    fill(on ? 255 : 140);
-    let label = `${i + 1} ${sec.name.toUpperCase()}`;
-    while (label.length > 1 && textWidth(label) > X(b) - X(a) - 10) label = label.slice(0, -1);
-    text(label, X(a) + 5, y + 4);
-  });
+  if (SCORE.sections?.length) {
+    y += 16;
+    SCORE.sections.forEach((sec, i) => {
+      const next = SCORE.sections[i + 1];
+      const a = barToBeats(SCORE, sec.from), b = next ? barToBeats(SCORE, next.from) : total;
+      const on = B >= a && B < b;
+      noStroke(); fill(on ? 38 : 13);
+      rect(X(a), y, X(b) - X(a) - 1, 16);
+      fill(on ? 255 : 140);
+      let label = `${i + 1} ${sec.name.toUpperCase()}`;
+      while (label.length > 1 && textWidth(label) > X(b) - X(a) - 10) label = label.slice(0, -1);
+      text(label, X(a) + 5, y + 4);
+    });
+  }
 
   // layers as clips: drag the body to move one, an end to trim it. Ends snap
   // to bars and to moments; landing on a moment attaches the end to it (a ▾).
@@ -935,12 +938,14 @@ function keepWork() {
 // carries them, so they're dropped on restore (only when all-coded, so a
 // layer of drawings that happens to share a name survives).
 const RETIRED_LAYERS = new Set(["bongo line", "bongos rise", "triangles", "split", "fringes"]);
+const RETIRED_SECTIONS = new Set(["eyes", "bongo line", "bongos rise", "triangles", "split", "fringes"]);
 
 function restoreWork() {
   try {
     const saved = JSON.parse(localStorage.getItem(WORK));
     if (!saved?.layers) return;
     saved.layers = saved.layers.filter((R) => !(RETIRED_LAYERS.has(R.name) && R.clips.every((L) => L.el)));
+    saved.sections = (saved.sections || []).filter((s) => !RETIRED_SECTIONS.has(s.name));
     for (const k of Object.keys(SCORE)) delete SCORE[k];
     Object.assign(SCORE, saved);
     WORK_SAVED = JSON.stringify(SCORE);
@@ -1538,7 +1543,7 @@ function renameMoment(m, name) {
 function momentMarkerAt() {
   if (HIDE_MOMENTS) return null;
   const y = height - timelineHeight() + 34;
-  if (mouseY < y || mouseY > y + 13) return null;
+  if (mouseY < y || mouseY > y + 16) return null;
   const list = SCORE.moments || [];
   for (let mi = list.length - 1; mi >= 0; mi--) {
     const m = list[mi];
@@ -1777,17 +1782,17 @@ function buildLayers() {
       const c = document.createElement("button");
       c.className = "clip-row" + (picked ? " on" : "");
       c.dataset.ri = ri;
-      c.innerHTML = `<span class="fold-btn" title="Fold the settings away">${picked ? (PANE_FOLD ? "▸" : "▾") : ""}</span>` +
+      c.innerHTML = `<span class="fold-btn" title="Fold the settings away">${picked && L.shape ? (PANE_FOLD ? "▸" : "▾") : ""}</span>` +
         `<span class="name">${clipLabel(R, ci)}</span><span>${timeWords(L)}</span>`;
       c.addEventListener("click", (e) => {
-        if (picked && e.target.classList.contains("fold-btn")) {
+        if (picked && L.shape && e.target.classList.contains("fold-btn")) {
           PANE_FOLD = !PANE_FOLD;
           buildLayers();
         } else selectLayer(ri, ci);
       });
       $("layers").append(c);
       // the picked shape's settings sit right under its row, unless folded
-      if (picked && !PANE_FOLD) $("layers").append($("layer-detail"));
+      if (picked && L.shape && !PANE_FOLD) $("layers").append($("layer-detail"));
     });
   });
   const input = $("layers").querySelector(".lay-row input");
@@ -1821,7 +1826,7 @@ function buildLayers() {
 function buildLayerDetail() {
   const wrap = $("layer-detail"), R = SCORE.layers[EDIT.layer], L = R?.clips?.[EDIT.clip];
   wrap.replaceChildren();
-  if (!L || PANE_FOLD) return;
+  if (!L || !L.shape || PANE_FOLD) return; // coded elements have no pane at all
   const el = elementOf(L);
   wrap.insertAdjacentHTML("beforeend",
     `<div class="head"><span>${clipLabel(R, EDIT.clip)} <span class="dimmed">· ${el ? el.note : `no element called "${L.el}"`}</span></span>` +
