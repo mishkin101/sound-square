@@ -83,7 +83,8 @@ function keyedPlace(score, keys, B) {
   let a = ks[0], b = ks[ks.length - 1];
   for (const k of ks) if (k.b <= B) a = k;
   for (let i = ks.length - 1; i >= 0; i--) if (ks[i].b >= B) b = ks[i];
-  const t = b.b > a.b ? smoothstep((B - a.b) / (b.b - a.b)) : 1;
+  const raw = b.b > a.b ? clamp01((B - a.b) / (b.b - a.b)) : 1;
+  const t = b.ease === "line" ? raw : smoothstep(raw); // the destination key's ease rules its approach
   const mix = (p, q, d) => { p = p ?? d; q = q ?? d; return p + (q - p) * t; };
   return {
     x: mix(a.x, b.x, 0.5), y: mix(a.y, b.y, 0.5), size: mix(a.size, b.size, 0.1),

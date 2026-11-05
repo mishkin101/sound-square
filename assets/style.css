@@ -13,6 +13,7 @@
   --mid:    #8c8c8c;
   --bright: #d9d9d9;
   --live:   #ffffff;
+  --mark:   #55d187; /* moment mode */
 
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   --t-body:  400 13px/1.5 var(--mono);
@@ -309,7 +310,8 @@ details.fold[open] > summary { margin-bottom: var(--u); }
 }
 body.bare #moments-rail { display: none; }
 .mo-title { padding: 0 var(--u) 4px 6px; color: var(--dim); }
-#moments-rail.marking .mo-title { color: var(--live); }
+#moments-rail.marking .mo-title { color: var(--mark); }
+#tap-status.marking { color: var(--mark); }
 .mo-chip { position: relative; }
 .mo-tab {
   display: block; height: 22px; max-width: 14px; padding: 0 10px 0 6px;

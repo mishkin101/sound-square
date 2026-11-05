@@ -73,6 +73,7 @@ function draw() {
   SQ_Y = Math.round((height - tl - SQ) / 2);
   renderSquare(B, SQ_X, SQ_Y);
   drawMarkPath();
+  drawMarkFx();
   if (editing() && hasSpots(editLayer()) && !liveNow()) drawEditOverlay();
   else if (editing()) setText("sq-edit-hint", scrubMs != null ? "scrubbing — the keys play" : "playing — pause to drag");
   if (tl) drawTimeline(B, height - tl);
@@ -880,6 +881,7 @@ function setMomentMode(on) {
   MOMENT_MODE = on;
   if (on && EDIT.on) setEdit(false);
   $("moments-rail").classList.toggle("marking", on);
+  $("tap-status").classList.toggle("marking", on);
   setText("tap-status", on ? "moment mode — tap, hold or drag on the square · M leaves" : "");
 }
 
@@ -903,10 +905,14 @@ let SQ_MARK = null;
 
 function pressMark() {
   SQ_MARK = { atMs: songNow(), t: performance.now(), path: [] };
+  const [x, y] = squareMouse();
+  MARK_FX = { x: clamp01(x), y: clamp01(y), t0: millis(), released: null, r: 0.02 };
 }
 
 function dragMark() {
   const [x, y] = squareMouse(), p = SQ_MARK.path, last = p[p.length - 1];
+  MARK_FX.x = clamp01(x);
+  MARK_FX.y = clamp01(y);
   if (last && Math.hypot(x - last[0], y - last[1]) < 0.005) return;
   p.push([round4(clamp01(x)), round4(clamp01(y)), round2(msToBeats(SCORE, songNow()))]);
 }
@@ -914,16 +920,38 @@ function dragMark() {
 function releaseMark() {
   const { atMs, t, path } = SQ_MARK;
   SQ_MARK = null;
+  if (MARK_FX) { MARK_FX.r = markFxGrown(); MARK_FX.released = millis(); }
   const endMs = songNow();
   const span = Math.abs(msToBeats(SCORE, endMs) - msToBeats(SCORE, atMs));
   // a quick tap, or a hold with no song time under it (paused), is a hit
   if ((performance.now() - t < 350 && path.length <= 2) || span < 0.1) return markHit(atMs);
-  markHold(atMs, endMs, path);
+  markHold(atMs, endMs, tidyPath(path));
 }
 
-// The path so far, while the mouse draws it.
+// The recorded gesture, smoothed: two rounds of corner-cutting (Chaikin) over
+// [x, y, beat] alike, then thinned to at most 64 points.
+function tidyPath(pts) {
+  let p = pts;
+  for (let r = 0; r < 2 && p.length > 2; r++) {
+    const out = [p[0]];
+    for (let i = 0; i < p.length - 1; i++) {
+      const a = p[i], b = p[i + 1];
+      out.push(a.map((v, k) => round4(v * 0.75 + b[k] * 0.25)), a.map((v, k) => round4(v * 0.25 + b[k] * 0.75)));
+    }
+    out.push(p[p.length - 1]);
+    p = out;
+  }
+  if (p.length > 64) {
+    const step = (p.length - 1) / 63;
+    p = Array.from({ length: 64 }, (_, i) => p[Math.round(i * step)]);
+  }
+  return p;
+}
+
+// The path so far, while the mouse draws it — as a curve, not segments.
 function drawMarkPath() {
   if (!SQ_MARK || SQ_MARK.path.length < 2) return;
+  const p = SQ_MARK.path;
   push();
   translate(SQ_X, SQ_Y);
   scale(SQ);
@@ -931,8 +959,42 @@ function drawMarkPath() {
   drawingContext.save();
   drawingContext.globalCompositeOperation = "difference";
   beginShape();
-  for (const [x, y] of SQ_MARK.path) vertex(x, y);
+  curveVertex(p[0][0], p[0][1]);
+  for (const [x, y] of p) curveVertex(x, y);
+  curveVertex(p[p.length - 1][0], p[p.length - 1][1]);
   endShape();
+  drawingContext.restore();
+  pop();
+}
+
+// Rings under the marking press: growing while held, a pulse that fades on release.
+let MARK_FX = null;
+
+function markFxGrown() { return Math.min(0.09, 0.015 + (millis() - MARK_FX.t0) / 9000); }
+
+function drawMarkFx() {
+  if (!MARK_FX) return;
+  const f = MARK_FX;
+  push();
+  translate(SQ_X, SQ_Y);
+  scale(SQ);
+  drawingContext.save();
+  drawingContext.globalCompositeOperation = "difference";
+  noFill(); strokeWeight(px(2.5));
+  if (f.released == null) {
+    stroke(255, 230);
+    circle(f.x, f.y, 2 * markFxGrown());
+  } else {
+    const t = (millis() - f.released) / 700;
+    if (t >= 1) MARK_FX = null;
+    else {
+      const a = 255 * (1 - t);
+      stroke(255, a);
+      circle(f.x, f.y, 2 * (f.r + 0.06 * t));
+      stroke(255, a * 0.5);
+      circle(f.x, f.y, 2 * (f.r + 0.09 * t + 0.015 * Math.sin(t * 12)));
+    }
+  }
   drawingContext.restore();
   pop();
 }
@@ -969,12 +1031,22 @@ function momentsChanged() {
 // when, a note about what you heard, the eye, remove. The same color marks it
 // on the timeline. The eye at the rail's foot hides every marker at once.
 const MO_COLORS = ["#e76f51", "#f4a261", "#e9c46a", "#2a9d8f", "#4fb3d9", "#b388eb", "#ef6292", "#8bc34a"];
-let MO_OPEN = null; // the open moment (its index in SCORE.moments)
+let MO_OPEN = null;  // the open moment (its index in SCORE.moments)
+let MO_HOVER = null; // the chip under the pointer — Delete removes it
+
+function deleteMoment(mi) {
+  rememberScore();
+  SCORE.moments.splice(mi, 1);
+  MO_OPEN = null;
+  MO_HOVER = null;
+  momentsChanged();
+}
 
 function momentColor(mi) { return MO_COLORS[mi % MO_COLORS.length]; }
 
 function renderMoments() {
   const rail = $("moments-rail"), list = SCORE.moments || [];
+  MO_HOVER = null;
   if (MO_OPEN != null && MO_OPEN >= list.length) MO_OPEN = null;
   const order = list.map((m, mi) => ({ m, mi }))
     .sort((a, b) => (momentStart(SCORE, a.m.name) ?? 0) - (momentStart(SCORE, b.m.name) ?? 0));
@@ -1007,6 +1079,8 @@ function moChip(m, mi) {
   const chip = document.createElement("div");
   chip.className = "mo-chip" + (MO_OPEN === mi ? " open" : "") + (m.hide ? " off" : "");
   chip.style.setProperty("--mc", momentColor(mi));
+  chip.addEventListener("mouseenter", () => { MO_HOVER = mi; });
+  chip.addEventListener("mouseleave", () => { if (MO_HOVER === mi) MO_HOVER = null; });
   const b = document.createElement("button");
   b.className = "mo-tab";
   b.textContent = m.name;
@@ -1047,12 +1121,7 @@ function moCard(m, mi) {
     else m.hide = true;
     renderMoments();
   });
-  card.querySelector("[data-del]").addEventListener("click", () => {
-    rememberScore();
-    SCORE.moments.splice(mi, 1);
-    MO_OPEN = null;
-    momentsChanged();
-  });
+  card.querySelector("[data-del]").addEventListener("click", () => deleteMoment(mi));
   if (m.path) card.append(pathPreview(m));
   card.append(moShapes(m));
   return card;
@@ -1115,13 +1184,15 @@ function attachShape(m, name) {
   renderMoments();
 }
 
-// A drawn path as keyframes: up to a dozen keys along it, at the recorded beats.
+// A drawn path as keyframes: up to 16 keys along it, at the recorded beats.
+// They play back linearly (ease: "line"), so the motion flows instead of
+// pausing into every key.
 function pathKeys(m, size = 0.12) {
-  const pts = m.path, n = Math.min(12, pts.length);
+  const pts = m.path, n = Math.min(16, pts.length);
   const keys = [];
   for (let i = 0; i < n; i++) {
     const p = pts[Math.round((i * (pts.length - 1)) / (n - 1))];
-    keys.push({ at: atKey(p[2]), x: p[0], y: p[1], size });
+    keys.push({ at: atKey(p[2]), x: p[0], y: p[1], size, ease: "line" });
   }
   return keys.filter((k, i) => i === 0 || keyBeat(SCORE, k.at) > keyBeat(SCORE, keys[i - 1].at) + 1e-6);
 }
@@ -1135,10 +1206,12 @@ function pathPreview(m) {
   const ctx = c.getContext("2d");
   const pts = m.path, b0 = pts[0][2], b1 = pts[pts.length - 1][2];
   const spanMs = Math.max(400, beatsToMs(SCORE, b1) - beatsToMs(SCORE, b0));
-  const at = (beat) => { // the point on the path at this beat
-    let p = pts[0];
-    for (const q of pts) { if (q[2] > beat) break; p = q; }
-    return p;
+  const at = (beat) => { // the point on the path at this beat, interpolated
+    let i = 0;
+    while (i < pts.length - 2 && pts[i + 1][2] <= beat) i++;
+    const a = pts[i], b = pts[i + 1] ?? a;
+    const t = b[2] > a[2] ? Math.min(1, Math.max(0, (beat - a[2]) / (b[2] - a[2]))) : 1;
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
   };
   const frame = (now) => {
     if (!c.isConnected) return; // the card closed; stop
@@ -1151,11 +1224,12 @@ function pathPreview(m) {
     for (const [x, y] of pts) ctx.lineTo(x * 228, y * 228);
     ctx.stroke();
     const beat = b0 + (b1 - b0) * t;
+    const [dx, dy] = at(beat);
     ctx.strokeStyle = "#ffffff";
     ctx.beginPath();
     for (const p of pts) { if (p[2] > beat) break; ctx.lineTo(p[0] * 228, p[1] * 228); }
+    ctx.lineTo(dx * 228, dy * 228);
     ctx.stroke();
-    const [dx, dy] = at(beat);
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.arc(dx * 228, dy * 228, 4, 0, 2 * Math.PI);
@@ -1859,6 +1933,9 @@ function wireControls() {
     else if (e.key === "[") nudgeGrid(-10);
     else if (e.key === "]") nudgeGrid(10);
     else if (e.key === "e" || e.key === "E") { setEdit(!EDIT.on); if (EDIT.on) { buildLayers(); revealLayerPanel(); } }
+    else if ((e.key === "Delete" || e.key === "Backspace") && (MO_HOVER != null || (inTimeline() && momentMarkerAt()))) {
+      deleteMoment(MO_HOVER ?? momentMarkerAt().mi); // the moment under the pointer
+    }
     else if ((e.key === "Delete" || e.key === "Backspace") && editing() && EDIT.spot != null) removeSpot(EDIT.spot);
     else if ((e.key === "Delete" || e.key === "Backspace") && !editing() && EDIT.layer != null) {
       const R = SCORE.layers[EDIT.layer];
