@@ -74,6 +74,7 @@ function draw() {
   renderSquare(B, SQ_X, SQ_Y);
   drawMarkPath();
   drawMarkFx();
+  drawMomentPath();
   if (MOMENT_MODE) { // say so on the square itself, not just the panel
     textSize(11); textAlign(CENTER, TOP); noStroke();
     fill("#55d187");
@@ -420,12 +421,19 @@ function mousePressed(e) {
   if (onSquare(e) && MOMENT_MODE) return pressMark();
   if (editing() && hasSpots(editLayer()) && onSquare(e) && !liveNow()) return pressSpot();
   if (onSquare(e)) {
-    const hit = shapeOnSquare(...squareMouse());
+    const [x, y] = squareMouse();
+    const onPath = pathPointAt(x, y);
+    if (onPath) {
+      PATH_DRAG = { ...onPath, x, y, kept: false };
+      return;
+    }
+    const hit = shapeOnSquare(x, y);
     if (hit) selectLayer(hit.ri, hit.ci, true);
   }
 }
 function mouseDragged() {
   if (SQ_MARK) dragMark();
+  else if (PATH_DRAG) dragPath();
   else if (MOMENT_DRAG) dragMoment();
   else if (KEY_DRAG) dragKey();
   else if (CLIP_DRAG) dragClip();
@@ -434,6 +442,7 @@ function mouseDragged() {
 }
 function mouseReleased() {
   if (SQ_MARK) { releaseMark(); return; }
+  if (PATH_DRAG) { releasePath(); return; }
   if (MOMENT_DRAG) { MOMENT_DRAG = null; momentsChanged(); return; }
   if (KEY_DRAG) {
     const L = SCORE.layers[KEY_DRAG.ri]?.clips?.[KEY_DRAG.ci];
@@ -1177,6 +1186,7 @@ function attachShape(m, name) {
   clip.to = m.hold ? m.name : Math.min(SCORE.bars, bar + 7); // a hold wraps it ("during")
   if (m.path) {
     clip.keys = pathKeys(m);
+    clip.keysFrom = m.name; // editing the drawn path re-follows it
     const k = clip.keys[0];
     clip.spots = [[k.x, k.y, k.size]];
   }
@@ -1189,6 +1199,83 @@ function attachShape(m, name) {
   EDIT.layer = ri;
   EDIT.clip = SCORE.layers[ri].clips.length - 1;
   flashPick();
+  buildLayers();
+  renderMoments();
+}
+
+// ---- The open moment's drawing, on the square ----------------------------------
+// With a moment's card open, its drawn motion shows in place: the path, and a
+// dot replaying it on loop. Dragging the line reshapes it — nearby points
+// follow, less the farther away they sit — and shapes attached to the path
+// re-follow the new line on release.
+let PATH_DRAG = null;
+
+function drawMomentPath() {
+  const m = SCORE.moments?.[MO_OPEN];
+  if (!m?.path || document.body.classList.contains("bare")) return;
+  const pts = m.path;
+  push();
+  translate(SQ_X, SQ_Y);
+  scale(SQ);
+  drawingContext.save();
+  drawingContext.globalCompositeOperation = "difference";
+  noFill(); stroke(255, PATH_DRAG ? 255 : 150); strokeWeight(px(1.5));
+  beginShape();
+  curveVertex(pts[0][0], pts[0][1]);
+  for (const [x, y] of pts) curveVertex(x, y);
+  curveVertex(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+  endShape();
+  // the replay dot, looping at the recorded timing
+  const b0 = pts[0][2], b1 = pts[pts.length - 1][2];
+  const spanMs = Math.max(400, beatsToMs(SCORE, b1) - beatsToMs(SCORE, b0));
+  const t = Math.min(1, (millis() % (spanMs + 600)) / spanMs);
+  const beat = b0 + (b1 - b0) * t;
+  let i = 0;
+  while (i < pts.length - 2 && pts[i + 1][2] <= beat) i++;
+  const a = pts[i], b = pts[i + 1] ?? a;
+  const k = b[2] > a[2] ? clamp01((beat - a[2]) / (b[2] - a[2])) : 1;
+  noStroke(); fill(255, 230);
+  circle(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, 0.02);
+  drawingContext.restore();
+  pop();
+}
+
+// The open path under (x, y), as the nearest of its points within reach.
+function pathPointAt(x, y) {
+  const m = SCORE.moments?.[MO_OPEN];
+  if (!m?.path) return null;
+  const tol = 10 / SQ;
+  let best = null;
+  m.path.forEach((p, i) => {
+    const d = Math.hypot(x - p[0], y - p[1]);
+    if (d <= tol && (!best || d < best.d)) best = { i, d };
+  });
+  return best ? { m, i: best.i } : null;
+}
+
+function dragPath() {
+  const { m, i } = PATH_DRAG, [x, y] = squareMouse();
+  if (!PATH_DRAG.kept) { rememberScore(); PATH_DRAG.kept = true; }
+  const dx = x - PATH_DRAG.x, dy = y - PATH_DRAG.y;
+  PATH_DRAG.x = x;
+  PATH_DRAG.y = y;
+  m.path.forEach((p, j) => {
+    const w = Math.exp(-((j - i) * (j - i)) / 50); // the pull falls off along the line
+    if (w < 0.01) return;
+    p[0] = round4(clamp01(p[0] + dx * w));
+    p[1] = round4(clamp01(p[1] + dy * w));
+  });
+}
+
+function releasePath() {
+  const { m, kept } = PATH_DRAG;
+  PATH_DRAG = null;
+  if (!kept) return;
+  for (const R of SCORE.layers) {
+    for (const L of R.clips) {
+      if (L.keysFrom === m.name) L.keys = pathKeys(m, L.keys?.[0]?.size ?? 0.12);
+    }
+  }
   buildLayers();
   renderMoments();
 }
@@ -1264,7 +1351,7 @@ function renameMoment(m, name) {
   const old = m.name;
   m.name = name;
   for (const R of SCORE.layers) {
-    for (const L of R.clips) for (const k of ["from", "to", "moveOn"]) if (L[k] === old) L[k] = name;
+    for (const L of R.clips) for (const k of ["from", "to", "moveOn", "keysFrom"]) if (L[k] === old) L[k] = name;
   }
   for (const cm of SCORE.colorMoves || []) {
     for (const k of ["from", "until"]) if (cm[k] === old) cm[k] = name;
@@ -2241,7 +2328,9 @@ const SCORE_NOTES = {
     "then degrees to turn it. hidden: true keeps a whole layer off the square.",
     "keys: [{ at, x, y, size, deg, fade, flip }] ease the clip's place over time",
     "(K in the studio); at is \"bar:beat\" or a moment's name; flip: -1 mirrors",
-    "from that key on. Keys replace the spot modes.",
+    "from that key on; ease: \"line\" keeps the approach linear. Keys replace the",
+    "spot modes. keysFrom names the moment whose drawn path made them: editing",
+    "that path in the studio re-samples the keys.",
   ],
 };
 
