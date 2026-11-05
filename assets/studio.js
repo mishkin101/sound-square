@@ -2017,6 +2017,7 @@ function buildLayerDetail() {
   // a drawing's timing lives on the timeline and in its keys; the pane just
   // says which moment it rides. Effects go on any clip, the background too.
   if (L.shape) wrap.append(momentRow(L));
+  wrap.append(lengthRow(L));
   wrap.append(fxRow(L));
   // spot-motion menus (spots mode, moves on, …) are gone from the pane:
   // that behavior lives in the hop effect; the score fields still play
@@ -2403,6 +2404,26 @@ function fxSlider(f, key, min, max, step, def, label) {
     out.textContent = f[key];
   });
   slider.addEventListener("change", () => { SLIDING = false; });
+  return row;
+}
+
+// Trimming without the timeline: the clip's length in bars, typed. Changing it
+// moves the end (a moment-anchored end becomes a plain bar).
+function lengthRow(L) {
+  const row = document.createElement("div");
+  row.className = "len-row";
+  const T = layerTiming(SCORE, WORLD, L);
+  const len = round2((T.e - T.s) / SCORE.beatsPerBar);
+  row.innerHTML = `<span class="data dimmed">length</span>` +
+    `<input type="number" class="input" min="0.25" max="${SCORE.bars}" step="0.25" value="${len}" title="How long the clip runs; its end moves to fit (and lets go of any moment it was anchored to)">` +
+    `<span class="data dimmed">bars · ${timeWords(L)}</span>`;
+  row.querySelector("input").addEventListener("change", (e) => {
+    const v = parseFloat(e.target.value);
+    if (!(v > 0)) return buildLayerDetail();
+    rememberScore();
+    L.to = round2((T.s + v * SCORE.beatsPerBar) / SCORE.beatsPerBar);
+    buildLayers();
+  });
   return row;
 }
 
