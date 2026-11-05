@@ -603,6 +603,8 @@ function selecting() { return ED.tool === "select" && ED.sel.length > 0; }
 
 const EYE = `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/></svg>`;
 const EYE_OFF = `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><path d="M2 14 14 2"/></svg>`;
+const LOCK = `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3.5" y="7.5" width="9" height="6" rx="1"/><path d="M5.5 7.5V5a2.5 2.5 0 0 1 5 0v2.5"/></svg>`;
+const LOCK_OPEN = `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3.5" y="7.5" width="9" height="6" rx="1"/><path d="M5.5 7.5V4.5a2.5 2.5 0 0 1 4.9-.6"/></svg>`;
 
 // Keys while the Shapes tab is showing. True when the key was used.
 function editorKey(e) {

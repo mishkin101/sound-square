@@ -75,7 +75,9 @@ const SCORE = {
     { name: "eye moves", hits: [9.25, 13.28] },
     { name: "eye panning", hits: [6.31, 6.99, 7.71, 8.81, 9.25, 10.31, 11.04, 11.76, 12.83, 13.28], hide: true, note: "the full tapped record; the quick pairs became eye moves" },
     { name: "Bongo drum Start", hits: [14.28] },
-    { name: "Pulse", hits: [10.04, 14.08] },
+    // Moved to the song's start, its tapped spacing kept; it triggers the
+    // background's pulse effect.
+    { name: "Pulse", hits: [0, 4.04] },
   ],
   // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
   // A clip: el is a coded shape from assets/elements.js; shape is a drawing,
@@ -111,6 +113,7 @@ const SCORE = {
     // color toward white on each tap of "Pulse", decaying over 3 beats.
     {
       name: "background",
+      locked: true, // clicks on the square pass it by; the panel still edits it
       clips: [{
         shape: "background",
         from: 1,

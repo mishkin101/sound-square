@@ -625,7 +625,7 @@ function mouseReleased() {
 }
 function doubleClicked(e) {
   if (inTimeline()) { TL_VIEW.zoom = 1; TL_VIEW.startMs = 0; return; }
-  if (editing() && hasSpots(editLayer()) && onSquare(e) && !liveNow() && !spotAt(...squareMouse())) addSpot(...squareMouse());
+  if (editing() && hasSpots(editLayer()) && !layerLocked() && onSquare(e) && !liveNow() && !spotAt(...squareMouse())) addSpot(...squareMouse());
 }
 
 // ---- Edit mode ---------------------------------------------------------------
@@ -650,8 +650,12 @@ function onSquare(e) {
   return e?.target?.tagName === "CANVAS" && x >= 0 && x <= 1 && y >= 0 && y <= 1;
 }
 
+// A locked layer's spots take no clicks on the square; the panel still edits it.
+function layerLocked() { return !!SCORE.layers[EDIT.layer]?.locked; }
+
 // Which spot is under (x, y), and whether that's its edge (resize) or inside (move).
 function spotAt(x, y) {
+  if (layerLocked()) return null;
   const L = editLayer(), P = paramsFor(elementOf(L), L), tol = 6 / SQ;
   for (let i = P.spots.length - 1; i >= 0; i--) {
     const [sx, sy, size] = P.spots[i], r = size * P.size, d = Math.hypot(x - sx, y - sy);
@@ -692,6 +696,7 @@ function orderSpot(i) {
 }
 
 function pressSpot() {
+  if (layerLocked()) return;
   const badge = badgeAt();
   if (badge >= 0) return orderSpot(badge);
   const [x, y] = squareMouse(), hit = spotAt(x, y);
@@ -1915,6 +1920,7 @@ function buildLayers() {
       : `<span class="fold-btn"></span>`;
     row.innerHTML = `${caret}<span class="grip" title="Drag to restack (lower layers draw on top)">⋮⋮</span>${name}` +
       `<span class="dimmed">${meta}</span>` +
+      `<button class="mini lock${R.locked ? " on" : ""}" data-act="lock" title="${R.locked ? "Unlock: its spots take clicks on the square again" : "Lock: clicks on the square pass it by (the panel still edits it)"}">${R.locked ? LOCK : LOCK_OPEN}</button>` +
       `<button class="mini eye" data-act="eye" title="${R.hidden ? "Show the layer" : "Hide the layer on the square"}">${R.hidden ? EYE_OFF : EYE}</button>` +
       `<button class="mini" data-act="del" title="Remove the layer and its shapes">×</button>`;
     row.addEventListener("click", (e) => {
@@ -1923,6 +1929,11 @@ function buildLayers() {
       if (act === "fold") {
         if (FOLDED.has(R.name)) FOLDED.delete(R.name);
         else FOLDED.add(R.name);
+        buildLayers();
+      } else if (act === "lock") {
+        rememberScore();
+        if (R.locked) delete R.locked;
+        else R.locked = true;
         buildLayers();
       } else if (act === "eye") {
         rememberScore();
