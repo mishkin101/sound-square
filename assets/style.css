@@ -31,7 +31,7 @@
 }
 
 * { box-sizing: border-box; border-radius: 0; }
-html, body { margin: 0; height: 100%; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
 body {
   background: var(--void);
   color: var(--bright);

@@ -29,6 +29,13 @@ function run(action, src = source) {
 // ---- p5 ----------------------------------------------------------------------
 
 function setup() {
+  // the app never scrolls as a document; anything that shoves it (a focus,
+  // a reveal) snaps back so the topbar can't end up off-screen
+  document.scrollingElement.scrollTop = document.scrollingElement.scrollLeft = 0;
+  document.addEventListener("scroll", () => {
+    const se = document.scrollingElement;
+    if (se.scrollTop || se.scrollLeft) { se.scrollTop = 0; se.scrollLeft = 0; }
+  }, { passive: true });
   restoreWork(); // edits made in the studio survive a reload
   const signingIn = restoreAfterSignIn();
   WORLD = prepare(SCORE);
@@ -1641,7 +1648,11 @@ function selectLayer(ri, ci, reveal = false) {
 function revealLayerPanel() {
   if (PANE_FOLD) { PANE_FOLD = false; buildLayers(); }
   $("layers-fold").open = true;
-  $("layer-detail").scrollIntoView({ block: "nearest" });
+  // scroll the panel itself, never the document (that shoves the topbar off)
+  const panel = document.querySelector(".panel"), d = $("layer-detail");
+  const pr = panel.getBoundingClientRect(), dr = d.getBoundingClientRect();
+  if (dr.height && dr.bottom > pr.bottom) panel.scrollTop += Math.min(dr.bottom - pr.bottom, dr.top - pr.top);
+  else if (dr.height && dr.top < pr.top) panel.scrollTop -= pr.top - dr.top;
 }
 
 // The shape under (x, y) on the square, topmost first, found by its spots.
@@ -1802,7 +1813,7 @@ function buildLayers() {
   });
   const input = $("layers").querySelector(".lay-row input");
   if (input) {
-    input.focus();
+    input.focus({ preventScroll: true }); // a plain focus scrolls the whole page
     input.select();
     const done = (keep) => {
       if (LAY_RENAME == null) return;
