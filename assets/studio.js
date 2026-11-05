@@ -74,6 +74,11 @@ function draw() {
   renderSquare(B, SQ_X, SQ_Y);
   drawMarkPath();
   drawMarkFx();
+  if (MOMENT_MODE) { // say so on the square itself, not just the panel
+    textSize(11); textAlign(CENTER, TOP); noStroke();
+    fill("#55d187");
+    text("MOMENT MODE — tap, hold or draw what you hear · M leaves", SQ_X + SQ / 2, SQ_Y + 8);
+  }
   if (editing() && hasSpots(editLayer()) && !liveNow()) drawEditOverlay();
   else if (editing()) setText("sq-edit-hint", scrubMs != null ? "scrubbing — the keys play" : "playing — pause to drag");
   if (tl) drawTimeline(B, height - tl);
@@ -977,7 +982,7 @@ function drawMarkPath() {
 // emanating from it — each eases outward and fades — one after another while
 // held; the ones in flight finish after release.
 let MARK_FX = null;
-const RIPPLE = { period: 600, life: 1400, r: 0.07 };
+const RIPPLE = { period: 420, life: 850, r: 0.07 };
 
 function drawMarkFx() {
   if (!MARK_FX) return;
