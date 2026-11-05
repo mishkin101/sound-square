@@ -393,6 +393,18 @@ body.shapes #fx-card, body.bare #fx-card { display: none; }
 .lay-row.off .name { color: var(--dim); text-decoration: line-through; }
 .lay-row.drop-above { box-shadow: inset 0 2px 0 #2f6bff; }
 .lay-row.drop-below { box-shadow: inset 0 -2px 0 #2f6bff; }
+.lay-row.drop-into { border-color: var(--mark); box-shadow: inset 0 0 0 1px var(--mark); }
+#layers.drop-new { outline: 1px dashed var(--mark); outline-offset: 3px; }
+
+/* The shelf: the library's drawings as little cards; drag one onto a layer. */
+#shape-shelf { display: flex; flex-wrap: wrap; gap: 4px; }
+.shelf-shape {
+  padding: 2px; background: var(--void); border: var(--hair) solid var(--rule);
+  cursor: grab; display: grid; place-items: center;
+}
+.shelf-shape:hover { border-color: var(--mid); }
+.shelf-shape:active { cursor: grabbing; }
+.shelf-shape img { width: 30px; height: 30px; object-fit: contain; background: #e9e2d9; display: block; pointer-events: none; }
 .clip-row { display: flex; align-items: center; gap: var(--u); margin-left: var(--u2); padding: 3px var(--u); font: var(--t-data); color: var(--dim); background: var(--void); border: var(--hair) solid var(--rule); cursor: pointer; text-align: left; }
 .clip-row .fold-btn { width: 10px; flex: none; color: var(--dim); }
 .clip-row .fold-btn:hover { color: var(--live); }

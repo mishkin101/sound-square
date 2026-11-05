@@ -170,7 +170,16 @@ function drawClapLines(B, s) {
 // On short windows the layer rows are left out so the square keeps its room.
 function timelineHeight() {
   if (document.body.classList.contains("bare")) return 0;
-  return showLayerRows() ? 104 + SCORE.layers.length * 13 : 100;
+  return showLayerRows() ? 104 + SCORE.layers.reduce((n, R) => n + layerRows(R), 0) * 13 : 100;
+}
+
+// An open layer takes a timeline row per shape, so their bars never overlap;
+// a folded one (the sidebar caret) packs them back into a single strip.
+function layerRows(R) { return FOLDED.has(R.name) ? 1 : Math.max(1, R.clips.length); }
+function clipRowY(ri, ci) {
+  let y = TL_ROWS_Y;
+  for (let i = 0; i < ri; i++) y += layerRows(SCORE.layers[i]) * 13;
+  return FOLDED.has(SCORE.layers[ri].name) ? y : y + (ci ?? 0) * 13;
 }
 
 function showLayerRows() { return height >= 640; }
@@ -275,20 +284,24 @@ function drawTimeline(B, top) {
   if (showLayerRows()) {
     TL_ROWS_Y = y;
     SCORE.layers.forEach((R, ri) => {
+      // an open layer spreads its shapes over a row each; a folded one packs
+      // them into a single strip (the sidebar caret folds both)
+      const folded = FOLDED.has(R.name);
       R.clips.forEach((L, ci) => {
+        const yr = folded ? y : y + ci * 13;
         const T = layerTiming(SCORE, WORLD, L), a = X(T.s), b = X(T.e);
         const sel = ri === EDIT.layer && ci === EDIT.clip, on = !R.hidden && ACTIVE[ri]?.has(ci);
         noStroke(); fill(R.hidden ? 38 : on ? 217 : sel ? 110 : 64);
-        rect(a, y + 2, Math.max(2, b - a - 1), 9);
+        rect(a, yr + 2, Math.max(2, b - a - 1), 9);
         // fades show as sloped ends
         fill(0);
-        if (T.inType === "fade" && T.inLen > 0) triangle(a, y + 2, Math.min(X(T.inAt + T.inLen), b) - 1, y + 2, a, y + 10);
-        if (T.outType === "fade" && T.outLen > 0) triangle(b - 1, y + 2, Math.max(X(T.outAt), a), y + 2, b - 1, y + 10);
+        if (T.inType === "fade" && T.inLen > 0) triangle(a, yr + 2, Math.min(X(T.inAt + T.inLen), b) - 1, yr + 2, a, yr + 10);
+        if (T.outType === "fade" && T.outLen > 0) triangle(b - 1, yr + 2, Math.max(X(T.outAt), a), yr + 2, b - 1, yr + 10);
         // an end attached to a moment carries its marker
         fill(sel ? 255 : 190);
-        if (typeof L.from === "string") triangle(a - 3, y, a + 3, y, a, y + 5);
-        if (typeof L.to === "string") triangle(b - 4, y, b + 2, y, b - 1, y + 5);
-        if (sel) { noFill(); stroke(255); strokeWeight(1); rect(a - 0.5, y + 1.5, b - a, 10); noStroke(); }
+        if (typeof L.from === "string") triangle(a - 3, yr, a + 3, yr, a, yr + 5);
+        if (typeof L.to === "string") triangle(b - 4, yr, b + 2, yr, b - 1, yr + 5);
+        if (sel) { noFill(); stroke(255); strokeWeight(1); rect(a - 0.5, yr + 1.5, b - a, 10); noStroke(); }
         // the picked clip's effects, as strips along its row (an effect with
         // keys spans them; the open effect shows its keys as little diamonds)
         if (sel) (L.fx ?? []).forEach((f, fi) => {
@@ -297,10 +310,10 @@ function drawTimeline(B, top) {
           const fe = f.keys?.length ? keyBeat(SCORE, f.keys[f.keys.length - 1].at)
             : f.to == null ? T.e : typeof f.to === "string" ? momentEnd(SCORE, f.to) ?? T.e : barToBeats(SCORE, f.to + 1);
           noStroke(); fill("#55d187");
-          rect(X(fs), y + 11, Math.max(2, X(fe) - X(fs) - 1), 1.5);
+          rect(X(fs), yr + 11, Math.max(2, X(fe) - X(fs) - 1), 1.5);
           if (FX_OPEN === fi) for (const kf of f.keys ?? []) {
             const kx = X(keyBeat(SCORE, kf.at));
-            quad(kx, y + 8.5, kx + 3, y + 11.5, kx, y + 14.5, kx - 3, y + 11.5);
+            quad(kx, yr + 8.5, kx + 3, yr + 11.5, kx, yr + 14.5, kx - 3, yr + 11.5);
           }
         });
         // the picked clip's keyframes, as diamonds
@@ -309,18 +322,18 @@ function drawTimeline(B, top) {
           const held = KEY_DRAG && KEY_DRAG.ri === ri && KEY_DRAG.ci === ci && KEY_DRAG.ki === ki;
           const kmi = typeof k.at === "string" ? momentIndex(k.at) : -1;
           noStroke(); fill(held ? "#ffffff" : kmi >= 0 ? momentColor(kmi) : 0); stroke(255); strokeWeight(1);
-          quad(kx, y + 1.5, kx + 4.5, y + 6, kx, y + 10.5, kx - 4.5, y + 6);
+          quad(kx, yr + 1.5, kx + 4.5, yr + 6, kx, yr + 10.5, kx - 4.5, yr + 6);
           noStroke();
-          if (!KEY_DRAG && Math.abs(mouseX - kx) <= 4 && mouseY >= y && mouseY < y + 13) hover = `key · ${atKeyWords(k.at)}`;
+          if (!KEY_DRAG && Math.abs(mouseX - kx) <= 4 && mouseY >= yr && mouseY < yr + 13) hover = `key · ${atKeyWords(k.at)}`;
         });
         const nm = clipLabel(R, ci);
-        if (textWidth(nm) < b - a - 10) { fill(on ? 0 : 200); text(nm, a + 4, y + 3); }
-        else { fill(140); text(nm, b + 5, y + 3); }
-        if (!CLIP_DRAG && mouseY >= y && mouseY < y + 13 && mouseX >= a - 5 && mouseX <= b + 5) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
+        if (textWidth(nm) < b - a - 10) { fill(on ? 0 : 200); text(nm, a + 4, yr + 3); }
+        else { fill(140); text(nm, b + 5, yr + 3); }
+        if (!CLIP_DRAG && mouseY >= yr && mouseY < yr + 13 && mouseX >= a - 5 && mouseX <= b + 5) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
         if (CLIP_DRAG && CLIP_DRAG.ri === ri && CLIP_DRAG.ci === ci) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
       });
-      if (!R.clips.length && ri === EDIT.layer) { noStroke(); fill(90); text(`${R.name}: empty · + shape… adds here`, X(0) + 4, y + 3); }
-      y += 13;
+      if (!R.clips.length && ri === EDIT.layer) { noStroke(); fill(90); text(`${R.name}: empty · drag a shape from the shelf`, X(0) + 4, y + 3); }
+      y += layerRows(R) * 13;
     });
   }
 
@@ -361,15 +374,25 @@ function drawTimeline(B, top) {
 let TL_ROWS_Y = 0;
 function clipAt() {
   if (!showLayerRows()) return null;
-  const ri = Math.floor((mouseY - TL_ROWS_Y) / 13);
-  if (ri < 0 || ri >= SCORE.layers.length || mouseY - TL_ROWS_Y - ri * 13 > 12) return null;
-  const clips = SCORE.layers[ri].clips;
-  for (let ci = clips.length - 1; ci >= 0; ci--) {
-    const T = layerTiming(SCORE, WORLD, clips[ci]);
+  const hit = (ri, ci) => {
+    const T = layerTiming(SCORE, WORLD, SCORE.layers[ri].clips[ci]);
     const a = timelineX(T.s), b = timelineX(T.e);
     if (Math.abs(mouseX - a) <= 5) return { ri, ci, zone: "start" };
     if (Math.abs(mouseX - b) <= 5) return { ri, ci, zone: "end" };
     if (mouseX > a && mouseX < b) return { ri, ci, zone: "body" };
+    return null;
+  };
+  let y = TL_ROWS_Y;
+  for (let ri = 0; ri < SCORE.layers.length; ri++) {
+    const R = SCORE.layers[ri], h = layerRows(R) * 13;
+    if (mouseY >= y && mouseY < y + h) {
+      const row = Math.floor((mouseY - y) / 13);
+      if (mouseY - y - row * 13 > 12) return null;
+      if (!FOLDED.has(R.name)) return R.clips[row] ? hit(ri, row) : null;
+      for (let ci = R.clips.length - 1; ci >= 0; ci--) { const c = hit(ri, ci); if (c) return c; }
+      return null;
+    }
+    y += h;
   }
   return null;
 }
@@ -758,7 +781,7 @@ function keyAt() {
   if (!showLayerRows() || EDIT.clip == null) return null;
   const ri = EDIT.layer, ci = EDIT.clip, L = SCORE.layers[ri]?.clips?.[ci];
   if (!L?.keys?.length) return null;
-  const y = TL_ROWS_Y + ri * 13;
+  const y = clipRowY(ri, ci);
   if (mouseY < y || mouseY > y + 12) return null;
   for (let ki = L.keys.length - 1; ki >= 0; ki--) {
     if (Math.abs(mouseX - timelineX(keyBeat(SCORE, L.keys[ki].at))) <= 4) return { ri, ci, ki };
@@ -1620,7 +1643,28 @@ function drawFlash(B) {
 // picked clip's controls show. Double-click a layer's name to rename it, drag
 // it to restack (lower layers draw on top), the eye hides the whole layer, the
 // caret folds its shapes away (a fold is looks only, kept out of the score).
-let LAY_RENAME = null, ROW_DRAG = null;
+let LAY_RENAME = null, ROW_DRAG = null, SHAPE_DRAG = null;
+
+// Which layer a drag over the list would land in: a layer row or one of its
+// shape rows names that layer; anywhere else in the list means a new one.
+function dropLayerAt(e) {
+  const row = e.target.closest?.(".lay-row, .clip-row");
+  if (row?.dataset.ri != null) return Number(row.dataset.ri);
+  if (e.target.closest?.("#layer-detail")) return EDIT.layer;
+  // in the little gaps between rows, the nearest row still counts
+  let best = null, dist = 14;
+  for (const x of $("layers").querySelectorAll(".lay-row, .clip-row")) {
+    const r = x.getBoundingClientRect();
+    const d = e.clientY < r.top ? r.top - e.clientY : e.clientY > r.bottom ? e.clientY - r.bottom : 0;
+    if (d < dist) { dist = d; best = Number(x.dataset.ri); }
+  }
+  return best;
+}
+
+function clearDropMarks() {
+  for (const x of $("layers").querySelectorAll(".drop-into")) x.classList.remove("drop-into");
+  $("layers").classList.remove("drop-new");
+}
 const FOLDED = new Set(); // layer names whose shape rows are folded away
 let PANE_FOLD = false;    // the picked shape's settings, folded under its row
 
@@ -1681,6 +1725,7 @@ function buildLayers() {
       const picked = ri === EDIT.layer && ci === EDIT.clip;
       const c = document.createElement("button");
       c.className = "clip-row" + (picked ? " on" : "");
+      c.dataset.ri = ri;
       c.innerHTML = `<span class="fold-btn" title="Fold the settings away">${picked ? (PANE_FOLD ? "▸" : "▾") : ""}</span>` +
         `<span class="name">${clipLabel(R, ci)}</span><span>${timeWords(L)}</span>`;
       c.addEventListener("click", (e) => {
@@ -1774,9 +1819,10 @@ function buildLayerDetail() {
         ? `<select class="mini-sel" data-a="pin" title="Pin to a moment: a keyframe there with this spot's place"><option value="">◆</option>` +
           (SCORE.moments || []).map((m) => `<option>${m.name}</option>`).join("") + `</select>`
         : "";
+      row.title = `×${round2(size)}${deg ? ` · ${deg}°` : ""}${flip === -1 ? " · mirrored" : ""} — size lives on the shape's slider below`;
       row.innerHTML = `<span class="dimmed">${i + 1}</span>` +
         `<span>${Math.round(x * 100)}, ${Math.round(y * 100)}</span>` +
-        `<span class="dimmed">×${round2(size)}${deg ? ` ${deg}°` : ""}${flip === -1 ? " ⇄" : ""}</span>` +
+        `<span class="dimmed">${deg ? `${deg}°` : ""}${flip === -1 ? " ⇄" : ""}</span>` +
         pinMenu +
         `<button class="mini" data-a="flip" title="Mirror (X)">⇄</button>` +
         `<button class="mini" data-a="turn" title="Turn 15° (Alt-click turns back)">↻</button>` +
@@ -1871,15 +1917,20 @@ function buildLayerDetail() {
     wrap.append(row);
   }
   for (const [name, [def, min, max, step]] of Object.entries(el ? el.params : {})) {
-    // on a keyed clip the size slider follows the one rule: it writes the key
-    // under the playhead (in spot-size units, 0.1 per slider step)
+    // the size slider follows the one rule: on a keyed clip it writes the key
+    // under the playhead; otherwise it sizes the picked spot (0.1 per step)
     const keyed = name === "size" && L.keys?.length;
+    const spots = !keyed && name === "size" && L.shape ? (L.spots ?? el.spots ?? []) : null;
+    const si = spots?.length ? Math.min(EDIT.spot ?? 0, spots.length - 1) : null;
     const kNow = keyed ? parkedKey(L) ?? keyedPlace(SCORE, L.keys, Math.max(0, msToBeats(SCORE, songNow()))) : null;
-    const val = keyed ? Math.min(max, Math.max(min, kNow.size / 0.1)) : L[name] ?? def;
+    const val = keyed ? Math.min(max, Math.max(min, kNow.size / 0.1))
+      : si != null ? Math.min(max, Math.max(min, spots[si][2] / 0.1))
+      : L[name] ?? def;
     const dec = decimals(step);
+    const label = keyed ? "size (the key's)" : si != null && spots.length > 1 ? `size (spot ${si + 1})` : name;
     const row = document.createElement("label");
     row.className = "param";
-    row.innerHTML = `<span>${keyed ? "size (the key's)" : name}</span><span class="val">${val.toFixed(dec)}</span>` +
+    row.innerHTML = `<span>${label}</span><span class="val">${val.toFixed(dec)}</span>` +
       `<input type="range" min="${min}" max="${max}" step="${step}" value="${val}">`;
     const out = row.querySelector(".val"), slider = row.querySelector("input");
     slider.addEventListener("input", (e) => {
@@ -1888,6 +1939,9 @@ function buildLayerDetail() {
       if (keyed) {
         const p = parkedKey(L) ?? keyedPlace(SCORE, L.keys, Math.max(0, msToBeats(SCORE, songNow())));
         keyThrough(L, [p.x, p.y, round4(0.1 * v), p.flip ?? 1, p.deg ? round2(p.deg) : 0]);
+      } else if (si != null) {
+        const arr = L.spots ?? (L.spots = spots.map((s) => [...s])); // own copy, not the element's default
+        arr[si][2] = round4(0.1 * v);
       } else L[name] = v;
       out.textContent = v.toFixed(dec);
     });
@@ -2196,10 +2250,25 @@ function moveOnOptions() {
   ];
 }
 
-// The shape menus list the library: the picked layer's, and "+ shape" to add one.
+// The shape menus list the library: the shelf of thumbnails under the layers
+// (drag one onto a layer, or click to add), and the picked clip's own menu.
 function renderShapeMenus() {
-  const add = $("add-shape");
-  if (add) add.innerHTML = `<option value="">+ shape…</option>` + ED.library.map((n) => `<option>${n}</option>`).join("");
+  const shelf = $("shape-shelf");
+  if (shelf) shelf.replaceChildren(...ED.library.map((n) => {
+    const b = document.createElement("button");
+    b.className = "shelf-shape";
+    b.draggable = true;
+    b.title = `${n} — drag onto a layer, or click to add it to the picked one`;
+    b.innerHTML = `<img src="shapes/${encodeURIComponent(n)}.svg" alt="${n}" draggable="false">`;
+    b.addEventListener("click", () => { loadShape(n); addShapeLayer(n); b.blur(); });
+    b.addEventListener("dragstart", (e) => {
+      SHAPE_DRAG = n;
+      e.dataTransfer.effectAllowed = "copy";
+      e.dataTransfer.setData("text/plain", n);
+    });
+    b.addEventListener("dragend", () => { SHAPE_DRAG = null; clearDropMarks(); });
+    return b;
+  }));
   const menu = document.querySelector(".shape-menu"), L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
   if (!menu || !L?.shape) return;
   const names = [...new Set([...ED.library, L.shape])].sort();
@@ -2209,15 +2278,22 @@ function renderShapeMenus() {
 // A clip for a drawing, from the current bar for 8 bars, with one spot in the
 // middle. It goes into the picked layer (or a new one) and gets picked itself.
 function addShapeLayer(name) {
+  return addShapeInto(EDIT.layer, name);
+}
+
+// The same, into a given layer — the drop target when a shelf shape lands on a
+// row. No layer (null, or a drop on empty space) makes a new one, named after
+// the shape.
+function addShapeInto(ri, name) {
   rememberScore();
   const bar = Math.floor(Math.max(0, msToBeats(SCORE, songNow())) / SCORE.beatsPerBar) + 1;
   const clip = { shape: name, from: bar, to: Math.min(SCORE.bars, bar + 7), in: "fade", out: "fade", spots: [[0.5, 0.5, 0.15]] };
-  let ri = EDIT.layer;
   if (ri == null || !SCORE.layers[ri]) {
     SCORE.layers.push({ name, clips: [] });
     ri = SCORE.layers.length - 1;
   }
   SCORE.layers[ri].clips.push(clip);
+  FOLDED.delete(SCORE.layers[ri].name); // unfold so the new row shows
   EDIT.layer = ri;
   EDIT.clip = SCORE.layers[ri].clips.length - 1;
   buildLayers();
@@ -2333,6 +2409,16 @@ function wireControls() {
     e.dataTransfer.setData("text/plain", row.dataset.ri);
   });
   $("layers").addEventListener("dragover", (e) => {
+    // a shape from the shelf: light up the layer it would land in
+    if (SHAPE_DRAG != null) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      clearDropMarks();
+      const ri = dropLayerAt(e);
+      if (ri == null) $("layers").classList.add("drop-new");
+      else $("layers").querySelector(`.lay-row[data-ri="${ri}"]`)?.classList.add("drop-into");
+      return;
+    }
     const row = e.target.closest(".lay-row");
     if (ROW_DRAG == null || !row) return;
     e.preventDefault();
@@ -2340,7 +2426,19 @@ function wireControls() {
     for (const x of $("layers").querySelectorAll(".lay-row")) x.classList.remove("drop-above", "drop-below");
     row.classList.add(above ? "drop-above" : "drop-below");
   });
+  $("layers").addEventListener("dragleave", (e) => {
+    if (SHAPE_DRAG != null && !$("layers").contains(e.relatedTarget)) clearDropMarks();
+  });
   $("layers").addEventListener("drop", (e) => {
+    if (SHAPE_DRAG != null) {
+      e.preventDefault();
+      const name = SHAPE_DRAG, ri = dropLayerAt(e);
+      SHAPE_DRAG = null;
+      clearDropMarks();
+      loadShape(name);
+      addShapeInto(ri, name);
+      return;
+    }
     const row = e.target.closest(".lay-row"), from = ROW_DRAG;
     ROW_DRAG = null;
     if (from == null || !row) return buildLayers();
@@ -2356,13 +2454,23 @@ function wireControls() {
     buildLayers();
   });
   $("layers").addEventListener("dragend", () => { ROW_DRAG = null; buildLayers(); });
-  $("add-shape").addEventListener("change", (e) => {
-    const name = e.target.value;
-    e.target.value = "";
-    e.target.blur();
-    if (!name) return;
+  // the space around the list (under the rows, on + Layer) takes the shelf
+  // shape too: a new layer
+  $("layers-fold").addEventListener("dragover", (e) => {
+    if (SHAPE_DRAG == null || e.target.closest("#layers, #shape-shelf")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    clearDropMarks();
+    $("layers").classList.add("drop-new");
+  });
+  $("layers-fold").addEventListener("drop", (e) => {
+    if (SHAPE_DRAG == null || e.target.closest("#layers, #shape-shelf")) return;
+    e.preventDefault();
+    const name = SHAPE_DRAG;
+    SHAPE_DRAG = null;
+    clearDropMarks();
     loadShape(name);
-    addShapeLayer(name);
+    addShapeInto(null, name);
   });
   button("add-pulse", () => {
     rememberScore();

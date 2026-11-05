@@ -8,7 +8,7 @@
     // Spotify only accepts 127.0.0.1 for a local sign-in, so the studio always runs there.
     if (location.hostname === "localhost") location.replace(location.href.replace("//localhost", "//127.0.0.1"));
   </script>
-  <link rel="stylesheet" href="assets/style.css?v=64">
+  <link rel="stylesheet" href="assets/style.css?v=67">
 </head>
 <body>
   <header class="topbar">
@@ -242,11 +242,12 @@
       <summary class="label">Layers</summary>
       <div class="stack">
       <div class="stack" id="layers"></div>
+      <!-- the shelf: every drawing in the library; drag one onto a layer -->
+      <div id="shape-shelf"></div>
       <div class="seg">
-        <select class="input" id="add-shape" title="Add a shape into the picked layer; it comes in at the playhead"></select>
         <button class="btn" id="add-layer" title="A new empty layer on top">+ Layer</button>
       </div>
-      <span class="data dimmed">Drag a shape's bar to move it, its ends to trim — they snap to bars and moments. Drag layers to restack; double-click renames.</span>
+      <span class="data dimmed">Drag a shape from the shelf onto a layer to add it there; drop it on empty space for a new layer. Drag a shape's bar on the timeline to move it; drag layers to restack; double-click renames.</span>
       <!-- the picked shape's settings; buildLayers nests it under that shape's row -->
       <div hidden id="detail-home"><div class="stack" id="layer-detail"></div></div>
       </div>
@@ -278,21 +279,21 @@
     window.getStroke = getStroke;
   </script>
   <!-- ?v=N: bump it when files change, so browsers load the new ones instead of old copies -->
-  <script src="score.js?v=64"></script>
-  <script src="assets/engine.js?v=64"></script>
-  <script src="assets/elements.js?v=64"></script>
-  <script src="assets/geom.js?v=64"></script>
-  <script src="assets/motions.js?v=64"></script>
-  <script src="assets/shapes.js?v=64"></script>
-  <script src="assets/shapedoc.js?v=64"></script>
-  <script src="assets/tools.js?v=64"></script>
-  <script src="assets/trace.js?v=64"></script>
-  <script src="assets/editor.js?v=64"></script>
-  <script src="assets/sound.js?v=64"></script>
-  <script src="assets/sources.js?v=64"></script>
-  <script src="assets/spotify.js?v=64"></script>
-  <script src="assets/tempo.js?v=64"></script>
-  <script src="assets/listen.js?v=64"></script>
-  <script src="assets/studio.js?v=64"></script>
+  <script src="score.js?v=67"></script>
+  <script src="assets/engine.js?v=67"></script>
+  <script src="assets/elements.js?v=67"></script>
+  <script src="assets/geom.js?v=67"></script>
+  <script src="assets/motions.js?v=67"></script>
+  <script src="assets/shapes.js?v=67"></script>
+  <script src="assets/shapedoc.js?v=67"></script>
+  <script src="assets/tools.js?v=67"></script>
+  <script src="assets/trace.js?v=67"></script>
+  <script src="assets/editor.js?v=67"></script>
+  <script src="assets/sound.js?v=67"></script>
+  <script src="assets/sources.js?v=67"></script>
+  <script src="assets/spotify.js?v=67"></script>
+  <script src="assets/tempo.js?v=67"></script>
+  <script src="assets/listen.js?v=67"></script>
+  <script src="assets/studio.js?v=67"></script>
 </body>
 </html>
