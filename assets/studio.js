@@ -337,9 +337,13 @@ function drawTimeline(B, top) {
           noStroke();
           if (!KEY_DRAG && Math.abs(mouseX - kx) <= 4 && mouseY >= yr && mouseY < yr + 13) hover = `key · ${atKeyWords(k.at)}`;
         });
-        const nm = clipLabel(R, ci);
-        if (textWidth(nm) < b - a - 10) { fill(on ? 0 : 200); text(nm, a + 4, yr + 3); }
-        else { fill(140); text(nm, b + 5, yr + 3); }
+        // the label sits beside the bar, right of it when there's room, else
+        // left; only a bar spanning the whole view keeps it inside
+        const nm = clipLabel(R, ci), tw = textWidth(nm);
+        fill(on ? 200 : 140);
+        if (b + 5 + tw <= width - 4) text(nm, b + 5, yr + 3);
+        else if (a - 5 - tw >= 4) text(nm, a - 5 - tw, yr + 3);
+        else { fill(on ? 0 : 200); text(nm, a + 4, yr + 3); }
         if (!CLIP_DRAG && mouseY >= yr && mouseY < yr + 13 && mouseX >= a - 5 && mouseX <= b + 5) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
         if (CLIP_DRAG && CLIP_DRAG.ri === ri && CLIP_DRAG.ci === ci) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
       });
