@@ -186,7 +186,7 @@ function clipRowY(ri, ci) {
   return layerOpen(SCORE.layers[ri]) ? y + ((ci ?? 0) + 1) * 13 : y;
 }
 
-function showLayerRows() { return height >= 640; }
+function showLayerRows() { return height >= 420; }
 
 // The timeline spans the song in milliseconds, so anything before bar 1 shows
 // too. It can zoom in (pinch or ⌘-scroll over it, toward the pointer; scroll
@@ -292,20 +292,6 @@ function drawTimeline(B, top) {
     SCORE.layers.forEach((R, ri) => {
       // open: a dim header row, each shape nested on its own row under it
       const open = layerOpen(R);
-      if (R.clips.length) {
-        // packed, the title only shows when the bars start past it (never
-        // under a bar); the ▸ glyph alone always fits
-        const need = 13 + textWidth(R.name) + 8;
-        const minA = open ? Infinity : Math.min(...R.clips.map((L) => X(layerTiming(SCORE, WORLD, L).s)));
-        const titled = open || minA > need;
-        noStroke(); fill(0); rect(0, y + 1, titled ? need : 11, 11);
-        fill(open ? 170 : 110); textAlign(LEFT, CENTER);
-        text(titled ? `${open ? "▾" : "▸"} ${R.name}` : "▸", 2, y + 7);
-        textAlign(LEFT, TOP);
-        if (open) { stroke(50); strokeWeight(1); line(4.5, y + 13, 4.5, y + layerRows(R) * 13 - 3); noStroke(); }
-        if (!CLIP_DRAG && mouseY >= y && mouseY < y + 12 && mouseX <= (open ? need : 11))
-          hover = open ? `${R.name} — click packs its shapes into one strip` : `${R.name} — click gives each shape its row (V flips all)`;
-      }
       R.clips.forEach((L, ci) => {
         const yr = open ? y + (ci + 1) * 13 : y;
         const T = layerTiming(SCORE, WORLD, L), a = X(T.s), b = X(T.e);
@@ -361,7 +347,17 @@ function drawTimeline(B, top) {
         if (!CLIP_DRAG && mouseY >= yr && mouseY < yr + 13 && mouseX >= a - 5 && mouseX <= b + 5) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
         if (CLIP_DRAG && CLIP_DRAG.ri === ri && CLIP_DRAG.ci === ci) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
       });
-      if (!R.clips.length && ri === EDIT.layer) { noStroke(); fill(90); text(`${R.name}: empty · drag a shape from the shelf`, X(0) + 4, y + 3); }
+      // the layer's title chip, drawn over the bars' left edge so every row
+      // says whose it is; ▸/▾ flips the layer between strip and shape view
+      const need = (R.clips.length ? 13 : 2) + textWidth(R.name) + 8;
+      noStroke(); fill(0); rect(0, y + 1, need, 11);
+      fill(open ? 170 : R.clips.length ? 110 : 70); textAlign(LEFT, CENTER);
+      text(R.clips.length ? `${open ? "▾" : "▸"} ${R.name}` : R.name, 2, y + 7);
+      textAlign(LEFT, TOP);
+      if (open) { stroke(50); strokeWeight(1); line(4.5, y + 13, 4.5, y + layerRows(R) * 13 - 3); noStroke(); }
+      if (!R.clips.length && ri === EDIT.layer) { noStroke(); fill(90); text("empty · drag a shape from the shelf", need + 6, y + 3); }
+      if (!CLIP_DRAG && mouseY >= y && mouseY < y + 12 && mouseX <= need)
+        hover = !R.clips.length ? `${R.name} — empty` : open ? `${R.name} — click packs its shapes into one strip` : `${R.name} — click gives each shape its row (V flips all)`;
       y += layerRows(R) * 13;
     });
   }
@@ -382,7 +378,7 @@ function drawTimeline(B, top) {
     const want = CLIP_DRAG ? (CLIP_DRAG.zone === "body" ? "grabbing" : "ew-resize")
       : KEY_DRAG ? "grabbing"
       : MOMENT_MODE && overSq ? "crosshair"
-      : inTimeline() && tlCaretAt() != null ? "pointer"
+      : inTimeline() && tlCaretAt() != null && (!c || c.zone === "body") ? "pointer"
       : MOMENT_DRAG || (inTimeline() && (momentMarkerAt() || keyAt())) ? "grab"
       : c ? (c.zone === "body" ? "grab" : "ew-resize") : "default";
     if (canvasCursor !== want) cursor(canvasCursor = want);
@@ -423,10 +419,8 @@ function tlCaretAt() {
   let y = TL_ROWS_Y;
   for (let ri = 0; ri < SCORE.layers.length; ri++) {
     const R = SCORE.layers[ri];
-    // packed, only the ▸ glyph itself takes the click, so the bars beside it
-    // stay draggable; the open header row has no bars and is all clickable
     if (R.clips.length && mouseY >= y && mouseY < y + 12 &&
-        mouseX <= (layerOpen(R) ? 13 + textWidth(R.name) + 8 : 11)) return ri;
+        mouseX <= 13 + textWidth(R.name) + 8) return ri;
     y += layerRows(R) * 13;
   }
   return null;
@@ -485,9 +479,13 @@ function mousePressed(e) {
   if (inTimeline()) {
     const car = tlCaretAt();
     if (car != null) {
-      const name = SCORE.layers[car].name;
-      if (!TL_OPEN.delete(name)) TL_OPEN.add(name);
-      return;
+      // a bar's end under the chip still wins, so trimming works at the edge
+      const clip = clipAt();
+      if (!clip || clip.zone === "body") {
+        const name = SCORE.layers[car].name;
+        if (!TL_OPEN.delete(name)) TL_OPEN.add(name);
+        return;
+      }
     }
     MOMENT_DRAG = momentMarkerAt();
     if (MOMENT_DRAG) return;
