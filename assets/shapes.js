@@ -63,7 +63,7 @@ function drawKeyed(sh, P, s, st) {
   drawingContext.globalAlpha *= clamp01(k.fade);
   translate(k.x, k.y);
   if (k.deg) rotate((k.deg * Math.PI) / 180);
-  scale(k.size * P.size, k.size * P.size);
+  scale(k.flip * k.size * P.size, k.size * P.size);
   drawShape(sh, s.col, drawingContext, frame);
   pop();
 }

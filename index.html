@@ -8,7 +8,7 @@
     // Spotify only accepts 127.0.0.1 for a local sign-in, so the studio always runs there.
     if (location.hostname === "localhost") location.replace(location.href.replace("//localhost", "//127.0.0.1"));
   </script>
-  <link rel="stylesheet" href="assets/style.css?v=39">
+  <link rel="stylesheet" href="assets/style.css?v=40">
 </head>
 <body>
   <header class="topbar">
@@ -233,7 +233,7 @@
       <div class="stack">
       <label class="check"><input type="checkbox" id="moments-hide-all"><span>Hide all markers on the timeline</span></label>
       <div class="stack" id="moments"></div>
-      <span class="data dimmed">M while the song plays marks what you hear; quick presses make one moment. The eye keeps its marker off the timeline.</span>
+      <span class="data dimmed">M while the song plays marks what you hear: tap for a hit, hold for a span. The eye keeps its marker off the timeline.</span>
       </div>
     </details>
     <section>
@@ -280,21 +280,21 @@
     window.getStroke = getStroke;
   </script>
   <!-- ?v=N: bump it when files change, so browsers load the new ones instead of old copies -->
-  <script src="score.js?v=39"></script>
-  <script src="assets/engine.js?v=39"></script>
-  <script src="assets/elements.js?v=39"></script>
-  <script src="assets/geom.js?v=39"></script>
-  <script src="assets/motions.js?v=39"></script>
-  <script src="assets/shapes.js?v=39"></script>
-  <script src="assets/shapedoc.js?v=39"></script>
-  <script src="assets/tools.js?v=39"></script>
-  <script src="assets/trace.js?v=39"></script>
-  <script src="assets/editor.js?v=39"></script>
-  <script src="assets/sound.js?v=39"></script>
-  <script src="assets/sources.js?v=39"></script>
-  <script src="assets/spotify.js?v=39"></script>
-  <script src="assets/tempo.js?v=39"></script>
-  <script src="assets/listen.js?v=39"></script>
-  <script src="assets/studio.js?v=39"></script>
+  <script src="score.js?v=40"></script>
+  <script src="assets/engine.js?v=40"></script>
+  <script src="assets/elements.js?v=40"></script>
+  <script src="assets/geom.js?v=40"></script>
+  <script src="assets/motions.js?v=40"></script>
+  <script src="assets/shapes.js?v=40"></script>
+  <script src="assets/shapedoc.js?v=40"></script>
+  <script src="assets/tools.js?v=40"></script>
+  <script src="assets/trace.js?v=40"></script>
+  <script src="assets/editor.js?v=40"></script>
+  <script src="assets/sound.js?v=40"></script>
+  <script src="assets/sources.js?v=40"></script>
+  <script src="assets/spotify.js?v=40"></script>
+  <script src="assets/tempo.js?v=40"></script>
+  <script src="assets/listen.js?v=40"></script>
+  <script src="assets/studio.js?v=40"></script>
 </body>
 </html>

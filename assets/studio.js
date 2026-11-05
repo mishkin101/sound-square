@@ -227,7 +227,18 @@ function drawTimeline(B, top) {
   let hover = null;
   if (!HIDE_MOMENTS) (SCORE.moments || []).forEach((m, mi) => {
     if (m.hide) return;
-    m.hits.forEach((h, hi) => {
+    if (m.hold) { // a hold is a band, dragged at its ends or as a whole
+      const a = X(m.hold[0]), b = X(m.hold[1]);
+      const picked = MOMENT_DRAG && MOMENT_DRAG.mi === mi;
+      noStroke(); fill(picked ? 255 : 190, 150);
+      rect(a, y + 4, Math.max(2, b - a), 7);
+      fill(140); text(m.name, a + 3, y - 1);
+      if (mouseX >= a - 5 && mouseX <= b + 5 && mouseY >= y && mouseY <= y + 13) {
+        hover = `${m.name} · ${round2(m.hold[1] - m.hold[0])} beats${m.note ? ` · ${m.note}` : ""}`;
+      }
+      return;
+    }
+    (m.hits || []).forEach((h, hi) => {
       const x = X(h), picked = MOMENT_DRAG && MOMENT_DRAG.mi === mi && MOMENT_DRAG.hi === hi;
       noStroke(); fill(picked ? 255 : 190);
       triangle(x - 4, y + 4, x + 4, y + 4, x, y + 11);
@@ -344,7 +355,7 @@ function snapBeat(beat) {
   const d = (b) => Math.abs(timelineX(b) - mouseX);
   let best = null;
   for (const m of SCORE.moments || []) {
-    for (const h of m.hits) if (d(h) <= 8 && (!best || d(h) < d(best.h))) best = { name: m.name, h };
+    for (const h of m.hold ?? m.hits ?? []) if (d(h) <= 8 && (!best || d(h) < d(best.h))) best = { name: m.name, h };
   }
   return best ? best.name : Math.round(beat / SCORE.beatsPerBar) * SCORE.beatsPerBar;
 }
@@ -535,6 +546,7 @@ function flipSpot(i) {
   const sp = spotsOf(editLayer())[i];
   sp[3] = sp[3] === -1 ? 1 : -1;
   tidySpot(sp);
+  keyThrough(editLayer(), sp);
   buildLayerDetail();
 }
 
@@ -615,15 +627,21 @@ function setKeyAtPlayhead() {
   buildLayers();
 }
 
-// Once a clip has keys, dragging or turning its spot keys it: standing on a
-// key writes into that key, anywhere else a key is added at the playhead. So
-// after the first K, animating is just scrub, drag, scrub, drag.
+// The key the playhead is standing on, if any.
+function parkedKey(L) {
+  if (!L?.keys?.length) return null;
+  const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
+  return L.keys.find((k) => Math.abs(keyBeat(SCORE, k.at) - B) < 0.1) ?? null;
+}
+
+// One rule: once a clip has keys, changing it writes into the key under the
+// playhead — or adds one there. So after the first K, animating is scrub,
+// change, scrub, change: drags, turns, mirrors and the size slider alike.
 function keyThrough(L, sp) {
   if (!L?.keys?.length) return;
-  const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
-  let k = L.keys.find((x) => Math.abs(keyBeat(SCORE, x.at) - B) < 0.1);
+  let k = parkedKey(L);
   if (!k) {
-    k = { at: atKey(B) };
+    k = { at: atKey(round2(Math.max(0, msToBeats(SCORE, songNow())))) };
     L.keys.push(k);
     L.keys.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at));
   }
@@ -632,11 +650,37 @@ function keyThrough(L, sp) {
   k.size = sp[2];
   if (sp[4]) k.deg = sp[4];
   else delete k.deg;
+  if (sp[3] === -1) k.flip = -1;
+  else delete k.flip;
+}
+
+// → keys: the clip's timing becomes keyframes — fade 0 at the in, 1 after the
+// fade-in, mirrored at the out (a cut becomes a quarter-beat snap) — and the
+// when-fields clear. From here keys rule; sculpt them freely.
+function bakeKeys() {
+  const L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
+  if (!L?.shape || L.keys?.length) return;
+  rememberScore();
+  const T = layerTiming(SCORE, WORLD, L);
+  const sp = (L.spots ?? elementOf(L).spots)[0];
+  const base = { x: sp[0], y: sp[1], size: sp[2] };
+  if (sp[4]) base.deg = sp[4];
+  if (sp[3] === -1) base.flip = -1;
+  const keys = [];
+  const put = (b, fade) => keys.push({ at: atKey(round2(Math.max(0, b))), ...base, fade });
+  if (T.inLen > 0) { put(T.inAt, 0); put(T.inAt + T.inLen, 1); }
+  else { put(T.s - 0.25, 0); put(T.s, 1); }
+  if (T.outLen > 0) { put(T.outAt, 1); put(T.outAt + T.outLen, 0); }
+  else { put(T.e - 0.25, 1); put(T.e, 0); }
+  L.keys = keys.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at));
+  for (const k of ["from", "to", "in", "out", "inBeats", "outBeats"]) delete L[k];
+  buildLayers();
 }
 
 // A key's `at` for this beat: a moment it lands on, else "bar:beat".
 function atKey(B) {
-  for (const m of SCORE.moments || []) for (const h of m.hits) if (Math.abs(h - B) < 0.1) return m.name;
+  // a hold's name means its start, so only the start anchors a key by name
+  for (const m of SCORE.moments || []) for (const h of m.hold ? [m.hold[0]] : m.hits || []) if (Math.abs(h - B) < 0.1) return m.name;
   const bar = Math.floor(B / SCORE.beatsPerBar) + 1;
   return `${bar}:${round2(B - (bar - 1) * SCORE.beatsPerBar + 1)}`;
 }
@@ -668,7 +712,7 @@ function dragKey() {
   if (!d.kept) { rememberScore(); d.kept = true; }
   let at = null;
   for (const m of SCORE.moments || []) {
-    for (const h of m.hits) if (Math.abs(timelineX(h) - mouseX) <= 8) at = m.name;
+    for (const h of m.hold ? [m.hold[0]] : m.hits || []) if (Math.abs(timelineX(h) - mouseX) <= 8) at = m.name;
   }
   k.at = at ?? atKey(Math.max(0, Math.round(msToBeats(SCORE, mouseMs()) * 4) / 4));
 }
@@ -815,16 +859,40 @@ function restoreScore(json) {
 }
 
 // ---- Moments -------------------------------------------------------------------
-// M marks what you hear: a hit lands where the song is. Quick presses build one
-// moment (the two fast taps); a pause starts the next. The Moments panel renames
-// and removes them; dragging a marker on the timeline moves that hit.
+// M marks what you hear. A tap is a hit; quick taps build one moment (the two
+// fast taps); a pause starts the next. M held down marks a hold: a span from
+// press to release ("the bongo section"). The Moments panel renames and removes
+// them; markers and bands on the timeline drag.
 
 const MARKING = { at: -1e9, moment: null };
+let M_DOWN = null;
 let MOMENT_DRAG = null;
 let HIDE_MOMENTS = false; // the global toggle: no markers on the timeline at all
 
-function markMoment(e) {
-  const at = songNow() - (performance.now() - e.timeStamp); // when the key went down
+function momentKeyDown(e) {
+  M_DOWN = { at: songNow() - (performance.now() - e.timeStamp), t: performance.now() };
+}
+
+function momentKeyUp(e) {
+  if (!M_DOWN) return;
+  const { at, t } = M_DOWN;
+  M_DOWN = null;
+  if (performance.now() - t < 350) return markHit(at);
+  markHold(at, songNow() - (performance.now() - e.timeStamp));
+}
+
+function markHold(fromMs, toMs) {
+  rememberScore();
+  SCORE.moments ??= [];
+  const hold = [round2(msToBeats(SCORE, fromMs)), round2(msToBeats(SCORE, toMs))].sort((a, b) => a - b);
+  let n = SCORE.moments.length + 1;
+  while (SCORE.moments.some((x) => x.name === `moment ${n}`)) n++;
+  SCORE.moments.push({ name: `moment ${n}`, hold });
+  momentsChanged();
+  setText("tap-status", `moment ${n} · ${round2(hold[1] - hold[0])} beats long · rename it in Moments`);
+}
+
+function markHit(at) {
   const beat = round2(msToBeats(SCORE, at));
   rememberScore();
   SCORE.moments ??= [];
@@ -844,7 +912,7 @@ function markMoment(e) {
 
 // Anything that reads moments is told: the prepared world, the panel, the menus.
 function momentsChanged() {
-  for (const m of SCORE.moments || []) m.hits.sort((a, b) => a - b);
+  for (const m of SCORE.moments || []) (m.hold ?? m.hits)?.sort((a, b) => a - b);
   WORLD = prepare(SCORE);
   renderMoments();
   buildLayers();
@@ -863,9 +931,12 @@ function renderMoments() {
   $("moments").replaceChildren(...list.map((m, mi) => {
     const card = document.createElement("div");
     card.className = "moment-card";
+    const meta = m.hold
+      ? `${round2(m.hold[1] - m.hold[0])} beats · ${atWords(m.hold[0])}`
+      : `${m.hits.length} hit${m.hits.length === 1 ? "" : "s"} · ${atWords(m.hits[0] ?? 0)}`;
     card.innerHTML =
       `<div class="moment-row"><input class="input name" type="text" spellcheck="false" autocomplete="off">` +
-      `<span class="dimmed">${m.hits.length} hit${m.hits.length === 1 ? "" : "s"} · ${atWords(m.hits[0] ?? 0)}</span>` +
+      `<span class="dimmed">${meta}</span>` +
       `<button class="mini eye" title="${m.hide ? "Show its marker on the timeline" : "Hide its marker (it still anchors and triggers)"}">${m.hide ? EYE_OFF : EYE}</button>` +
       `<button class="mini" data-del title="Remove the moment (what used it falls back to bars)">×</button></div>` +
       `<input class="input note" type="text" spellcheck="false" autocomplete="off" placeholder="a note about what you heard">`;
@@ -925,9 +996,17 @@ function momentMarkerAt() {
   if (mouseY < y || mouseY > y + 13) return null;
   const list = SCORE.moments || [];
   for (let mi = list.length - 1; mi >= 0; mi--) {
-    if (list[mi].hide) continue;
-    for (let hi = list[mi].hits.length - 1; hi >= 0; hi--) {
-      if (Math.abs(mouseX - timelineX(list[mi].hits[hi])) <= 5) return { mi, hi };
+    const m = list[mi];
+    if (m.hide) continue;
+    if (m.hold) {
+      const a = timelineX(m.hold[0]), b = timelineX(m.hold[1]);
+      if (Math.abs(mouseX - a) <= 5) return { mi, hold: 0 };
+      if (Math.abs(mouseX - b) <= 5) return { mi, hold: 1 };
+      if (mouseX > a && mouseX < b) return { mi, hold: "body", grab: msToBeats(SCORE, mouseMs()) - m.hold[0] };
+      continue;
+    }
+    for (let hi = (m.hits || []).length - 1; hi >= 0; hi--) {
+      if (Math.abs(mouseX - timelineX(m.hits[hi])) <= 5) return { mi, hi };
     }
   }
   return null;
@@ -937,8 +1016,14 @@ function dragMoment() {
   const m = (SCORE.moments || [])[MOMENT_DRAG.mi];
   if (!m) return (MOMENT_DRAG = null);
   if (!MOMENT_DRAG.kept) { rememberScore(); MOMENT_DRAG.kept = true; }
-  m.hits[MOMENT_DRAG.hi] = round2(msToBeats(SCORE, mouseMs()));
-  WORLD = prepare(SCORE); // the full refresh comes on release
+  const beat = round2(msToBeats(SCORE, mouseMs()));
+  if (MOMENT_DRAG.hold === "body") {
+    const len = m.hold[1] - m.hold[0];
+    m.hold[0] = round2(beat - MOMENT_DRAG.grab);
+    m.hold[1] = round2(m.hold[0] + len);
+  } else if (MOMENT_DRAG.hold != null) m.hold[MOMENT_DRAG.hold] = beat;
+  else m.hits[MOMENT_DRAG.hi] = beat;
+  WORLD = prepare(SCORE); // the full refresh (and the hold's ends sorting) comes on release
 }
 
 // ---- Side panel --------------------------------------------------------------
@@ -1171,6 +1256,13 @@ function buildLayerDetail() {
   wrap.append(whenRow(L, "from", "from"), whenRow(L, "to", "until"));
   wrap.append(menuRow(L, "in", "comes in by", [["cut", "cutting in"], ["fade", "fading in"], ["clap", "a clap line"]], "cut"));
   wrap.append(menuRow(L, "out", "leaves by", [["cut", "cutting out"], ["fade", "fading out"], ["clap", "a clap line"]], "cut"));
+  if (L.shape && !L.keys?.length) {
+    const seg = document.createElement("div");
+    seg.className = "seg";
+    seg.innerHTML = `<button class="btn" title="Bake the timing above into keyframes, then sculpt them freely">→ keys</button>`;
+    seg.querySelector("button").addEventListener("click", (e) => { e.currentTarget.blur(); bakeKeys(); });
+    wrap.append(seg);
+  }
   if (L.shape && !L.keys?.length && (L.spots ?? el?.spots ?? []).length > 1) {
     wrap.append(menuRow(L, "spotsMode", "spots", [["all", "still — all show"], ["turns", "appear one per hit"], ["one", "one copy, moving"]], "all"));
     if ((L.spotsMode ?? "all") !== "all") {
@@ -1228,6 +1320,7 @@ function buildLayerDetail() {
         `<span>${atKeyWords(k.at)}</span>` +
         `<span class="dimmed">${Math.round(k.x * 100)}, ${Math.round(k.y * 100)}</span>` +
         `<span class="dimmed">×${round2(k.size)}</span>` +
+        `<span class="dimmed">${k.fade != null && k.fade !== 1 ? `fade ${round2(k.fade)}` : ""}${k.flip === -1 ? " ⇄" : ""}${k.deg ? ` ${k.deg}°` : ""}</span>` +
         `<button class="mini" data-a="go" title="Play from this key">→</button>` +
         `<button class="mini" data-a="del" title="Remove">×</button>`;
       row.addEventListener("click", (e) => {
@@ -1258,17 +1351,30 @@ function buildLayerDetail() {
     wrap.append(row);
   }
   for (const [name, [def, min, max, step]] of Object.entries(el ? el.params : {})) {
-    const row = document.createElement("label"), val = L[name] ?? def, dec = decimals(step);
+    // on a keyed clip the size slider follows the one rule: it writes the key
+    // under the playhead (in spot-size units, 0.1 per slider step)
+    const keyed = name === "size" && L.keys?.length;
+    const kNow = keyed ? parkedKey(L) ?? keyedPlace(SCORE, L.keys, Math.max(0, msToBeats(SCORE, songNow()))) : null;
+    const val = keyed ? Math.min(max, Math.max(min, kNow.size / 0.1)) : L[name] ?? def;
+    const dec = decimals(step);
+    const row = document.createElement("label");
     row.className = "param";
-    row.innerHTML = `<span>${name}</span><span class="val">${val.toFixed(dec)}</span>` +
+    row.innerHTML = `<span>${keyed ? "size (the key's)" : name}</span><span class="val">${val.toFixed(dec)}</span>` +
       `<input type="range" min="${min}" max="${max}" step="${step}" value="${val}">`;
     const out = row.querySelector(".val"), slider = row.querySelector("input");
     slider.addEventListener("input", (e) => {
       if (!SLIDING) { rememberScore(); SLIDING = true; }
-      L[name] = parseFloat(e.target.value);
-      out.textContent = L[name].toFixed(dec);
+      const v = parseFloat(e.target.value);
+      if (keyed) {
+        const p = parkedKey(L) ?? keyedPlace(SCORE, L.keys, Math.max(0, msToBeats(SCORE, songNow())));
+        keyThrough(L, [p.x, p.y, round4(0.1 * v), p.flip ?? 1, p.deg ? round2(p.deg) : 0]);
+      } else L[name] = v;
+      out.textContent = v.toFixed(dec);
     });
-    slider.addEventListener("change", () => { SLIDING = false; });
+    slider.addEventListener("change", () => {
+      SLIDING = false;
+      if (keyed) buildLayerDetail();
+    });
     wrap.append(row);
   }
   renderShapeMenus();
@@ -1301,12 +1407,20 @@ function whenRow(L, key, label) {
   const bar = typeof L[key] === "number"
     ? L[key]
     : Math.max(1, Math.floor((momentStart(SCORE, L[key]) ?? 0) / SCORE.beatsPerBar) + 1);
+  // "during <hold>" on the from row anchors both ends to the hold at once
+  const duringSel = (m) => key === "from" && m.hold && L.from === m.name && L.to === m.name;
+  const during = key === "from"
+    ? (SCORE.moments || []).filter((m) => m.hold)
+        .map((m) => `<option value="d:${m.name}"${duringSel(m) ? " selected" : ""}>during ${m.name}</option>`).join("")
+    : "";
   sel.innerHTML = `<option value="#none"${L[key] == null ? " selected" : ""}>${key === "from" ? "the start" : "the end"}</option>` +
     `<option value="#bar"${typeof L[key] === "number" ? " selected" : ""}>bar ${bar}</option>` +
-    (SCORE.moments || []).map((m) => `<option value="m:${m.name}"${L[key] === m.name ? " selected" : ""}>${m.name}</option>`).join("");
+    (SCORE.moments || []).map((m) => `<option value="m:${m.name}"${L[key] === m.name && !duringSel(m) ? " selected" : ""}>${m.name}</option>`).join("") +
+    during;
   sel.addEventListener("change", () => {
     rememberScore();
     if (sel.value === "#none") delete L[key];
+    else if (sel.value.startsWith("d:")) L.from = L.to = sel.value.slice(2);
     else L[key] = sel.value === "#bar" ? bar : sel.value.slice(2);
     sel.blur();
     buildLayers();
@@ -1552,12 +1666,16 @@ function wireControls() {
     else if (e.key === "k" || e.key === "K") setKeyAtPlayhead();
     else if (e.key === "Escape" && editing() && EDIT.spot != null) EDIT.spot = null;
     else if (e.key === "Escape") undoTaps();
-    else if (e.key === "m" || e.key === "M") { if (!e.repeat) markMoment(e); }
+    else if (e.key === "m" || e.key === "M") { if (!e.repeat) momentKeyDown(e); }
     else if (e.key === "s" || e.key === "S") toggleSound();
     else if (e.key === "h" || e.key === "H") toggleBare();
     else if (e.key === "f" || e.key === "F") toggleFullscreen();
     else return;
     e.preventDefault();
+  });
+  document.addEventListener("keyup", (e) => {
+    if (document.body.classList.contains("shapes") || e.target.matches('input[type="text"], textarea')) return;
+    if (e.key === "m" || e.key === "M") momentKeyUp(e);
   });
 }
 
@@ -1817,7 +1935,8 @@ const SCORE_NOTES = {
   colors: ["Which palette starts at which bar. Changes blend over colorFadeBars."],
   sections: ["Names for the timeline. Number keys 1-6 jump to them."],
   moments: [
-    "Things you hear, marked on the song (M in the studio while it plays).",
+    "Things you hear, marked on the song (M in the studio while it plays; held",
+    "down, M marks a hold: [start, end] in beats, a span like the bongo section).",
     "Layers come in and leave on them, spots move on their hits, pulses run between them.",
     "Each can carry a note; hide: true keeps its marker off the timeline.",
   ],
@@ -1831,8 +1950,9 @@ const SCORE_NOTES = {
     "one (a single copy moves between spots, switching by jump, blink or slide;",
     "moveBars caps the moving). A spot is [x, y, size]; add -1 to mirror it there,",
     "then degrees to turn it. hidden: true keeps a whole layer off the square.",
-    "keys: [{ at, x, y, size, deg, fade }] ease the clip's place over time (K in",
-    "the studio); at is \"bar:beat\" or a moment's name. Keys replace the spot modes.",
+    "keys: [{ at, x, y, size, deg, fade, flip }] ease the clip's place over time",
+    "(K in the studio); at is \"bar:beat\" or a moment's name; flip: -1 mirrors",
+    "from that key on. Keys replace the spot modes.",
   ],
 };
 

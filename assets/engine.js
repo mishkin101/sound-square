@@ -40,14 +40,26 @@ function fitGrid(taps, beatsPerBar) {
 // plays (M in the studio). A moment is one or more hits, in beats. Layers come
 // in and leave on them, spots move on their hits, color pulses run between them.
 
+// A moment is hits (instants) or a hold (a span, hold: [start, end] in beats).
 function momentHits(score, name) {
   return score.moments?.find((m) => m.name === name)?.hits ?? [];
 }
 
-// Where a moment starts: its first hit, or null if there's no such moment.
+// Where a moment starts: a hold's start, or its first hit. Null if no such moment.
 function momentStart(score, name) {
-  const h = momentHits(score, name);
-  return h.length ? Math.min(...h) : null;
+  const m = score.moments?.find((x) => x.name === name);
+  if (!m) return null;
+  if (m.hold) return m.hold[0];
+  return m.hits?.length ? Math.min(...m.hits) : null;
+}
+
+// Where a moment ends: a hold's end; a hit moment "ends" where it lands, so
+// "until the bongos" keeps meaning when they start.
+function momentEnd(score, name) {
+  const m = score.moments?.find((x) => x.name === name);
+  if (!m) return null;
+  if (m.hold) return m.hold[1];
+  return m.hits?.length ? Math.min(...m.hits) : null;
 }
 
 // ---- Keyframes -----------------------------------------------------------------
@@ -76,6 +88,7 @@ function keyedPlace(score, keys, B) {
   return {
     x: mix(a.x, b.x, 0.5), y: mix(a.y, b.y, 0.5), size: mix(a.size, b.size, 0.1),
     deg: mix(a.deg, b.deg, 0), fade: mix(a.fade, b.fade, 1),
+    flip: (B >= b.b ? b.flip : a.flip) ?? 1, // a mirror lands with its key
   };
 }
 
@@ -104,7 +117,9 @@ function prepare(score) {
     tracks[name] = { hits: hits.sort((a, b) => a - b) };
   }
   for (const m of score.moments || []) {
-    if (!tracks[m.name]) tracks[m.name] = { hits: [...m.hits].sort((a, b) => a - b) };
+    if (tracks[m.name]) continue;
+    if (m.hold) tracks[m.name] = { holds: [{ s: m.hold[0], e: m.hold[1] }] };
+    else tracks[m.name] = { hits: [...(m.hits || [])].sort((a, b) => a - b) };
   }
   const energy = (score.energy || []).map(([bar, v]) => [barToBeats(score, bar), v]);
   return { tracks, energy };
@@ -187,7 +202,7 @@ function colorsNow(score, B) {
   let col = paletteAt(score, B);
   for (const cm of score.colorMoves || []) {
     const from = cm.from ? momentStart(score, cm.from) : 0;
-    const until = cm.until ? momentStart(score, cm.until) : songBeats(score);
+    const until = cm.until ? momentEnd(score, cm.until) : songBeats(score);
     if (from == null || until == null || B < from || B >= until) continue;
     const base = col[cm.slot];
     if (typeof base !== "string") continue;
@@ -212,7 +227,7 @@ function layerTiming(score, world, L) {
   const s = L.from == null ? 0
     : typeof L.from === "string" ? momentStart(score, L.from) ?? 0 : barToBeats(score, L.from);
   const e = L.to == null ? songBeats(score)
-    : typeof L.to === "string" ? momentStart(score, L.to) ?? songBeats(score) : barToBeats(score, L.to + 1);
+    : typeof L.to === "string" ? momentEnd(score, L.to) ?? songBeats(score) : barToBeats(score, L.to + 1);
   const inType = L.in || "cut", outType = L.out || "cut";
   const claps = world.tracks.claps?.hits || [];
   const at = (type, b) => (type === "clap" ? firstAtOrAfter(claps, b) ?? b : b);

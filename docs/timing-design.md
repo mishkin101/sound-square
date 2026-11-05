@@ -121,10 +121,10 @@ the spot modes step aside; delete all keys and the modes come back. The spots
 stay as drag handles for authoring ("one at a time" etc. remain the shortcut
 for hit-driven switching).
 
-## Proposed next: one keying rule, hold moments, timing → keys
-Keys already animate size and rotation (each key stores x, y, size, deg, fade,
-all eased); dragging a spot's edge or turning it writes through when parked on
-a key. The proposal, in build order:
+## Built: one keying rule, hold moments, timing → keys
+Keys animate size and rotation (each key stores x, y, size, deg, fade, flip,
+all eased; a mirror lands with its key); dragging a spot's edge or turning it
+writes through when parked on a key. All three pieces below are in:
 
 1. **One rule everywhere**: parked on a key, every control writes into it — the
    size slider and mirror included, not just dragging and turning. Between
