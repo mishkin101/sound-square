@@ -37,6 +37,9 @@ function setup() {
     const se = document.scrollingElement;
     if (se.scrollTop || se.scrollLeft) { se.scrollTop = 0; se.scrollLeft = 0; }
   }, { passive: true });
+  // a trackpad pinch outside the canvas would zoom the whole page (panning
+  // the topbar off-screen); over the timeline it zooms the view instead
+  document.addEventListener("wheel", (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
   restoreWork(); // edits made in the studio survive a reload
   const signingIn = restoreAfterSignIn();
   WORLD = prepare(SCORE);
