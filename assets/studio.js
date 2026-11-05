@@ -506,6 +506,7 @@ function dragSpot() {
     const scale = paramsFor(elementOf(L), L).size ?? 1;
     sp[2] = round4(constrain(Math.hypot(x - sp[0], y - sp[1]) / scale, 0.01, 0.4));
   }
+  keyThrough(L, sp);
 }
 
 function round4(v) { return Math.round(v * 10000) / 10000; }
@@ -535,10 +536,11 @@ function rotateSpot(i, deg) {
   sp[3] ??= 1;
   sp[4] = ((((sp[4] ?? 0) + deg) % 360) + 360) % 360;
   tidySpot(sp);
+  keyThrough(editLayer(), sp);
   buildLayerDetail();
 }
 
-// D: a copy of the spot, a step down and right, selected.
+// ⧉ on a spot row: a copy of the spot, a step down and right, selected.
 function duplicateSpot(i) {
   rememberScore();
   const spots = spotsOf(editLayer()), copy = [...spots[i]];
@@ -547,6 +549,26 @@ function duplicateSpot(i) {
   spots.splice(i + 1, 0, copy);
   EDIT.spot = i + 1;
   buildLayerDetail();
+}
+
+// D: a duplicate shape is its own clip — same timing, spots and keys, then
+// edited apart. It lands a step down and right, picked.
+function duplicateClip() {
+  const R = SCORE.layers[EDIT.layer], L = R?.clips?.[EDIT.clip];
+  if (!L) return;
+  rememberScore();
+  const copy = JSON.parse(JSON.stringify(L));
+  for (const sp of copy.spots ?? []) {
+    sp[0] = round4(clamp01(sp[0] + 0.04));
+    sp[1] = round4(clamp01(sp[1] + 0.04));
+  }
+  for (const k of copy.keys ?? []) {
+    k.x = round4(clamp01((k.x ?? 0.5) + 0.04));
+    k.y = round4(clamp01((k.y ?? 0.5) + 0.04));
+  }
+  R.clips.splice(EDIT.clip + 1, 0, copy);
+  EDIT.clip += 1;
+  buildLayers();
 }
 
 // Trailing defaults fall away, so plain spots stay [x, y, size].
@@ -581,6 +603,20 @@ function setKeyAtPlayhead() {
   else keys.push(key);
   keys.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at));
   buildLayers();
+}
+
+// Dragging or turning a spot with the playhead parked on a key writes through
+// to that key: a key is edited by standing on it and moving the shape.
+function keyThrough(L, sp) {
+  if (!L?.keys?.length) return;
+  const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
+  const k = L.keys.find((x) => Math.abs(keyBeat(SCORE, x.at) - B) < 0.1);
+  if (!k) return;
+  k.x = sp[0];
+  k.y = sp[1];
+  k.size = sp[2];
+  if (sp[4]) k.deg = sp[4];
+  else delete k.deg;
 }
 
 // A key's `at` for this beat: a moment it lands on, else "bar:beat".
@@ -671,10 +707,14 @@ function drawEditOverlay() {
   });
   // the toolbar above the square: what a press would act on, and a short hint
   const ordering = millis() - ORDER.at <= 4000;
+  const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
+  const onKey = L.keys?.findIndex((k) => Math.abs(keyBeat(SCORE, k.at) - B) < 0.1) ?? -1;
   setText("sq-edit-hint", ordering
     ? `click the spot that opens ${ORDER.next + 1}`
+    : onKey >= 0 ? `on key ${onKey + 1} — dragging the ${layerName(L)} writes into it`
     : `drag: move · edge: resize · double-click: add ${layerName(L)}`);
-  for (const id of ["sq-dup", "sq-flip", "sq-turn", "sq-del"]) $(id).disabled = EDIT.spot == null;
+  for (const id of ["sq-flip", "sq-turn", "sq-del"]) $(id).disabled = EDIT.spot == null;
+  $("sq-dup").disabled = false;
   $("sq-order").disabled = P.spots.length < 2;
   $("sq-key").disabled = !L.shape;
   // the cursor says what a press would do
@@ -1312,7 +1352,7 @@ function wireControls() {
   button("copy", copyScore);
   button("edit", () => { setEdit(!EDIT.on); if (EDIT.on) { buildLayers(); revealLayerPanel(); } });
   // the spot toolbar over the square, acting on the selected spot
-  button("sq-dup", () => { if (EDIT.spot != null) duplicateSpot(EDIT.spot); });
+  button("sq-dup", duplicateClip);
   button("sq-flip", () => { if (EDIT.spot != null) flipSpot(EDIT.spot); });
   $("sq-turn").addEventListener("click", (e) => {
     if (EDIT.spot != null) rotateSpot(EDIT.spot, e.altKey ? -15 : 15);
@@ -1410,7 +1450,7 @@ function wireControls() {
       else SCORE.layers.splice(EDIT.layer, 1);
       buildLayers();
     } else if ((e.key === "x" || e.key === "X") && editing() && EDIT.spot != null) flipSpot(EDIT.spot);
-    else if ((e.key === "d" || e.key === "D") && editing() && EDIT.spot != null) duplicateSpot(EDIT.spot);
+    else if ((e.key === "d" || e.key === "D") && editing() && EDIT.clip != null) duplicateClip();
     else if ((e.key === "r" || e.key === "R") && editing() && EDIT.spot != null) rotateSpot(EDIT.spot, e.shiftKey ? -15 : 15);
     else if (e.key === "k" || e.key === "K") setKeyAtPlayhead();
     else if (e.key === "Escape" && editing() && EDIT.spot != null) EDIT.spot = null;

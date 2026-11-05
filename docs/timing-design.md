@@ -109,7 +109,11 @@ moment's name, eased (smoothstep) between keys and held flat outside them.
 Authoring: scrub to a time, drag the spot where the shape should be (E), press
 K (or + Key in the toolbar) — the spot's place becomes a key at the playhead; a
 key within a tenth of a beat is updated instead. Landing on a moment's hit
-stores the moment's name, so the key re-syncs with it. The picked clip shows
+stores the moment's name, so the key re-syncs with it. To edit a key, stand on
+it (→ in the panel jumps there) and drag or turn the shape: the change writes
+into the key. Duplicating a shape (D, or the toolbar) makes a unique copy — its
+own clip with its own spots, keys and timing — so each duplicate animates
+apart; ⧉ on a spot row still copies just a spot for hit-driven switching. The picked clip shows
 its keys as diamonds on its timeline row: drag one to move it (it attaches to a
 moment within reach, else the nearest quarter beat); the panel lists them with
 → to jump there and × to remove. While a clip has keys they drive its place and
