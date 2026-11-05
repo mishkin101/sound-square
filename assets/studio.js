@@ -188,6 +188,7 @@ function paramsFor(el, L) {
     P.spotsMode = "one";
     P.moveOn = hop.on;
     P.switchBy = hop.by ?? "jump";
+    if (hop.order) P.spotOrder = hop.order;
     if (hop.under) P.switchUnder = hop.under;
     else delete P.switchUnder;
   }
@@ -2204,13 +2205,15 @@ function buildFxPanel(R, L) {
 function appendFxControls(card, f) {
   card.append(menuRow(f, "kind", "does", [["spin", "spin"], ["breathe", "breathe with the beat"], ["wobble", "wobble"], ["hop", "hop between the spots"]], "#none"));
   if (f.kind === "hop") {
-    // the hop rides a moment: one copy jumping between the clip's spots on
-    // its taps — "quick under" keeps the spaced-out taps from moving it
+    // the hop rides a moment: every tap moves the one copy to its next spot.
+    // order says where next; "quick under" is an optional filter for a moment
+    // whose taps aren't all moves.
     card.append(menuRow(f, "on", "rides", moveOnOptions(), ""));
-    card.append(fxSlider(f, "under", 0, 2, 0.05, 0, "quick under (beats)"));
+    card.append(menuRow(f, "order", "order", [["cycle", "in a cycle"], ["bounce", "back and forth"], ["random", "at random"]], "cycle"));
+    card.append(menuRow(f, "by", "moves by", [["jump", "jump"], ["blink", "blink"], ["slide", "slide"]], "jump"));
+    card.append(fxSlider(f, "under", 0, 2, 0.05, 0, "only quick taps (beats)"));
     card.querySelector(".param:last-child").title =
-      "0: every tap moves it. Above 0: only a tap landing within this many beats of the tap before switches the spot";
-    card.append(menuRow(f, "by", "switches by", [["jump", "jump"], ["blink", "blink"], ["slide", "slide"]], "jump"));
+      "0: every tap moves it. Above 0: only a tap landing within this many beats of the tap before moves it — for a tapped moment where only the quick taps mean moves";
     return;
   }
   card.append(fxAmountSlider(f));

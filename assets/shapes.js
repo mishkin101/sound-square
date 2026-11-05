@@ -144,8 +144,25 @@ function spotStep(P, s, st) {
 
 // One copy that moves to the next spot on each step: jumping, blinking across
 // (shut here, open there) or sliding.
+// Which spot the copy is at after its n-th move. spotOrder: "cycle" (around
+// the list, the default), "bounce" (back and forth), "random" (anywhere but
+// where it is — stable, the same every playback).
+function spotIndex(P, len, n) {
+  if (len < 2 || n <= 0) return 0;
+  if (P.spotOrder === "bounce") { const m = n % (2 * len - 2); return m < len ? m : 2 * len - 2 - m; }
+  if (P.spotOrder === "random") {
+    let i = 0;
+    for (let k = 1; k <= n; k++) i = (i + 1 + Math.floor(rnd01(k) * (len - 1))) % len;
+    return i;
+  }
+  return n % len;
+}
+
+// A stable pseudo-random 0..1 per step, so "random" plays the same every time.
+function rnd01(k) { const x = Math.sin(k * 12.9898) * 43758.5453; return x - Math.floor(x); }
+
 function drawOneSpot(sh, P, s, st, step) {
-  const spots = P.spots, i = step.n % spots.length, last = (step.n - 1 + spots.length) % spots.length;
+  const spots = P.spots, i = spotIndex(P, spots.length, step.n), last = spotIndex(P, spots.length, step.n - 1);
   const how = P.switchBy ?? "jump", len = 0.35, since = s.B - step.at;
   let [x, y, size, flip = 1, deg = 0] = spots[i], squash = 1;
   if (step.n > 0 && since < len && how !== "jump") {

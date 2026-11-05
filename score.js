@@ -68,7 +68,11 @@ const SCORE = {
   // Layers come in and leave on them, spots move on their hits, pulses run between them.
   // Each can carry a note; hide: true keeps its marker off the timeline.
   moments: [
-    { name: "eye panning", hits: [6.31, 6.99, 7.71, 8.81, 9.25, 10.31, 11.04, 11.76, 12.83, 13.28] },
+    // Every tap of "eye moves" moves the eye — the moment IS the choreography.
+    // "eye panning" keeps her full tapped record (all ten taps, the felt beats
+    // too), off the timeline but there to retap or mine later.
+    { name: "eye moves", hits: [9.25, 13.28] },
+    { name: "eye panning", hits: [6.31, 6.99, 7.71, 8.81, 9.25, 10.31, 11.04, 11.76, 12.83, 13.28], hide: true, note: "the full tapped record; the quick pairs became eye moves" },
     { name: "Bongo drum Start", hits: [14.28] },
     { name: "Pulse", hits: [10.04, 14.08] },
   ],
@@ -91,19 +95,20 @@ const SCORE = {
   // in its own window or the clip's whole life — or with keys of its own:
   // keys: [{ at, amount }], the amount eased over time (0 is off), replacing
   // from/to as the envelope. A hop effect moves one copy between the spots:
-  // { kind: "hop", on: a moment's name, under: only a tap within that many
-  // beats of the tap before switches (0 or absent: every tap), by: jump,
-  // blink or slide }.
+  // { kind: "hop", on: a moment's name — every tap moves it to the next spot.
+  // order: "cycle" (default), "bounce" (back and forth) or "random" (stable);
+  // by: jump, blink or slide; under: an optional filter — only a tap within
+  // that many beats of the tap before moves it, for a moment whose taps
+  // aren't all moves }. On a raw clip the same order is spotOrder.
   layers: [
     { name: "ground", clips: [{ el: "ground", from: 1, to: 216 }] },
     {
       name: "eyes",
       clips: [
-        // The opening: one eye, top left, facing right. The hop effect rides
-        // "eye panning": the eye holds through the spaced-out taps and
-        // flashes to the other corner (mirrored to face back) only on the
-        // quick ones — a tap within 0.6 beats of the tap before. It leaves
-        // when the bongo drums start. Re-tapping the moment retimes it all.
+        // The opening: one eye, top left, facing right. The hop rides
+        // "eye moves": each tap flashes it to the other corner (mirrored to
+        // face back). It leaves when the bongo drums start. Re-tapping the
+        // moment retimes it all.
         {
           shape: "eye",
           from: 1,
@@ -111,7 +116,7 @@ const SCORE = {
           out: "fade",
           outBeats: 2,
           spots: [[0.11, 0.11, 0.055], [0.89, 0.11, 0.055, -1]],
-          fx: [{ kind: "hop", on: "eye panning", under: 0.6 }],
+          fx: [{ kind: "hop", on: "eye moves" }],
         },
       ],
     },
