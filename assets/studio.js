@@ -419,6 +419,11 @@ function mousePressed(e) {
     return;
   }
   if (onSquare(e) && MOMENT_MODE) return pressMark();
+  if (onSquare(e) && DRAW_INTO != null && SCORE.moments?.[DRAW_INTO]) {
+    pressMark();
+    SQ_MARK.into = DRAW_INTO;
+    return;
+  }
   if (editing() && hasSpots(editLayer()) && onSquare(e) && !liveNow()) return pressSpot();
   if (onSquare(e)) {
     const [x, y] = squareMouse();
@@ -906,7 +911,7 @@ function markHold(fromMs, toMs, path) {
   let n = SCORE.moments.length + 1;
   while (SCORE.moments.some((x) => x.name === `moment ${n}`)) n++;
   const m = { name: `moment ${n}`, hold };
-  if (path?.length > 2) m.path = path; // the motion drawn on the square, [x, y, beat] each
+  if (path?.length > 2) m.path = [path]; // the motion drawn on the square: strokes of [x, y, beat]
   SCORE.moments.push(m);
   momentsChanged();
   setText("tap-status", `moment ${n} · ${round2(hold[1] - hold[0])} beats long · rename it in Moments`);
@@ -939,13 +944,33 @@ function dragMark() {
 
 function releaseMark() {
   const endMs = markMs();
-  const { atMs, t, path } = SQ_MARK;
+  const { atMs, t, path, into } = SQ_MARK;
   SQ_MARK = null;
   if (MARK_FX) MARK_FX.released = millis();
+  if (into != null) return drawInto(into, atMs, endMs, path);
   const span = Math.abs(msToBeats(SCORE, endMs) - msToBeats(SCORE, atMs));
   // a quick tap, or a hold with no song time under it (paused), is a hit
   if ((performance.now() - t < 350 && path.length <= 2) || span < 0.1) return markHit(atMs);
   markHold(atMs, endMs, tidyPath(path));
+}
+
+// + Draw on a moment's card: the next gestures on the square become strokes of
+// that moment's drawing. Its hold stretches to cover them, and the shapes
+// following the drawing re-follow it.
+function drawInto(mi, fromMs, toMs, path) {
+  const m = SCORE.moments?.[mi];
+  if (!m || path.length < 3) return;
+  rememberScore();
+  strokesOf(m);
+  const stroke = tidyPath(path);
+  if (m.path) m.path.push(stroke);
+  else m.path = [stroke];
+  const s = round2(msToBeats(SCORE, Math.min(fromMs, toMs))), e = round2(msToBeats(SCORE, Math.max(fromMs, toMs)));
+  if (m.hold) m.hold = [round2(Math.min(m.hold[0], s)), round2(Math.max(m.hold[1], e))];
+  for (const R of SCORE.layers) {
+    for (const L of R.clips) if (L.keysFrom === m.name) L.keys = pathKeys(m, L.keys?.[0]?.size ?? 0.12);
+  }
+  momentsChanged();
 }
 
 // The recorded gesture, smoothed: two rounds of corner-cutting (Chaikin) over
@@ -968,23 +993,44 @@ function tidyPath(pts) {
   return p;
 }
 
-// The path so far, while the mouse draws it — as a curve, not segments.
+// A moment's drawing is strokes: [[ [x, y, beat], ... ], ...]. Older scores
+// kept one bare stroke; normalized on read.
+function strokesOf(m) {
+  if (!m.path?.length) return null;
+  if (!Array.isArray(m.path[0][0])) m.path = [m.path];
+  return m.path;
+}
+
+// A stroke as a pen line (perfect-freehand): it thins and swells like ink.
+// Points in pixels; blend inverts what's underneath so it reads on any color.
+function penStroke(ctx, pts, size, alpha = 1, blend = true) {
+  if (pts.length < 2) return;
+  ctx.save();
+  if (blend) ctx.globalCompositeOperation = "difference";
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "#ffffff";
+  if (window.getStroke) {
+    const out = getStroke(pts, { size, thinning: 0.55, smoothing: 0.65, streamline: 0.45, simulatePressure: true });
+    const p = new Path2D();
+    out.forEach(([x, y], i) => (i ? p.lineTo(x, y) : p.moveTo(x, y)));
+    p.closePath();
+    ctx.fill(p);
+  } else {
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = Math.max(1.5, size / 2);
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function penSize() { return Math.max(3, SQ / 110); }
+
+// The stroke so far, while the mouse draws it.
 function drawMarkPath() {
   if (!SQ_MARK || SQ_MARK.path.length < 2) return;
-  const p = SQ_MARK.path;
-  push();
-  translate(SQ_X, SQ_Y);
-  scale(SQ);
-  noFill(); stroke(255); strokeWeight(px(2));
-  drawingContext.save();
-  drawingContext.globalCompositeOperation = "difference";
-  beginShape();
-  curveVertex(p[0][0], p[0][1]);
-  for (const [x, y] of p) curveVertex(x, y);
-  curveVertex(p[p.length - 1][0], p[p.length - 1][1]);
-  endShape();
-  drawingContext.restore();
-  pop();
+  penStroke(drawingContext, SQ_MARK.path.map(([x, y]) => [SQ_X + x * SQ, SQ_Y + y * SQ]), penSize());
 }
 
 // The marking pulse, ripple style: a center dot under the press, rings
@@ -1066,6 +1112,7 @@ function renderMoments() {
   const rail = $("moments-rail"), list = SCORE.moments || [];
   MO_HOVER = null;
   if (MO_OPEN != null && MO_OPEN >= list.length) MO_OPEN = null;
+  if (DRAW_INTO != null && (DRAW_INTO >= list.length || DRAW_INTO !== MO_OPEN)) DRAW_INTO = null;
   const order = list.map((m, mi) => ({ m, mi }))
     .sort((a, b) => (momentStart(SCORE, a.m.name) ?? 0) - (momentStart(SCORE, b.m.name) ?? 0));
   const title = document.createElement("span");
@@ -1106,6 +1153,8 @@ function moChip(m, mi) {
   b.addEventListener("click", (e) => {
     e.currentTarget.blur();
     MO_OPEN = MO_OPEN === mi ? null : mi;
+    DRAW_INTO = null;
+    PATH_PLAY = null;
     renderMoments();
   });
   chip.append(b);
@@ -1141,6 +1190,31 @@ function moCard(m, mi) {
   });
   card.querySelector("[data-del]").addEventListener("click", () => deleteMoment(mi));
   if (m.path) card.append(pathPreview(m));
+  const seg = document.createElement("div");
+  seg.className = "seg";
+  if (m.path) {
+    const play = document.createElement("button");
+    play.className = "btn";
+    play.textContent = "▶ Preview";
+    play.title = "Run the drawing once on the square";
+    play.addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      PATH_PLAY = { mi, t0: millis() };
+    });
+    seg.append(play);
+  }
+  const drawBtn = document.createElement("button");
+  drawBtn.className = "btn" + (DRAW_INTO === mi ? " on" : "");
+  drawBtn.textContent = m.path ? "+ Draw" : "+ Draw motion";
+  drawBtn.title = "Then draw on the square: each gesture becomes a stroke of this moment's drawing";
+  drawBtn.addEventListener("click", (e) => {
+    e.currentTarget.blur();
+    DRAW_INTO = DRAW_INTO === mi ? null : mi;
+    if (DRAW_INTO != null && MOMENT_MODE) setMomentMode(false);
+    renderMoments();
+  });
+  seg.append(drawBtn);
+  card.append(seg);
   card.append(moShapes(m));
   return card;
 }
@@ -1209,58 +1283,65 @@ function attachShape(m, name) {
 // follow, less the farther away they sit — and shapes attached to the path
 // re-follow the new line on release.
 let PATH_DRAG = null;
+let PATH_PLAY = null; // { mi, t0 }: the ▶ button runs the drawing once
+let DRAW_INTO = null; // the moment taking new strokes from the square
+
+// A drawing's points in time order, across its strokes.
+function pathFlat(m) {
+  return strokesOf(m).flat().slice().sort((a, b) => a[2] - b[2]);
+}
 
 function drawMomentPath() {
   const m = SCORE.moments?.[MO_OPEN];
-  if (!m?.path || document.body.classList.contains("bare")) return;
-  const pts = m.path;
-  push();
-  translate(SQ_X, SQ_Y);
-  scale(SQ);
-  drawingContext.save();
-  drawingContext.globalCompositeOperation = "difference";
-  noFill(); stroke(255, PATH_DRAG ? 255 : 150); strokeWeight(px(1.5));
-  beginShape();
-  curveVertex(pts[0][0], pts[0][1]);
-  for (const [x, y] of pts) curveVertex(x, y);
-  curveVertex(pts[pts.length - 1][0], pts[pts.length - 1][1]);
-  endShape();
-  // the replay dot, looping at the recorded timing
+  const strokes = m && strokesOf(m);
+  if (!strokes || document.body.classList.contains("bare")) return;
+  for (const s of strokes) {
+    penStroke(drawingContext, s.map(([x, y]) => [SQ_X + x * SQ, SQ_Y + y * SQ]), penSize(), PATH_DRAG ? 1 : 0.75);
+  }
+  if (!PATH_PLAY || PATH_PLAY.mi !== MO_OPEN) return;
+  // ▶ runs a dot along the drawing once, at the recorded timing
+  const pts = pathFlat(m);
   const b0 = pts[0][2], b1 = pts[pts.length - 1][2];
   const spanMs = Math.max(400, beatsToMs(SCORE, b1) - beatsToMs(SCORE, b0));
-  const t = Math.min(1, (millis() % (spanMs + 600)) / spanMs);
+  const t = (millis() - PATH_PLAY.t0) / spanMs;
+  if (t >= 1) { PATH_PLAY = null; return; }
   const beat = b0 + (b1 - b0) * t;
   let i = 0;
   while (i < pts.length - 2 && pts[i + 1][2] <= beat) i++;
   const a = pts[i], b = pts[i + 1] ?? a;
   const k = b[2] > a[2] ? clamp01((beat - a[2]) / (b[2] - a[2])) : 1;
-  noStroke(); fill(255, 230);
-  circle(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, 0.02);
-  drawingContext.restore();
-  pop();
+  const ctx = drawingContext;
+  ctx.save();
+  ctx.globalCompositeOperation = "difference";
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(SQ_X + (a[0] + (b[0] - a[0]) * k) * SQ, SQ_Y + (a[1] + (b[1] - a[1]) * k) * SQ, Math.max(4, SQ / 80), 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.restore();
 }
 
-// The open path under (x, y), as the nearest of its points within reach.
+// The open drawing under (x, y): the nearest point of any stroke within reach.
 function pathPointAt(x, y) {
   const m = SCORE.moments?.[MO_OPEN];
-  if (!m?.path) return null;
+  const strokes = m && strokesOf(m);
+  if (!strokes) return null;
   const tol = 10 / SQ;
   let best = null;
-  m.path.forEach((p, i) => {
+  strokes.forEach((s, si) => s.forEach((p, i) => {
     const d = Math.hypot(x - p[0], y - p[1]);
-    if (d <= tol && (!best || d < best.d)) best = { i, d };
-  });
-  return best ? { m, i: best.i } : null;
+    if (d <= tol && (!best || d < best.d)) best = { si, i, d };
+  }));
+  return best ? { m, si: best.si, i: best.i } : null;
 }
 
 function dragPath() {
-  const { m, i } = PATH_DRAG, [x, y] = squareMouse();
+  const { m, si, i } = PATH_DRAG, [x, y] = squareMouse();
   if (!PATH_DRAG.kept) { rememberScore(); PATH_DRAG.kept = true; }
   const dx = x - PATH_DRAG.x, dy = y - PATH_DRAG.y;
   PATH_DRAG.x = x;
   PATH_DRAG.y = y;
-  m.path.forEach((p, j) => {
-    const w = Math.exp(-((j - i) * (j - i)) / 50); // the pull falls off along the line
+  m.path[si].forEach((p, j) => {
+    const w = Math.exp(-((j - i) * (j - i)) / 50); // the pull falls off along the stroke
     if (w < 0.01) return;
     p[0] = round4(clamp01(p[0] + dx * w));
     p[1] = round4(clamp01(p[1] + dy * w));
@@ -1284,7 +1365,7 @@ function releasePath() {
 // They play back linearly (ease: "line"), so the motion flows instead of
 // pausing into every key.
 function pathKeys(m, size = 0.12) {
-  const pts = m.path, n = Math.min(16, pts.length);
+  const pts = pathFlat(m), n = Math.min(16, pts.length);
   const keys = [];
   for (let i = 0; i < n; i++) {
     const p = pts[Math.round((i * (pts.length - 1)) / (n - 1))];
@@ -1300,9 +1381,10 @@ function pathPreview(m) {
   c.className = "mo-path";
   c.width = c.height = 228;
   const ctx = c.getContext("2d");
-  const pts = m.path, b0 = pts[0][2], b1 = pts[pts.length - 1][2];
+  const strokes = strokesOf(m), pts = pathFlat(m);
+  const b0 = pts[0][2], b1 = pts[pts.length - 1][2];
   const spanMs = Math.max(400, beatsToMs(SCORE, b1) - beatsToMs(SCORE, b0));
-  const at = (beat) => { // the point on the path at this beat, interpolated
+  const at = (beat) => { // the point on the drawing at this beat, interpolated
     let i = 0;
     while (i < pts.length - 2 && pts[i + 1][2] <= beat) i++;
     const a = pts[i], b = pts[i + 1] ?? a;
@@ -1311,21 +1393,10 @@ function pathPreview(m) {
   };
   const frame = (now) => {
     if (!c.isConnected) return; // the card closed; stop
-    const t = Math.min(1, (now % (spanMs + 600)) / spanMs);
     ctx.clearRect(0, 0, 228, 228);
-    ctx.lineWidth = 2;
-    ctx.lineJoin = ctx.lineCap = "round";
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
-    ctx.beginPath();
-    for (const [x, y] of pts) ctx.lineTo(x * 228, y * 228);
-    ctx.stroke();
-    const beat = b0 + (b1 - b0) * t;
-    const [dx, dy] = at(beat);
-    ctx.strokeStyle = "#ffffff";
-    ctx.beginPath();
-    for (const p of pts) { if (p[2] > beat) break; ctx.lineTo(p[0] * 228, p[1] * 228); }
-    ctx.lineTo(dx * 228, dy * 228);
-    ctx.stroke();
+    for (const s of strokes) penStroke(ctx, s.map((q) => [q[0] * 228, q[1] * 228]), 3.5, 0.9, false);
+    const t = Math.min(1, (now % (spanMs + 600)) / spanMs);
+    const [dx, dy] = at(b0 + (b1 - b0) * t);
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.arc(dx * 228, dy * 228, 4, 0, 2 * Math.PI);
