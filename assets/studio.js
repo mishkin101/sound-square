@@ -1076,12 +1076,14 @@ function selectLayer(ri, ci, reveal = false) {
   EDIT.layer = ri;
   EDIT.clip = ci ?? null;
   if (ci != null) FOLDED.delete(SCORE.layers[ri]?.name); // the pane nests under its row
+  if (ci != null) PANE_FOLD = false; // picking a shape opens its pane
   if (ci != null) flashPick();
   buildLayers();
   if (reveal) revealLayerPanel();
 }
 
 function revealLayerPanel() {
+  if (PANE_FOLD) { PANE_FOLD = false; buildLayers(); }
   $("layers-fold").open = true;
   $("layer-detail").scrollIntoView({ block: "nearest" });
 }
@@ -1148,6 +1150,7 @@ function drawFlash(B) {
 // caret folds its shapes away (a fold is looks only, kept out of the score).
 let LAY_RENAME = null, ROW_DRAG = null;
 const FOLDED = new Set(); // layer names whose shape rows are folded away
+let PANE_FOLD = false;    // the picked shape's settings, folded under its row
 
 function buildLayers() {
   if (!SCORE.layers.length) { EDIT.layer = EDIT.clip = null; }
@@ -1203,13 +1206,20 @@ function buildLayers() {
     $("layers").append(row);
     LAYER_BOXES.push(row);
     if (!folded) R.clips.forEach((L, ci) => {
+      const picked = ri === EDIT.layer && ci === EDIT.clip;
       const c = document.createElement("button");
-      c.className = "clip-row" + (ri === EDIT.layer && ci === EDIT.clip ? " on" : "");
-      c.innerHTML = `<span>${clipLabel(R, ci)}</span><span>${timeWords(L)}</span>`;
-      c.addEventListener("click", () => selectLayer(ri, ci));
+      c.className = "clip-row" + (picked ? " on" : "");
+      c.innerHTML = `<span class="fold-btn" title="Fold the settings away">${picked ? (PANE_FOLD ? "▸" : "▾") : ""}</span>` +
+        `<span class="name">${clipLabel(R, ci)}</span><span>${timeWords(L)}</span>`;
+      c.addEventListener("click", (e) => {
+        if (picked && e.target.classList.contains("fold-btn")) {
+          PANE_FOLD = !PANE_FOLD;
+          buildLayers();
+        } else selectLayer(ri, ci);
+      });
       $("layers").append(c);
-      // the picked shape's settings sit right under its row
-      if (ri === EDIT.layer && ci === EDIT.clip) $("layers").append($("layer-detail"));
+      // the picked shape's settings sit right under its row, unless folded
+      if (picked && !PANE_FOLD) $("layers").append($("layer-detail"));
     });
   });
   const input = $("layers").querySelector(".lay-row input");
@@ -1242,7 +1252,7 @@ function buildLayers() {
 function buildLayerDetail() {
   const wrap = $("layer-detail"), R = SCORE.layers[EDIT.layer], L = R?.clips?.[EDIT.clip];
   wrap.replaceChildren();
-  if (!L) return;
+  if (!L || PANE_FOLD) return;
   const el = elementOf(L);
   wrap.insertAdjacentHTML("beforeend",
     `<div class="head"><span>${clipLabel(R, EDIT.clip)} <span class="dimmed">· ${el ? el.note : `no element called "${L.el}"`}</span></span>` +
