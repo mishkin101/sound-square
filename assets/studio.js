@@ -1172,7 +1172,7 @@ function buildLayerDetail() {
   wrap.append(menuRow(L, "in", "comes in by", [["cut", "cutting in"], ["fade", "fading in"], ["clap", "a clap line"]], "cut"));
   wrap.append(menuRow(L, "out", "leaves by", [["cut", "cutting out"], ["fade", "fading out"], ["clap", "a clap line"]], "cut"));
   if (L.shape && !L.keys?.length && (L.spots ?? el?.spots ?? []).length > 1) {
-    wrap.append(menuRow(L, "spotsMode", "spots", [["all", "all at once"], ["turns", "take turns"], ["one", "one at a time"]], "all"));
+    wrap.append(menuRow(L, "spotsMode", "spots", [["all", "still — all show"], ["turns", "appear one per hit"], ["one", "one copy, moving"]], "all"));
     if ((L.spotsMode ?? "all") !== "all") {
       wrap.append(menuRow(L, "moveOn", "moves on", moveOnOptions(), ""));
       wrap.append(menuRow(L, "thenEvery", "then", [["stay", "stays put"], ["beat", "every beat"], ["bar", "every bar"]], "stay"));
@@ -1184,7 +1184,7 @@ function buildLayerDetail() {
   }
   if (hasSpots(L)) {
     wrap.insertAdjacentHTML("beforeend",
-      `<div class="spot-head"><span class="label">Spots</span><span class="data dimmed">places of this one ${layerName(L)} — Duplicate makes another</span></div>`);
+      `<div class="spot-head"><span class="label" title="Places of this one ${layerName(L)}. Duplicate makes another shape.">Spots</span></div>`);
     (L.spots ?? el.spots).forEach((sp, i) => {
       const [x, y, size, flip = 1, deg = 0] = sp;
       const row = document.createElement("div");
@@ -1213,7 +1213,14 @@ function buildLayerDetail() {
   // the clip's keyframes: when it is, where it is; → jumps the song there
   if (L.keys?.length) {
     wrap.insertAdjacentHTML("beforeend",
-      `<div class="spot-head"><span class="label">Keys</span><span class="data dimmed">K sets one at the playhead</span></div>`);
+      `<div class="spot-head"><span class="label">Keys</span><span class="data dimmed">K sets one at the playhead</span>` +
+      `<button class="mini" id="keys-clear" title="Remove all keys — the shape stops moving">×</button></div>`);
+    $("keys-clear").addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      rememberScore();
+      delete L.keys;
+      buildLayers();
+    });
     L.keys.forEach((k, i) => {
       const row = document.createElement("div");
       row.className = "spot-row";
@@ -1325,7 +1332,7 @@ function menuRow(L, key, label, options, def) {
 // What spots can move on: any moment's hits, or the song's own pulse and tracks.
 function moveOnOptions() {
   return [
-    ["", "nothing"],
+    ["", "nothing — stays put"],
     ...(SCORE.moments || []).map((m) => [m.name, m.name]),
     ["beat", "every beat"], ["bar", "every bar"], ["claps", "the claps"], ["bongos", "the bongos"],
   ];
