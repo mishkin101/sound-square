@@ -14,7 +14,8 @@ const EDIT = { on: false, layer: null, clip: null, spot: null, drag: null };
 let SQ_X = 0, SQ_Y = 0; // the square's top-left corner on the canvas
 let scrubbing = false;
 const MARGIN = 24;    // space around the square
-const TL_PAD = 16;    // timeline side padding
+const TL_PAD = 16;    // timeline right-side padding
+const TL_GUT = 110;   // the left gutter: layer and shape names live here, never bars
 
 function songNow() { return scrubMs ?? source.now(); }
 
@@ -211,7 +212,7 @@ function tlWheel(e) {
   const tl = timelineHeight();
   if (!tl || e.offsetY < height - tl) return;
   e.preventDefault();
-  const w = width - 2 * TL_PAD, frac = constrain((e.offsetX - TL_PAD) / w, 0, 1);
+  const w = width - TL_GUT - TL_PAD, frac = constrain((e.offsetX - TL_GUT) / w, 0, 1);
   if (e.ctrlKey || e.metaKey) { // pinch or ⌘-scroll: zoom toward the pointer
     const atMs = TL_VIEW.startMs + frac * tlSpanMs();
     TL_VIEW.zoom = constrain(TL_VIEW.zoom * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.002)), 1, 64);
@@ -223,7 +224,7 @@ function tlWheel(e) {
 }
 
 function timelineX(beats) {
-  return TL_PAD + ((beatsToMs(SCORE, beats) - TL_VIEW.startMs) / tlSpanMs()) * (width - 2 * TL_PAD);
+  return TL_GUT + ((beatsToMs(SCORE, beats) - TL_VIEW.startMs) / tlSpanMs()) * (width - TL_GUT - TL_PAD);
 }
 
 function drawTimeline(B, top) {
@@ -239,6 +240,13 @@ function drawTimeline(B, top) {
   stroke(38); strokeWeight(1);
   line(0, top + 0.5, width, top + 0.5);
   textSize(10); textAlign(LEFT, TOP);
+
+  // everything on the time axis stays out of the left gutter: names live
+  // there, bars and markers clip against it
+  drawingContext.save();
+  drawingContext.beginPath();
+  drawingContext.rect(TL_GUT, top, width - TL_GUT, height - top);
+  drawingContext.clip();
 
   // ruler: a tick per bar, a number every 8 bars
   let y = top + 12;
@@ -338,33 +346,10 @@ function drawTimeline(B, top) {
           noStroke();
           if (!KEY_DRAG && Math.abs(mouseX - kx) <= 4 && mouseY >= yr && mouseY < yr + 13) hover = `key · ${atKeyWords(k.at)}`;
         });
-        // the label sits beside the bar, right of it when there's room, else
-        // left; only a bar spanning the whole view keeps it inside. A packed
-        // many-shape strip shows just the layer's title, not a pile of names.
-        if (open || R.clips.length === 1) {
-          const nm = clipLabel(R, ci), tw = textWidth(nm);
-          if (b + 5 + tw <= width - 4) { fill(on ? 200 : 140); text(nm, b + 5, yr + 3); }
-          else if (a - 5 - tw >= 4) { fill(on ? 200 : 140); text(nm, a - 5 - tw, yr + 3); }
-          else { // no room beside: a black tag pinned at the bar's end
-            const lx = width - 4 - tw;
-            noStroke(); fill(0); rect(lx - 4, yr + 1, tw + 8, 11);
-            fill(on ? 217 : 200); text(nm, lx, yr + 3);
-          }
-        }
+        const nm = clipLabel(R, ci); // names live in the gutter; bars stay bare
         if (!CLIP_DRAG && mouseY >= yr && mouseY < yr + 13 && mouseX >= a - 5 && mouseX <= b + 5) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
         if (CLIP_DRAG && CLIP_DRAG.ri === ri && CLIP_DRAG.ci === ci) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
       });
-      // the layer's title chip, drawn over the bars' left edge so every row
-      // says whose it is; ▸/▾ flips the layer between strip and shape view
-      const need = (R.clips.length ? 13 : 2) + textWidth(R.name) + 8;
-      noStroke(); fill(0); rect(0, y + 1, need, 11);
-      fill(open ? 170 : R.clips.length ? 110 : 70); textAlign(LEFT, CENTER);
-      text(R.clips.length ? `${open ? "▾" : "▸"} ${R.name}` : R.name, 2, y + 7);
-      textAlign(LEFT, TOP);
-      if (open) { stroke(50); strokeWeight(1); line(4.5, y + 13, 4.5, y + layerRows(R) * 13 - 3); noStroke(); }
-      if (!R.clips.length && ri === EDIT.layer) { noStroke(); fill(90); text("empty · drag a shape from the shelf", need + 6, y + 3); }
-      if (!CLIP_DRAG && mouseY >= y && mouseY < y + 12 && mouseX <= need)
-        hover = !R.clips.length ? `${R.name} — empty` : open ? `${R.name} — click packs its shapes into one strip` : `${R.name} — click gives each shape its row (V flips all)`;
       y += layerRows(R) * 13;
     });
   }
@@ -373,6 +358,35 @@ function drawTimeline(B, top) {
   const head = X(B);
   stroke(255); strokeWeight(2);
   line(head, top + 8, head, y + 4);
+  drawingContext.restore(); // the gutter is clear again
+
+  // the gutter: each layer by name, its shapes nested beneath when open
+  if (showLayerRows()) {
+    textAlign(LEFT, CENTER);
+    let gy = TL_ROWS_Y;
+    SCORE.layers.forEach((R, ri) => {
+      const open = layerOpen(R), pickedLayer = ri === EDIT.layer;
+      noStroke(); fill(open || pickedLayer ? 170 : R.clips.length ? 110 : 70);
+      let title = `${R.clips.length ? (open ? "▾ " : "▸ ") : ""}${R.name}`;
+      while (title.length > 2 && textWidth(title) > TL_GUT - 8) title = title.slice(0, -1);
+      text(title, 4, gy + 7);
+      if (!R.clips.length && pickedLayer) { fill(90); text("empty · drag a shape here", TL_GUT + 6, gy + 7); }
+      if (open) {
+        stroke(50); strokeWeight(1); line(8.5, gy + 13, 8.5, gy + layerRows(R) * 13 - 3); noStroke();
+        R.clips.forEach((L, ci) => {
+          const sel = pickedLayer && ci === EDIT.clip;
+          fill(sel ? 217 : 120);
+          let nm = clipLabel(R, ci);
+          while (nm.length > 1 && textWidth(nm) > TL_GUT - 24) nm = nm.slice(0, -1);
+          text(nm, 16, gy + (ci + 1) * 13 + 7);
+        });
+      }
+      if (!CLIP_DRAG && mouseX < TL_GUT && mouseY >= gy && mouseY < gy + 12)
+        hover = !R.clips.length ? `${R.name} — empty` : open ? `${R.name} — click packs its shapes into one strip` : `${R.name} — click opens its shapes (V flips all)`;
+      gy += layerRows(R) * 13;
+    });
+    textAlign(LEFT, TOP);
+  }
 
   if (hover) {
     noStroke(); textAlign(LEFT, BOTTOM);
@@ -385,7 +399,7 @@ function drawTimeline(B, top) {
     const want = CLIP_DRAG ? (CLIP_DRAG.zone === "body" ? "grabbing" : "ew-resize")
       : KEY_DRAG ? "grabbing"
       : MOMENT_MODE && overSq ? "crosshair"
-      : inTimeline() && tlCaretAt() != null && (!c || c.zone === "body") ? "pointer"
+      : inTimeline() && gutterRowAt() ? "pointer"
       : MOMENT_DRAG || (inTimeline() && (momentMarkerAt() || keyAt())) ? "grab"
       : c ? (c.zone === "body" ? "grab" : "ew-resize") : "default";
     if (canvasCursor !== want) cursor(canvasCursor = want);
@@ -395,7 +409,7 @@ function drawTimeline(B, top) {
 // The clip under the mouse: which layer, and whether an end or the body.
 let TL_ROWS_Y = 0;
 function clipAt() {
-  if (!showLayerRows()) return null;
+  if (!showLayerRows() || mouseX < TL_GUT) return null;
   const hit = (ri, ci) => {
     const T = layerTiming(SCORE, WORLD, SCORE.layers[ri].clips[ci]);
     const a = timelineX(T.s), b = timelineX(T.e);
@@ -419,16 +433,19 @@ function clipAt() {
   return null;
 }
 
-// The ▸/▾ (or the open layer's header) under the mouse, and the V hotkey's
-// flip: all the many-shape layers open, or all packed.
-function tlCaretAt() {
-  if (!showLayerRows() || !inTimeline()) return null;
+// What the mouse is on in the gutter: a layer's title row (toggles its shape
+// view) or one of its nested shape names (picks that shape). V flips them all.
+function gutterRowAt() {
+  if (!showLayerRows() || !inTimeline() || mouseX >= TL_GUT) return null;
   let y = TL_ROWS_Y;
   for (let ri = 0; ri < SCORE.layers.length; ri++) {
-    const R = SCORE.layers[ri];
-    if (R.clips.length && mouseY >= y && mouseY < y + 12 &&
-        mouseX <= 13 + textWidth(R.name) + 8) return ri;
-    y += layerRows(R) * 13;
+    const R = SCORE.layers[ri], h = layerRows(R) * 13;
+    if (mouseY >= y && mouseY < y + h) {
+      const row = Math.floor((mouseY - y) / 13);
+      if (row === 0) return { ri, ci: null };
+      return R.clips[row - 1] ? { ri, ci: row - 1 } : null;
+    }
+    y += h;
   }
   return null;
 }
@@ -476,7 +493,7 @@ function inTimeline() {
 
 // Dragging shows the square under the mouse; the song itself moves on release.
 function mouseMs() {
-  const frac = constrain((mouseX - TL_PAD) / (width - 2 * TL_PAD), 0, 1);
+  const frac = constrain((mouseX - TL_GUT) / (width - TL_GUT - TL_PAD), 0, 1);
   return constrain(TL_VIEW.startMs + frac * tlSpanMs(), 0, songMs(SCORE));
 }
 
@@ -484,16 +501,16 @@ let CLIP_DRAG = null;
 
 function mousePressed(e) {
   if (inTimeline()) {
-    const car = tlCaretAt();
-    if (car != null) {
-      // a bar's end under the chip still wins, so trimming works at the edge
-      const clip = clipAt();
-      if (!clip || clip.zone === "body") {
-        const name = SCORE.layers[car].name;
+    const gut = gutterRowAt();
+    if (gut) {
+      if (gut.ci != null) selectLayer(gut.ri, gut.ci); // a shape's name picks it
+      else if (SCORE.layers[gut.ri].clips.length) {
+        const name = SCORE.layers[gut.ri].name;
         if (!TL_OPEN.delete(name)) TL_OPEN.add(name);
-        return;
-      }
+      } else selectLayer(gut.ri);
+      return;
     }
+    if (mouseX < TL_GUT) return; // empty gutter space is dead
     MOMENT_DRAG = momentMarkerAt();
     if (MOMENT_DRAG) return;
     KEY_DRAG = keyAt();
@@ -1553,7 +1570,7 @@ function renameMoment(m, name) {
 
 // The marker under the mouse, on the timeline's moments row.
 function momentMarkerAt() {
-  if (HIDE_MOMENTS) return null;
+  if (HIDE_MOMENTS || mouseX < TL_GUT) return null;
   const y = height - timelineHeight() + 34;
   if (mouseY < y || mouseY > y + 16) return null;
   const list = SCORE.moments || [];
