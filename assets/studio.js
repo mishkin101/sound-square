@@ -819,6 +819,7 @@ function selectLayer(ri, ci, reveal = false) {
   EDIT.spot = null;
   EDIT.layer = ri;
   EDIT.clip = ci ?? null;
+  if (ci != null) FOLDED.delete(SCORE.layers[ri]?.name); // the pane nests under its row
   buildLayers();
   if (reveal) revealLayerPanel();
 }
@@ -850,8 +851,10 @@ function hasSpots(L) { return !!L && !!(L.spots || elementOf(L)?.spots); }
 // The list, like an animation editor's: a row per layer, its shape clips
 // nested under it. Click a clip (here or on the timeline) to pick it; only the
 // picked clip's controls show. Double-click a layer's name to rename it, drag
-// it to restack (lower layers draw on top), the eye hides the whole layer.
+// it to restack (lower layers draw on top), the eye hides the whole layer, the
+// caret folds its shapes away (a fold is looks only, kept out of the score).
 let LAY_RENAME = null, ROW_DRAG = null;
+const FOLDED = new Set(); // layer names whose shape rows are folded away
 
 function buildLayers() {
   if (!SCORE.layers.length) { EDIT.layer = EDIT.clip = null; }
@@ -872,14 +875,22 @@ function buildLayers() {
       ? `<input class="input" type="text" value="${R.name}" spellcheck="false" autocomplete="off">`
       : `<span class="name">${R.name}</span>`;
     const meta = R.clips.length || "empty";
-    row.innerHTML = `<span class="grip" title="Drag to restack (lower layers draw on top)">⋮⋮</span>${name}` +
+    const folded = FOLDED.has(R.name);
+    const caret = R.clips.length
+      ? `<button class="mini fold-btn" data-act="fold" title="${folded ? "Show its shapes" : "Fold its shapes away"}">${folded ? "▸" : "▾"}</button>`
+      : `<span class="fold-btn"></span>`;
+    row.innerHTML = `${caret}<span class="grip" title="Drag to restack (lower layers draw on top)">⋮⋮</span>${name}` +
       `<span class="dimmed">${meta}</span>` +
       `<button class="mini eye" data-act="eye" title="${R.hidden ? "Show the layer" : "Hide the layer on the square"}">${R.hidden ? EYE_OFF : EYE}</button>` +
       `<button class="mini" data-act="del" title="Remove the layer and its shapes">×</button>`;
     row.addEventListener("click", (e) => {
       const act = e.target.closest("[data-act]")?.dataset.act;
       e.target.closest("button")?.blur();
-      if (act === "eye") {
+      if (act === "fold") {
+        if (FOLDED.has(R.name)) FOLDED.delete(R.name);
+        else FOLDED.add(R.name);
+        buildLayers();
+      } else if (act === "eye") {
         rememberScore();
         if (R.hidden) delete R.hidden;
         else R.hidden = true;
@@ -898,7 +909,7 @@ function buildLayers() {
     });
     $("layers").append(row);
     LAYER_BOXES.push(row);
-    R.clips.forEach((L, ci) => {
+    if (!folded) R.clips.forEach((L, ci) => {
       const c = document.createElement("button");
       c.className = "clip-row" + (ri === EDIT.layer && ci === EDIT.clip ? " on" : "");
       c.innerHTML = `<span>${layerName(L)}</span><span>${timeWords(L)}</span>`;
@@ -916,7 +927,11 @@ function buildLayers() {
       if (LAY_RENAME == null) return;
       const R = SCORE.layers[LAY_RENAME], name = input.value.trim();
       LAY_RENAME = null;
-      if (keep && R && name && name !== R.name) { rememberScore(); R.name = name; }
+      if (keep && R && name && name !== R.name) {
+        rememberScore();
+        if (FOLDED.delete(R.name)) FOLDED.add(name); // the fold follows the rename
+        R.name = name;
+      }
       buildLayers();
     };
     input.addEventListener("keydown", (e) => {
