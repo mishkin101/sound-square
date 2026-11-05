@@ -33,10 +33,8 @@ function setup() {
   // the app never scrolls as a document; anything that shoves it (a focus,
   // a reveal) snaps back so the topbar can't end up off-screen
   document.scrollingElement.scrollTop = document.scrollingElement.scrollLeft = 0;
-  document.addEventListener("scroll", () => {
-    const se = document.scrollingElement;
-    if (se.scrollTop || se.scrollLeft) { se.scrollTop = 0; se.scrollLeft = 0; }
-  }, { passive: true });
+  document.addEventListener("scroll", () => unshovePage(), { passive: true });
+  document.addEventListener("focusin", () => unshovePage());
   // a trackpad pinch outside the canvas would zoom the whole page (panning
   // the topbar off-screen); over the timeline it zooms the view instead
   document.addEventListener("wheel", (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
@@ -68,6 +66,29 @@ function windowResized() {
   resizeCanvas(r.width, r.height);
 }
 
+// Nothing may shove the layout: any scroll that sneaks onto the document,
+// the body or the stage (a focus can scroll all three) is pushed back, every
+// half second and on every focus. What remains after that is the browser's
+// own zoom, which a page can't undo — so the square says how to.
+let SHOVED = false;
+function unshovePage() {
+  for (const el of [document.scrollingElement, document.body, document.getElementById("stage")]) {
+    if (el && (el.scrollTop || el.scrollLeft)) { el.scrollTop = 0; el.scrollLeft = 0; }
+  }
+  const tb = document.querySelector(".topbar");
+  SHOVED = !!tb && !document.body.classList.contains("bare") &&
+    (tb.getBoundingClientRect().top < -2 || (window.visualViewport && (visualViewport.scale > 1.05 || visualViewport.pageTop > 2)));
+}
+
+function drawShoveHint() {
+  if (!SHOVED) return;
+  noStroke(); fill("#c0392b");
+  rect(0, 0, width, 22);
+  fill(255); textSize(11); textAlign(CENTER, CENTER);
+  text("the browser is zoomed or panned — press ⌘0 (actual size), or pinch out on the trackpad", width / 2, 11);
+  textAlign(LEFT, TOP);
+}
+
 function stageRect() {
   const r = document.getElementById("stage").getBoundingClientRect();
   return { width: Math.max(1, Math.floor(r.width)), height: Math.max(1, Math.floor(r.height)) };
@@ -94,6 +115,8 @@ function draw() {
   if (editing() && hasSpots(editLayer()) && !liveNow()) drawEditOverlay();
   else if (editing()) setText("sq-edit-hint", scrubMs != null ? "scrubbing — the keys play" : "playing — pause to drag");
   if (tl) drawTimeline(B, height - tl);
+  if (frameCount % 30 === 1) unshovePage();
+  drawShoveHint();
   // no preview clicks while listening: they'd be heard too and pull the beat toward the old grid
   Sound.update(SCORE, WORLD, B, source.playing && scrubMs == null && !Listen.on);
   updatePanel(B);
