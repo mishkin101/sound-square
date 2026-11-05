@@ -927,7 +927,7 @@ function releaseMark() {
   const endMs = markMs();
   const { atMs, t, path } = SQ_MARK;
   SQ_MARK = null;
-  if (MARK_FX) { MARK_FX.r = markFxGrown(); MARK_FX.released = millis(); }
+  if (MARK_FX) MARK_FX.released = millis();
   const span = Math.abs(msToBeats(SCORE, endMs) - msToBeats(SCORE, atMs));
   // a quick tap, or a hold with no song time under it (paused), is a hit
   if ((performance.now() - t < 350 && path.length <= 2) || span < 0.1) return markHit(atMs);
@@ -973,33 +973,34 @@ function drawMarkPath() {
   pop();
 }
 
-// Rings under the marking press: growing while held, a pulse that fades on release.
+// The marking pulse, ripple style: a center dot under the press, rings
+// emanating from it — each eases outward and fades — one after another while
+// held; the ones in flight finish after release.
 let MARK_FX = null;
-
-function markFxGrown() { return Math.min(0.045, 0.012 + (millis() - MARK_FX.t0) / 240000); }
+const RIPPLE = { period: 600, life: 1400, r: 0.07 };
 
 function drawMarkFx() {
   if (!MARK_FX) return;
-  const f = MARK_FX;
+  const f = MARK_FX, now = millis();
+  const lastSpawn = f.released ?? now;
   push();
   translate(SQ_X, SQ_Y);
   scale(SQ);
   drawingContext.save();
   drawingContext.globalCompositeOperation = "difference";
-  noFill(); strokeWeight(px(1.5));
-  if (f.released == null) {
-    stroke(255, 170);
-    circle(f.x, f.y, 2 * markFxGrown());
-  } else {
-    const t = (millis() - f.released) / 1200;
-    if (t >= 1) MARK_FX = null;
-    else {
-      stroke(255, 170 * (1 - t) * (1 - t));
-      circle(f.x, f.y, 2 * (f.r + 0.02 * t));
-    }
+  let alive = f.released == null;
+  for (let s = f.t0; s <= lastSpawn; s += RIPPLE.period) {
+    const t = (now - s) / RIPPLE.life;
+    if (t < 0 || t >= 1) continue;
+    alive = true;
+    const out = 1 - (1 - t) * (1 - t); // fast out of the dot, slowing as it fades
+    noFill(); stroke(255, 190 * (1 - t) * (1 - t)); strokeWeight(px(1.5));
+    circle(f.x, f.y, 2 * (0.008 + out * RIPPLE.r));
   }
+  if (f.released == null) { noStroke(); fill(255, 230); circle(f.x, f.y, 0.014); }
   drawingContext.restore();
   pop();
+  if (!alive) MARK_FX = null;
 }
 
 function markHit(at) {
