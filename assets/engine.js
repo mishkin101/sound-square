@@ -208,8 +208,11 @@ function colorsNow(score, B) {
 const TRANSITION_BEATS = { cut: 0, fade: 2, clap: 0.5 };
 
 function layerTiming(score, world, L) {
-  const s = typeof L.from === "string" ? momentStart(score, L.from) ?? 0 : barToBeats(score, L.from);
-  const e = typeof L.to === "string" ? momentStart(score, L.to) ?? songBeats(score) : barToBeats(score, L.to + 1);
+  // from/to can be absent: the clip then runs from the start / to the end
+  const s = L.from == null ? 0
+    : typeof L.from === "string" ? momentStart(score, L.from) ?? 0 : barToBeats(score, L.from);
+  const e = L.to == null ? songBeats(score)
+    : typeof L.to === "string" ? momentStart(score, L.to) ?? songBeats(score) : barToBeats(score, L.to + 1);
   const inType = L.in || "cut", outType = L.out || "cut";
   const claps = world.tracks.claps?.hits || [];
   const at = (type, b) => (type === "clap" ? firstAtOrAfter(claps, b) ?? b : b);

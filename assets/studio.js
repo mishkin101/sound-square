@@ -1288,8 +1288,8 @@ function spotsWords(L) {
 
 // A layer's start or end, in words.
 function timeWords(L) {
-  const w = (v) => (typeof v === "string" ? v : `bar ${v}`);
-  return `${w(L.from)} → ${w(L.to)}`;
+  const w = (v, edge) => (v == null ? edge : typeof v === "string" ? v : `bar ${v}`);
+  return `${w(L.from, "start")} → ${w(L.to, "end")}`;
 }
 
 // A menu for when a layer comes in or leaves: its bar, or any moment.
@@ -1301,11 +1301,13 @@ function whenRow(L, key, label) {
   const bar = typeof L[key] === "number"
     ? L[key]
     : Math.max(1, Math.floor((momentStart(SCORE, L[key]) ?? 0) / SCORE.beatsPerBar) + 1);
-  sel.innerHTML = `<option value="#bar"${typeof L[key] === "number" ? " selected" : ""}>bar ${bar}</option>` +
+  sel.innerHTML = `<option value="#none"${L[key] == null ? " selected" : ""}>${key === "from" ? "the start" : "the end"}</option>` +
+    `<option value="#bar"${typeof L[key] === "number" ? " selected" : ""}>bar ${bar}</option>` +
     (SCORE.moments || []).map((m) => `<option value="m:${m.name}"${L[key] === m.name ? " selected" : ""}>${m.name}</option>`).join("");
   sel.addEventListener("change", () => {
     rememberScore();
-    L[key] = sel.value === "#bar" ? bar : sel.value.slice(2);
+    if (sel.value === "#none") delete L[key];
+    else L[key] = sel.value === "#bar" ? bar : sel.value.slice(2);
     sel.blur();
     buildLayers();
   });
