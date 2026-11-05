@@ -304,7 +304,7 @@ details.fold[open] > summary { margin-bottom: var(--u); }
 /* The moments rail: colored chips on the square's left; hover slides a chip
    out to its name, click opens its card beside it. */
 #moments-rail {
-  position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  position: absolute; left: 0; top: var(--u2);
   display: flex; flex-direction: column; gap: 3px; z-index: 5;
 }
 body.bare #moments-rail { display: none; }
