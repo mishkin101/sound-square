@@ -66,7 +66,8 @@ function draw() {
   SQ_X = Math.round((width - SQ) / 2);
   SQ_Y = Math.round((height - tl - SQ) / 2);
   renderSquare(B, SQ_X, SQ_Y);
-  if (editing() && hasSpots(editLayer())) drawEditOverlay();
+  if (editing() && hasSpots(editLayer()) && !(source.playing && scrubMs == null)) drawEditOverlay();
+  else if (editing()) setText("sq-edit-hint", "playing — pause to drag");
   if (tl) drawTimeline(B, height - tl);
   // no preview clicks while listening: they'd be heard too and pull the beat toward the old grid
   Sound.update(SCORE, WORLD, B, source.playing && scrubMs == null && !Listen.on);
@@ -95,8 +96,9 @@ function renderSquare(B, x, y) {
     R.clips.forEach((L, ci) => {
       const el = elementOf(L);
       if (!el) return;
-      const picked = ri === EDIT.layer && ci === EDIT.clip;
-      // the clip being edited shows fully, wherever the song is
+      const picked = ri === EDIT.layer && ci === EDIT.clip && !(source.playing && scrubMs == null);
+      // the clip being edited shows fully, wherever the song is; while the song
+      // plays, playback wins, so keyed motion shows with Edit still on
       const st = editing() && picked
         ? { T: layerTiming(SCORE, WORLD, L), vis: 1, clip: null, age: 1e4, local: 1e4 }
         : el.always
@@ -118,6 +120,7 @@ function renderSquare(B, x, y) {
     });
   });
   drawClapLines(B, s);
+  drawFlash(B);
   drawingContext.restore();
   pop();
 }
@@ -270,7 +273,7 @@ function drawTimeline(B, top) {
           noStroke();
           if (!KEY_DRAG && Math.abs(mouseX - kx) <= 4 && mouseY >= y && mouseY < y + 13) hover = `key · ${atKeyWords(k.at)}`;
         });
-        const nm = layerName(L);
+        const nm = clipLabel(R, ci);
         if (textWidth(nm) < b - a - 10) { fill(on ? 0 : 200); text(nm, a + 4, y + 3); }
         else { fill(140); text(nm, b + 5, y + 3); }
         if (!CLIP_DRAG && mouseY >= y && mouseY < y + 13 && mouseX >= a - 5 && mouseX <= b + 5) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
@@ -388,7 +391,7 @@ function mousePressed(e) {
     scrubMs = mouseMs();
     return;
   }
-  if (editing() && hasSpots(editLayer()) && onSquare(e)) return pressSpot();
+  if (editing() && hasSpots(editLayer()) && onSquare(e) && !(source.playing && scrubMs == null)) return pressSpot();
   if (onSquare(e)) {
     const hit = shapeOnSquare(...squareMouse());
     if (hit) selectLayer(hit.ri, hit.ci, true);
@@ -418,7 +421,7 @@ function mouseReleased() {
 }
 function doubleClicked(e) {
   if (inTimeline()) { TL_VIEW.zoom = 1; TL_VIEW.startMs = 0; return; }
-  if (editing() && hasSpots(editLayer()) && onSquare(e) && !spotAt(...squareMouse())) addSpot(...squareMouse());
+  if (editing() && hasSpots(editLayer()) && onSquare(e) && !(source.playing && scrubMs == null) && !spotAt(...squareMouse())) addSpot(...squareMouse());
 }
 
 // ---- Edit mode ---------------------------------------------------------------
@@ -568,6 +571,7 @@ function duplicateClip() {
   }
   R.clips.splice(EDIT.clip + 1, 0, copy);
   EDIT.clip += 1;
+  flashPick();
   buildLayers();
 }
 
@@ -605,13 +609,18 @@ function setKeyAtPlayhead() {
   buildLayers();
 }
 
-// Dragging or turning a spot with the playhead parked on a key writes through
-// to that key: a key is edited by standing on it and moving the shape.
+// Once a clip has keys, dragging or turning its spot keys it: standing on a
+// key writes into that key, anywhere else a key is added at the playhead. So
+// after the first K, animating is just scrub, drag, scrub, drag.
 function keyThrough(L, sp) {
   if (!L?.keys?.length) return;
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
-  const k = L.keys.find((x) => Math.abs(keyBeat(SCORE, x.at) - B) < 0.1);
-  if (!k) return;
+  let k = L.keys.find((x) => Math.abs(keyBeat(SCORE, x.at) - B) < 0.1);
+  if (!k) {
+    k = { at: atKey(B) };
+    L.keys.push(k);
+    L.keys.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at));
+  }
   k.x = sp[0];
   k.y = sp[1];
   k.size = sp[2];
@@ -709,10 +718,12 @@ function drawEditOverlay() {
   const ordering = millis() - ORDER.at <= 4000;
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
   const onKey = L.keys?.findIndex((k) => Math.abs(keyBeat(SCORE, k.at) - B) < 0.1) ?? -1;
+  const label = clipLabel(SCORE.layers[EDIT.layer], EDIT.clip);
   setText("sq-edit-hint", ordering
     ? `click the spot that opens ${ORDER.next + 1}`
-    : onKey >= 0 ? `on key ${onKey + 1} — dragging the ${layerName(L)} writes into it`
-    : `drag: move · edge: resize · double-click: add ${layerName(L)}`);
+    : onKey >= 0 ? `on key ${onKey + 1} — dragging the ${label} writes into it`
+    : L.keys?.length ? `dragging the ${label} adds a key at the playhead`
+    : `drag: move · edge: resize · double-click: add ${label}`);
   for (const id of ["sq-flip", "sq-turn", "sq-del"]) $(id).disabled = EDIT.spot == null;
   $("sq-dup").disabled = false;
   $("sq-order").disabled = P.spots.length < 2;
@@ -941,6 +952,7 @@ function selectLayer(ri, ci, reveal = false) {
   EDIT.layer = ri;
   EDIT.clip = ci ?? null;
   if (ci != null) FOLDED.delete(SCORE.layers[ri]?.name); // the pane nests under its row
+  if (ci != null) flashPick();
   buildLayers();
   if (reveal) revealLayerPanel();
 }
@@ -968,6 +980,42 @@ function shapeOnSquare(x, y) {
 }
 
 function hasSpots(L) { return !!L && !!(L.spots || elementOf(L)?.spots); }
+
+// A clip's display name: duplicates in the same layer get numbers (eye 1, eye 2).
+function clipLabel(R, ci) {
+  const name = layerName(R.clips[ci]);
+  const like = R.clips.flatMap((c, i) => (layerName(c) === name ? [i] : []));
+  return like.length > 1 ? `${name} ${like.indexOf(ci) + 1}` : name;
+}
+
+// Picking a shape flashes it on the square, so the pick is unmistakable.
+const FLASH = { ri: null, ci: null, until: 0, len: 900 };
+
+function flashPick() {
+  FLASH.ri = EDIT.layer;
+  FLASH.ci = EDIT.clip;
+  FLASH.until = millis() + FLASH.len;
+}
+
+// Blinking inverted rings where the picked shape sits (its keyed place, or its
+// spots), drawn inside the square's translated context.
+function drawFlash(B) {
+  if (FLASH.until < millis() || FLASH.ci == null) return;
+  const L = SCORE.layers[FLASH.ri]?.clips?.[FLASH.ci], el = L && elementOf(L);
+  if (!el) return;
+  const P = paramsFor(el, L);
+  const places = L.keys?.length
+    ? [keyedPlace(SCORE, L.keys, B)]
+    : (P.spots ?? []).map(([x, y, size]) => ({ x, y, size }));
+  if (!places.length) return;
+  const t = (FLASH.until - millis()) / FLASH.len;
+  const a = 255 * Math.min(1, 2 * t) * (0.4 + 0.6 * Math.abs(Math.sin((1 - t) * 3 * Math.PI)));
+  drawingContext.save();
+  drawingContext.globalCompositeOperation = "difference";
+  noFill(); stroke(255, a); strokeWeight(px(3));
+  for (const p of places) circle(p.x, p.y, Math.max(0.04, 2 * p.size * P.size) + px(8));
+  drawingContext.restore();
+}
 
 // The list, like an animation editor's: a row per layer, its shape clips
 // nested under it. Click a clip (here or on the timeline) to pick it; only the
@@ -1033,7 +1081,7 @@ function buildLayers() {
     if (!folded) R.clips.forEach((L, ci) => {
       const c = document.createElement("button");
       c.className = "clip-row" + (ri === EDIT.layer && ci === EDIT.clip ? " on" : "");
-      c.innerHTML = `<span>${layerName(L)}</span><span>${timeWords(L)}</span>`;
+      c.innerHTML = `<span>${clipLabel(R, ci)}</span><span>${timeWords(L)}</span>`;
       c.addEventListener("click", () => selectLayer(ri, ci));
       $("layers").append(c);
       // the picked shape's settings sit right under its row
