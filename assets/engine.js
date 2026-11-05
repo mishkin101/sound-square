@@ -41,8 +41,19 @@ function fitGrid(taps, beatsPerBar) {
 // in and leave on them, spots move on their hits, color pulses run between them.
 
 // A moment is hits (instants) or a hold (a span, hold: [start, end] in beats).
+// repeat: { every, times } plays the tapped pattern again `times` more times,
+// `every` beats apart — the rhythm goes on, with no extra timeline markers.
+function momentHitsAll(m) {
+  const base = m?.hits ?? [];
+  const r = m?.repeat;
+  if (!r?.every || !r?.times) return [...base];
+  const out = [...base];
+  for (let k = 1; k <= r.times; k++) for (const h of base) out.push(Math.round((h + k * r.every) * 1000) / 1000);
+  return out.sort((a, b) => a - b);
+}
+
 function momentHits(score, name) {
-  return score.moments?.find((m) => m.name === name)?.hits ?? [];
+  return momentHitsAll(score.moments?.find((m) => m.name === name));
 }
 
 // Where a moment starts: a hold's start, or its first hit. Null if no such moment.
@@ -136,7 +147,7 @@ function prepare(score) {
   for (const m of score.moments || []) {
     if (tracks[m.name]) continue;
     if (m.hold) tracks[m.name] = { holds: [{ s: m.hold[0], e: m.hold[1] }] };
-    else tracks[m.name] = { hits: [...(m.hits || [])].sort((a, b) => a - b) };
+    else tracks[m.name] = { hits: momentHitsAll(m) }; // repeats included: everything riding the moment hears them
   }
   const energy = (score.energy || []).map(([bar, v]) => [barToBeats(score, bar), v]);
   return { tracks, energy };
@@ -223,7 +234,7 @@ function colorsNow(score, B) {
     if (cm.on) {
       // the pulse rides a moment's taps: one pulse per hit, bright right on
       // the tap and dying away over `beats`
-      const hits = score.moments?.find((x) => x.name === cm.on)?.hits ?? [];
+      const hits = momentHits(score, cm.on); // repeats included
       let h = null;
       for (const x of hits) if (x <= B && (h == null || x > h)) h = x;
       const ph = h == null ? 1 : (B - h) / (cm.beats || 1);

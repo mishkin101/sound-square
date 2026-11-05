@@ -419,6 +419,10 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
 .moment-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 4px; align-items: center; font: var(--t-data); color: var(--dim); }
 .mini.pen.on { background: var(--mark); border-color: var(--mark); color: #000; }
 .moment-row .input, .moment-card .note { height: 24px; padding: 0 4px; }
+.mo-repeat { display: flex; gap: 4px; align-items: center; }
+.mo-repeat .input { width: 44px; height: 20px; padding: 0 4px; }
+.mo-repeat input::-webkit-outer-spin-button, .mo-repeat input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.mo-repeat input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .moment-card .eye { display: grid; place-items: center; }
 .pulse { display: grid; gap: 4px; padding: var(--u); border: var(--hair) solid var(--rule); }
 .pulse-row { display: flex; gap: 4px; align-items: center; }

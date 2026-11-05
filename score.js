@@ -67,6 +67,8 @@ const SCORE = {
   // down, M marks a hold: [start, end] in beats, a span like the bongo section).
   // Layers come in and leave on them, spots move on their hits, pulses run between them.
   // Each can carry a note; hide: true keeps its marker off the timeline.
+  // repeat: { every, times } plays the tapped pattern again `times` more
+  // times, `every` beats apart — hops and pulses follow, markers don't multiply.
   moments: [
     // Every tap of "eye moves" moves the eye — the moment IS the choreography.
     // "eye panning" keeps her full tapped record (all ten taps, the felt beats

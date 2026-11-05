@@ -1316,9 +1316,10 @@ function renderMoments() {
 }
 
 function momentMeta(m) {
+  const rep = m.repeat?.every && m.repeat?.times ? ` · ×${m.repeat.times + 1} every ${m.repeat.every} beats` : "";
   return m.hold
     ? `${round2(m.hold[1] - m.hold[0])} beats · ${atWords(m.hold[0])}`
-    : `${m.hits.length} hit${m.hits.length === 1 ? "" : "s"} · ${atWords(m.hits[0] ?? 0)}`;
+    : `${m.hits.length} hit${m.hits.length === 1 ? "" : "s"} · ${atWords(m.hits[0] ?? 0)}${rep}`;
 }
 
 function moChip(m, mi) {
@@ -1373,6 +1374,7 @@ function moCard(m, mi) {
     renderMoments();
   });
   card.querySelector("[data-del]").addEventListener("click", () => deleteMoment(mi));
+  if (!m.hold) card.append(moRepeatRow(m));
   if (m.path) {
     // the ▶ and ✎ live inside the animation, top right
     const anim = document.createElement("div");
@@ -1396,13 +1398,40 @@ function moCard(m, mi) {
   return card;
 }
 
+// Repeating a moment: the tapped pattern plays again `times` more times,
+// `every` beats apart. Everything riding the moment (hops, pulses, anchors)
+// hears the repeats; the timeline keeps only the tapped markers.
+function moRepeatRow(m) {
+  const row = document.createElement("div");
+  row.className = "mo-repeat";
+  row.title = "The tapped pattern plays again: how many more times, and how many beats apart. Hops and pulses riding this moment follow along; no extra markers appear";
+  const spanOf = () => { const h = m.hits ?? []; return h.length > 1 ? Math.ceil(h[h.length - 1] - h[0]) : SCORE.beatsPerBar; };
+  row.innerHTML = `<span class="data dimmed">repeat ×</span>` +
+    `<input type="number" class="input" data-k="times" min="0" max="99" step="1" value="${m.repeat?.times ?? 0}" title="How many more times the pattern plays (0: no repeat)">` +
+    `<span class="data dimmed">every</span>` +
+    `<input type="number" class="input" data-k="every" min="0.25" max="999" step="0.25" value="${m.repeat?.every ?? spanOf()}" title="Beats from the pattern's start to the repeat's start">` +
+    `<span class="data dimmed">beats</span>`;
+  const apply = () => {
+    const times = parseInt(row.querySelector('[data-k="times"]').value, 10) || 0;
+    const every = parseFloat(row.querySelector('[data-k="every"]').value) || 0;
+    rememberScore();
+    if (times > 0 && every > 0) m.repeat = { every, times };
+    else delete m.repeat;
+    WORLD = prepare(SCORE);
+    renderMoments();
+  };
+  for (const input of row.querySelectorAll("input")) input.addEventListener("change", apply);
+  return row;
+}
+
 // The moment's rhythm, drawn: its taps as ticks on a beat grid (a hold as a
 // band), so the spacing — where each hit lands inside the beats — reads at a
 // glance. Numbers under the grid are the counts (1 2 3 4); hits off the lines
 // are the "ands". Hovering a tick names its exact beat.
 function moRhythm(m) {
-  const bpb = SCORE.beatsPerBar, hits = m.hold ? m.hold : m.hits ?? [];
+  const bpb = SCORE.beatsPerBar, hits = m.hold ? m.hold : momentHitsAll(m);
   if (!hits.length) return "";
+  const tapped = new Set(m.hits ?? []); // repeats draw dimmer than the taps
   const a = Math.min(...hits), b = Math.max(...hits);
   // at least one bar of grid, padded a quarter beat so edge taps stay off the border
   let from = Math.floor(a), to = Math.max(Math.ceil(b), from + bpb);
@@ -1422,7 +1451,7 @@ function moRhythm(m) {
       `<line x1="${X(a)}" y1="4" x2="${X(a)}" y2="23" stroke="var(--mc)" stroke-width="2"/>` +
       `<line x1="${X(b)}" y1="4" x2="${X(b)}" y2="23" stroke="var(--mc)" stroke-width="2"/>`;
   } else for (const h of hits) {
-    s += `<line x1="${X(h)}" y1="4" x2="${X(h)}" y2="23" stroke="var(--mc)" stroke-width="2"><title>${atWords(h)}</title></line>`;
+    s += `<line x1="${X(h)}" y1="4" x2="${X(h)}" y2="23" stroke="var(--mc)" stroke-width="2"${tapped.has(h) ? "" : ' opacity="0.4"'}><title>${atWords(h)}${tapped.has(h) ? "" : " (a repeat)"}</title></line>`;
   }
   return `<svg class="mo-rhythm" viewBox="0 0 ${W} ${H}" title="${wide ? "Numbers are bars" : "Numbers are the counts"}">${s}</svg>`;
 }
