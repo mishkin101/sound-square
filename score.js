@@ -53,9 +53,13 @@ const SCORE = {
   // Which palette starts at which bar. Changes blend over colorFadeBars.
   colors: [[1, "salmon"], [33, "dream"], [41, "deep"]],
   colorFadeBars: 2,
-  // Color pulses: a palette slot breathing toward a color between two moments.
+  // Color pulses: a palette slot moving toward a color between two moments.
+  // beats: the cycle. back: "snap" builds then snaps back, "fade" breathes,
+  // "decay" lands bright on the beat and dies away. amount: how far it goes.
+  // The opening: the ground pulses on each of the three waiting beats, and
+  // the pulse dies right as the eye flashes across.
   colorMoves: [
-    { slot: "ground", to: "#ffffff", beats: 4, back: "snap", from: "stick tap", until: "bongos in" },
+    { slot: "ground", to: "#ffffff", amount: 0.35, beats: 1, back: "decay", from: "stick tap", until: "fast taps" },
   ],
   // Names for the timeline. Number keys 1-6 jump to them.
   sections: [],
@@ -65,7 +69,7 @@ const SCORE = {
   // Each can carry a note; hide: true keeps its marker off the timeline.
   moments: [
     { name: "stick tap", hits: [0] },
-    { name: "fast taps", hits: [1, 1.5], note: "two quick taps right after the first", hide: true },
+    { name: "fast taps", hits: [3, 3.5], note: "the fast 4/5 after three waiting beats", hide: true },
     { name: "bongos in", hits: [32] },
   ],
   // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
@@ -78,7 +82,8 @@ const SCORE = {
   // then degrees to turn it. hidden: true keeps a whole layer off the square.
   // keys: [{ at, x, y, size, deg, fade, flip }] ease the clip's place over time
   // (K in the studio); at is "bar:beat" or a moment's name; flip: -1 mirrors
-  // from that key on; ease: "line" keeps the approach linear. Keys replace the
+  // from that key on; ease: "line" keeps the approach linear, "snap" holds
+  // and jumps there right on the key (a flash). Keys replace the
   // spot modes. keysFrom names the moment whose drawn path made them: editing
   // that path in the studio re-samples the keys. fx: [{ kind, amount, rate,
   // from, to }] are effects on the shape (spin, breathe, wobble), each running
@@ -90,18 +95,19 @@ const SCORE = {
     {
       name: "eyes",
       clips: [
+        // The opening: one eye waits top left for three beats (facing right),
+        // then the fast 4/5 flashes it to the top right, mirrored to face back.
         {
           shape: "eye",
           from: "stick tap",
           to: "bongos in",
           out: "fade",
           outBeats: 2,
-          spotsMode: "one",
-          moveOn: "fast taps",
-          thenEvery: "beat",
-          moveBars: 4,
-          switchBy: "jump",
           spots: [[0.11, 0.11, 0.055], [0.89, 0.11, 0.055, -1]],
+          keys: [
+            { at: "stick tap", x: 0.11, y: 0.11, size: 0.055 },
+            { at: "1:4.5", x: 0.89, y: 0.11, size: 0.055, flip: -1, ease: "snap" },
+          ],
         },
       ],
     },

@@ -78,13 +78,15 @@ function keyBeat(score, at) {
 
 // One keyed number at beat B: eased between the surrounding keys, held flat
 // outside them. An effect's amount envelope, for one.
+// A key's ease rules its approach: smooth (default), "line", or "snap" —
+// the value holds and jumps there right on the key (a flash, not a slide).
 function keyedValue(score, keys, B, field = "amount", def = 0) {
   const ks = keys.map((k) => ({ ...k, b: keyBeat(score, k.at) })).sort((p, q) => p.b - q.b);
   let a = ks[0], b = ks[ks.length - 1];
   for (const k of ks) if (k.b <= B) a = k;
   for (let i = ks.length - 1; i >= 0; i--) if (ks[i].b >= B) b = ks[i];
   const raw = b.b > a.b ? clamp01((B - a.b) / (b.b - a.b)) : 1;
-  const t = b.ease === "line" ? raw : smoothstep(raw);
+  const t = b.ease === "line" ? raw : b.ease === "snap" ? (raw < 1 ? 0 : 1) : smoothstep(raw);
   const av = a[field] ?? def, bv = b[field] ?? def;
   return av + (bv - av) * t;
 }
@@ -97,7 +99,8 @@ function keyedPlace(score, keys, B) {
   for (const k of ks) if (k.b <= B) a = k;
   for (let i = ks.length - 1; i >= 0; i--) if (ks[i].b >= B) b = ks[i];
   const raw = b.b > a.b ? clamp01((B - a.b) / (b.b - a.b)) : 1;
-  const t = b.ease === "line" ? raw : smoothstep(raw); // the destination key's ease rules its approach
+  // the destination key's ease rules its approach; "snap" jumps right on it
+  const t = b.ease === "line" ? raw : b.ease === "snap" ? (raw < 1 ? 0 : 1) : smoothstep(raw);
   const mix = (p, q, d) => { p = p ?? d; q = q ?? d; return p + (q - p) * t; };
   return {
     x: mix(a.x, b.x, 0.5), y: mix(a.y, b.y, 0.5), size: mix(a.size, b.size, 0.1),
@@ -221,7 +224,10 @@ function colorsNow(score, B) {
     const base = col[cm.slot];
     if (typeof base !== "string") continue;
     const phase = ((((B - from) / (cm.beats || 4)) % 1) + 1) % 1;
-    const t = smoothstep(cm.back === "fade" ? 1 - Math.abs(2 * phase - 1) : phase);
+    // the pulse's shape: "snap" builds and snaps back, "fade" breathes both
+    // ways, "decay" lands bright on the beat and dies away (a drum hit)
+    const wave = cm.back === "fade" ? 1 - Math.abs(2 * phase - 1) : cm.back === "decay" ? 1 - phase : phase;
+    const t = smoothstep(wave);
     col = { ...col, [cm.slot]: mix(base, col[cm.to] ?? cm.to, t * (cm.amount ?? 1)) };
   }
   return col;
