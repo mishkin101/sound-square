@@ -289,12 +289,19 @@ function drawTimeline(B, top) {
         if (typeof L.from === "string") triangle(a - 3, y, a + 3, y, a, y + 5);
         if (typeof L.to === "string") triangle(b - 4, y, b + 2, y, b - 1, y + 5);
         if (sel) { noFill(); stroke(255); strokeWeight(1); rect(a - 0.5, y + 1.5, b - a, 10); noStroke(); }
-        // the picked clip's effects, as strips along its row
-        if (sel) (L.fx ?? []).forEach((f) => {
-          const fs = f.from == null ? T.s : typeof f.from === "string" ? momentStart(SCORE, f.from) ?? T.s : barToBeats(SCORE, f.from);
-          const fe = f.to == null ? T.e : typeof f.to === "string" ? momentEnd(SCORE, f.to) ?? T.e : barToBeats(SCORE, f.to + 1);
+        // the picked clip's effects, as strips along its row (an effect with
+        // keys spans them; the open effect shows its keys as little diamonds)
+        if (sel) (L.fx ?? []).forEach((f, fi) => {
+          const fs = f.keys?.length ? keyBeat(SCORE, f.keys[0].at)
+            : f.from == null ? T.s : typeof f.from === "string" ? momentStart(SCORE, f.from) ?? T.s : barToBeats(SCORE, f.from);
+          const fe = f.keys?.length ? keyBeat(SCORE, f.keys[f.keys.length - 1].at)
+            : f.to == null ? T.e : typeof f.to === "string" ? momentEnd(SCORE, f.to) ?? T.e : barToBeats(SCORE, f.to + 1);
           noStroke(); fill("#55d187");
           rect(X(fs), y + 11, Math.max(2, X(fe) - X(fs) - 1), 1.5);
+          if (FX_OPEN === fi) for (const kf of f.keys ?? []) {
+            const kx = X(keyBeat(SCORE, kf.at));
+            quad(kx, y + 8.5, kx + 3, y + 11.5, kx, y + 14.5, kx - 3, y + 11.5);
+          }
         });
         // the picked clip's keyframes, as diamonds
         if (sel) (L.keys ?? []).forEach((k, ki) => {
@@ -647,6 +654,7 @@ function removeSpot(i) {
 
 function setKeyAtPlayhead() {
   const L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
+  if (FX_OPEN != null && L?.fx?.[FX_OPEN]) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key
   if (!L?.shape) return;
   rememberScore();
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
@@ -1954,6 +1962,32 @@ function fxRow(L) {
 
 function hideFxCard() { $("fx-card").hidden = true; }
 
+// An effect's own keys: its amount over time (0 is off), the envelope that
+// replaces from/until. K with the card open sets one at the playhead; with
+// keys there, the amount slider writes the key under the playhead or adds one.
+function setFxKey(f, amount) {
+  rememberScore();
+  fxKeyThrough(f, amount ?? round2(fxAmountNow(f)));
+  buildLayerDetail();
+}
+
+function fxAmountNow(f) {
+  const B = Math.max(0, msToBeats(SCORE, songNow()));
+  return f.keys?.length ? keyedValue(SCORE, f.keys, B, "amount", 0) : f.amount ?? (f.kind === "spin" ? 1 : 0.5);
+}
+
+function fxKeyThrough(f, amount) {
+  const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
+  const keys = (f.keys ??= []);
+  let k = keys.find((x) => Math.abs(keyBeat(SCORE, x.at) - B) < 0.1);
+  if (!k) {
+    k = { at: atKey(B) };
+    keys.push(k);
+    keys.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at));
+  }
+  k.amount = round2(amount);
+}
+
 function placeFxCard(anchor, L, fi) {
   const card = $("fx-card"), f = L.fx?.[fi];
   if (!f || !anchor.isConnected) return hideFxCard();
@@ -1969,7 +2003,7 @@ function placeFxCard(anchor, L, fi) {
     buildLayerDetail();
   });
   card.append(menuRow(f, "kind", "does", [["spin", "spin"], ["breathe", "breathe with the beat"], ["wobble", "wobble"]], "#none"));
-  if (f.kind !== "spin") card.append(fxSlider(f, "amount", 0, 1, 0.05, 0.5, "amount"));
+  card.append(fxAmountSlider(f));
   const rates = {
     spin: ["bars per turn", 0.25, 8, 0.25],
     breathe: ["beats per breath", 0.25, 8, 0.25],
@@ -1977,12 +2011,83 @@ function placeFxCard(anchor, L, fi) {
   };
   const [label, mn, mx, st] = rates[f.kind] ?? ["rate", 0.25, 8, 0.25];
   card.append(fxSlider(f, "rate", mn, mx, st, 1, label));
-  card.append(whenRow(f, "from", "from"), whenRow(f, "to", "until"));
+  if (f.keys?.length) {
+    // the envelope: the effect's own keys, in place of from/until
+    card.insertAdjacentHTML("beforeend",
+      `<div class="spot-head"><span class="label">Keys</span><span class="data dimmed">K adds one at the playhead</span></div>`);
+    f.keys.forEach((k, ki) => {
+      const row = document.createElement("div");
+      row.className = "key-row";
+      row.innerHTML = `<span class="dimmed">${ki + 1}</span>` +
+        `<select class="input at" title="When: a moment (it re-syncs with it), or its bar"></select>` +
+        `<span class="dimmed" title="amount ${k.amount ?? 0} (0 is off)">${round2(k.amount ?? 0)}</span>` +
+        `<button class="mini" data-a="go" title="Play from this key">→</button>` +
+        `<button class="mini" data-a="del" title="Remove">×</button>`;
+      const at = row.querySelector(".at"), kmi = typeof k.at === "string" ? momentIndex(k.at) : -1;
+      at.innerHTML = `<option value="#bar"${kmi < 0 ? " selected" : ""}>${kmi < 0 ? k.at : "its bar"}</option>` +
+        (SCORE.moments || []).map((m) => `<option${k.at === m.name ? " selected" : ""}>${m.name}</option>`).join("");
+      if (kmi >= 0) { at.style.borderColor = momentColor(kmi); at.style.color = momentColor(kmi); }
+      at.addEventListener("change", () => {
+        rememberScore();
+        if (at.value === "#bar") {
+          const B = keyBeat(SCORE, k.at), bar = Math.floor(B / SCORE.beatsPerBar) + 1;
+          k.at = `${bar}:${round2(B - (bar - 1) * SCORE.beatsPerBar + 1)}`;
+        } else k.at = at.value;
+        f.keys.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at));
+        at.blur();
+        buildLayerDetail();
+      });
+      row.addEventListener("click", (e) => {
+        const a = e.target.dataset.a;
+        if (e.target === at) return;
+        e.target.blur?.();
+        if (a === "go") run(() => source.seek(beatsToMs(SCORE, keyBeat(SCORE, k.at))));
+        else if (a === "del") {
+          rememberScore();
+          f.keys.splice(ki, 1);
+          if (!f.keys.length) delete f.keys;
+          buildLayerDetail();
+        }
+      });
+      card.append(row);
+    });
+  } else {
+    const seg = document.createElement("div");
+    seg.className = "seg";
+    seg.innerHTML = `<button class="btn" title="The effect gets its own keys: its amount over time (0 is off), in place of from/until">+ Key (K)</button>`;
+    seg.querySelector("button").addEventListener("click", (e) => { e.currentTarget.blur(); setFxKey(f); });
+    card.append(seg);
+    card.append(whenRow(f, "from", "from"), whenRow(f, "to", "until"));
+  }
   // beside the panel, never over it: flush against its left edge, at chip height
   const r = anchor.getBoundingClientRect();
   const panel = document.querySelector(".panel").getBoundingClientRect();
   card.style.top = `${Math.max(8, Math.min(window.innerHeight - card.offsetHeight - 8, r.top - 4))}px`;
   card.style.left = `${Math.max(8, panel.left - card.offsetWidth - 10)}px`;
+}
+
+// The amount slider follows the one keying rule: with keys on the effect it
+// writes the key under the playhead (or adds one there); without, the plain value.
+function fxAmountSlider(f) {
+  const keyed = !!f.keys?.length;
+  const val = round2(fxAmountNow(f));
+  const row = document.createElement("label");
+  row.className = "param";
+  row.innerHTML = `<span>${keyed ? "amount (the key's)" : "amount"}</span><span class="val">${val}</span>` +
+    `<input type="range" min="0" max="1" step="0.05" value="${val}">`;
+  const out = row.querySelector(".val"), slider = row.querySelector("input");
+  slider.addEventListener("input", (e) => {
+    if (!SLIDING) { rememberScore(); SLIDING = true; }
+    const v = parseFloat(e.target.value);
+    if (f.keys?.length) fxKeyThrough(f, v);
+    else f.amount = v;
+    out.textContent = v;
+  });
+  slider.addEventListener("change", () => {
+    SLIDING = false;
+    if (f.keys?.length) buildLayerDetail();
+  });
+  return row;
 }
 
 function fxSlider(f, key, min, max, step, def, label) {
@@ -2592,7 +2697,9 @@ const SCORE_NOTES = {
     "spot modes. keysFrom names the moment whose drawn path made them: editing",
     "that path in the studio re-samples the keys. fx: [{ kind, amount, rate,",
     "from, to }] are effects on the shape (spin, breathe, wobble), each running",
-    "in its own window or the clip's whole life.",
+    "in its own window or the clip's whole life — or with keys of its own:",
+    "keys: [{ at, amount }], the amount eased over time (0 is off), replacing",
+    "from/to as the envelope.",
   ],
 };
 

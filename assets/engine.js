@@ -76,6 +76,19 @@ function keyBeat(score, at) {
   return barToBeats(score, at);
 }
 
+// One keyed number at beat B: eased between the surrounding keys, held flat
+// outside them. An effect's amount envelope, for one.
+function keyedValue(score, keys, B, field = "amount", def = 0) {
+  const ks = keys.map((k) => ({ ...k, b: keyBeat(score, k.at) })).sort((p, q) => p.b - q.b);
+  let a = ks[0], b = ks[ks.length - 1];
+  for (const k of ks) if (k.b <= B) a = k;
+  for (let i = ks.length - 1; i >= 0; i--) if (ks[i].b >= B) b = ks[i];
+  const raw = b.b > a.b ? clamp01((B - a.b) / (b.b - a.b)) : 1;
+  const t = b.ease === "line" ? raw : smoothstep(raw);
+  const av = a[field] ?? def, bv = b[field] ?? def;
+  return av + (bv - av) * t;
+}
+
 // Where the keys put the clip at beat B: eased between the two around B, held
 // flat before the first and after the last.
 function keyedPlace(score, keys, B) {

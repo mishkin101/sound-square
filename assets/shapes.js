@@ -78,14 +78,23 @@ function fxNow(P, s, st) {
   if (!P.fx?.length) return NO_FX;
   let dx = 0, dy = 0, rot = 0, k = 1;
   for (const f of P.fx) {
-    const from = f.from == null ? st.T?.s ?? 0
-      : typeof f.from === "string" ? momentStart(SCORE, f.from) ?? 0 : barToBeats(SCORE, f.from);
-    const to = f.to == null ? st.T?.e ?? 1e9
-      : typeof f.to === "string" ? momentEnd(SCORE, f.to) ?? 1e9 : barToBeats(SCORE, f.to + 1);
-    if (s.B < from || s.B >= to) continue;
-    const amt = f.amount ?? 0.5, rate = f.rate ?? 1;
+    let amt, from;
+    if (f.keys?.length) {
+      // the effect's own keys are its envelope: amount over time, 0 is off
+      amt = keyedValue(SCORE, f.keys, s.B, "amount", 0);
+      from = keyBeat(SCORE, f.keys[0].at);
+    } else {
+      from = f.from == null ? st.T?.s ?? 0
+        : typeof f.from === "string" ? momentStart(SCORE, f.from) ?? 0 : barToBeats(SCORE, f.from);
+      const to = f.to == null ? st.T?.e ?? 1e9
+        : typeof f.to === "string" ? momentEnd(SCORE, f.to) ?? 1e9 : barToBeats(SCORE, f.to + 1);
+      if (s.B < from || s.B >= to) continue;
+      amt = f.amount ?? (f.kind === "spin" ? 1 : 0.5);
+    }
+    if (amt <= 0.001) continue;
+    const rate = f.rate ?? 1;
     if (f.kind === "spin") {
-      rot += ((s.B - from) / (rate * s.bpb)) * 2 * Math.PI; // rate: bars per turn
+      rot += amt * ((s.B - from) / (rate * s.bpb)) * 2 * Math.PI; // rate: bars per turn
     } else if (f.kind === "breathe") {
       const phase = (((s.B - from) % rate) + rate) % rate; // rate: beats per breath
       k *= 1 + 0.4 * amt * Math.exp(-3 * phase);
