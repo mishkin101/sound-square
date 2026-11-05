@@ -306,6 +306,8 @@ body.shapes #shapes-view {
   padding: 4px; background: var(--void); border: var(--hair) solid var(--rule);
 }
 .ed-toolbar .btn { padding: 0 var(--u); }
+.ed-toolbar .data { align-self: center; }
+#sq-size { width: 96px; align-self: center; }
 .tb-gap { width: var(--u); }
 .tb-group { position: relative; }
 .tb-menu {

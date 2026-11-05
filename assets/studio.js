@@ -173,13 +173,16 @@ function timelineHeight() {
   return showLayerRows() ? 104 + SCORE.layers.reduce((n, R) => n + layerRows(R), 0) * 13 : 100;
 }
 
-// An open layer takes a timeline row per shape, so their bars never overlap;
-// a folded one (the sidebar caret) packs them back into a single strip.
-function layerRows(R) { return FOLDED.has(R.name) ? 1 : Math.max(1, R.clips.length); }
+// The timeline shows a layer as one strip (layer view), or opened: a header
+// row with each shape nested on its own row under it (shape view). The ▸ on
+// the strip opens one layer; V flips them all.
+const TL_OPEN = new Set(); // layer names open on the timeline
+function layerRows(R) { return TL_OPEN.has(R.name) && R.clips.length > 1 ? R.clips.length + 1 : 1; }
+function layerOpen(R) { return layerRows(R) > 1; }
 function clipRowY(ri, ci) {
   let y = TL_ROWS_Y;
   for (let i = 0; i < ri; i++) y += layerRows(SCORE.layers[i]) * 13;
-  return FOLDED.has(SCORE.layers[ri].name) ? y : y + (ci ?? 0) * 13;
+  return layerOpen(SCORE.layers[ri]) ? y + ((ci ?? 0) + 1) * 13 : y;
 }
 
 function showLayerRows() { return height >= 640; }
@@ -284,11 +287,19 @@ function drawTimeline(B, top) {
   if (showLayerRows()) {
     TL_ROWS_Y = y;
     SCORE.layers.forEach((R, ri) => {
-      // an open layer spreads its shapes over a row each; a folded one packs
-      // them into a single strip (the sidebar caret folds both)
-      const folded = FOLDED.has(R.name);
+      // open: a dim header row, each shape nested on its own row under it
+      const open = layerOpen(R);
+      if (R.clips.length > 1) {
+        noStroke(); fill(0); rect(0, y + 1, open ? 13 + textWidth(R.name) + 8 : 11, 11);
+        fill(open ? 170 : 110); textAlign(LEFT, CENTER);
+        text(open ? `▾ ${R.name}` : "▸", 2, y + 7);
+        textAlign(LEFT, TOP);
+        if (open) { stroke(50); strokeWeight(1); line(4.5, y + 13, 4.5, y + layerRows(R) * 13 - 3); noStroke(); }
+        if (!CLIP_DRAG && mouseY >= y && mouseY < y + 12 && mouseX <= (open ? 13 + textWidth(R.name) + 8 : 11))
+          hover = open ? `${R.name} — click packs its shapes into one strip` : `${R.name} — click gives each shape its row (V flips all)`;
+      }
       R.clips.forEach((L, ci) => {
-        const yr = folded ? y : y + ci * 13;
+        const yr = open ? y + (ci + 1) * 13 : y;
         const T = layerTiming(SCORE, WORLD, L), a = X(T.s), b = X(T.e);
         const sel = ri === EDIT.layer && ci === EDIT.clip, on = !R.hidden && ACTIVE[ri]?.has(ci);
         noStroke(); fill(R.hidden ? 38 : on ? 217 : sel ? 110 : 64);
@@ -364,6 +375,7 @@ function drawTimeline(B, top) {
     const want = CLIP_DRAG ? (CLIP_DRAG.zone === "body" ? "grabbing" : "ew-resize")
       : KEY_DRAG ? "grabbing"
       : MOMENT_MODE && overSq ? "crosshair"
+      : inTimeline() && tlCaretAt() != null ? "pointer"
       : MOMENT_DRAG || (inTimeline() && (momentMarkerAt() || keyAt())) ? "grab"
       : c ? (c.zone === "body" ? "grab" : "ew-resize") : "default";
     if (canvasCursor !== want) cursor(canvasCursor = want);
@@ -388,13 +400,34 @@ function clipAt() {
     if (mouseY >= y && mouseY < y + h) {
       const row = Math.floor((mouseY - y) / 13);
       if (mouseY - y - row * 13 > 12) return null;
-      if (!FOLDED.has(R.name)) return R.clips[row] ? hit(ri, row) : null;
+      if (layerOpen(R)) return row > 0 && R.clips[row - 1] ? hit(ri, row - 1) : null;
       for (let ci = R.clips.length - 1; ci >= 0; ci--) { const c = hit(ri, ci); if (c) return c; }
       return null;
     }
     y += h;
   }
   return null;
+}
+
+// The ▸/▾ (or the open layer's header) under the mouse, and the V hotkey's
+// flip: all the many-shape layers open, or all packed.
+function tlCaretAt() {
+  if (!showLayerRows() || !inTimeline()) return null;
+  let y = TL_ROWS_Y;
+  for (let ri = 0; ri < SCORE.layers.length; ri++) {
+    const R = SCORE.layers[ri];
+    if (R.clips.length > 1 && mouseY >= y && mouseY < y + 12 &&
+        mouseX <= (layerOpen(R) ? 13 + textWidth(R.name) + 8 : 11)) return ri;
+    y += layerRows(R) * 13;
+  }
+  return null;
+}
+
+function flipTimelineView() {
+  const many = SCORE.layers.filter((R) => R.clips.length > 1);
+  if (!many.length) return;
+  if (many.every((R) => TL_OPEN.has(R.name))) TL_OPEN.clear();
+  else for (const R of many) TL_OPEN.add(R.name);
 }
 
 // Where a dragged end lands: a moment within reach attaches (its name), else
@@ -441,6 +474,12 @@ let CLIP_DRAG = null;
 
 function mousePressed(e) {
   if (inTimeline()) {
+    const car = tlCaretAt();
+    if (car != null) {
+      const name = SCORE.layers[car].name;
+      if (!TL_OPEN.delete(name)) TL_OPEN.add(name);
+      return;
+    }
     MOMENT_DRAG = momentMarkerAt();
     if (MOMENT_DRAG) return;
     KEY_DRAG = keyAt();
@@ -863,6 +902,13 @@ function drawEditOverlay() {
   $("sq-dup").disabled = false;
   $("sq-order").disabled = P.spots.length < 2;
   $("sq-key").disabled = !L.shape;
+  // the size slider follows what a drag would touch: the parked key, else the
+  // picked spot (left alone mid-slide)
+  if (!SLIDING) {
+    const kNow = L.keys?.length ? parkedKey(L) ?? keyedPlace(SCORE, L.keys, B) : null;
+    const sz = kNow ? kNow.size : P.spots[Math.min(EDIT.spot ?? 0, P.spots.length - 1)]?.[2] ?? 0.1;
+    $("sq-size").value = Math.min(3, Math.max(0.25, sz / 0.1));
+  }
   // the cursor says what a press would do
   const [mx, my] = squareMouse(), hit = mx >= 0 && mx <= 1 && my >= 0 && my <= 1 ? spotAt(mx, my) : null;
   const want = EDIT.drag ? (EDIT.drag.mode === "move" ? "grabbing" : "nwse-resize")
@@ -1750,6 +1796,7 @@ function buildLayers() {
       if (keep && R && name && name !== R.name) {
         rememberScore();
         if (FOLDED.delete(R.name)) FOLDED.add(name); // the fold follows the rename
+        if (TL_OPEN.delete(R.name)) TL_OPEN.add(name);
         R.name = name;
       }
       buildLayers();
@@ -2382,6 +2429,23 @@ function wireControls() {
   button("edit", () => { setEdit(!EDIT.on); if (EDIT.on) { buildLayers(); revealLayerPanel(); } });
   // the spot toolbar over the square, acting on the selected spot
   button("sq-dup", duplicateClip);
+  // the toolbar's size slider: same rule as the pane's — a parked key takes
+  // the write, else the picked spot
+  $("sq-size").addEventListener("input", (e) => {
+    const L = editLayer();
+    if (!L) return;
+    if (!SLIDING) { rememberScore(); SLIDING = true; }
+    const v = parseFloat(e.target.value);
+    if (L.keys?.length) {
+      const p = parkedKey(L) ?? keyedPlace(SCORE, L.keys, Math.max(0, msToBeats(SCORE, songNow())));
+      keyThrough(L, [p.x, p.y, round4(0.1 * v), p.flip ?? 1, p.deg ? round2(p.deg) : 0]);
+    } else {
+      const arr = L.spots ?? (L.spots = (elementOf(L)?.spots ?? []).map((s) => [...s]));
+      const si = Math.min(EDIT.spot ?? 0, arr.length - 1);
+      if (arr[si]) arr[si][2] = round4(0.1 * v);
+    }
+  });
+  $("sq-size").addEventListener("change", (e) => { SLIDING = false; e.target.blur(); buildLayerDetail(); });
   button("sq-flip", () => { if (EDIT.spot != null) flipSpot(EDIT.spot); });
   $("sq-turn").addEventListener("click", (e) => {
     if (EDIT.spot != null) rotateSpot(EDIT.spot, e.altKey ? -15 : 15);
@@ -2520,6 +2584,7 @@ function wireControls() {
     else if (e.key === "Escape" && editing() && EDIT.spot != null) EDIT.spot = null;
     else if (e.key === "Escape") undoTaps();
     else if (e.key === "m" || e.key === "M") { if (!e.repeat) setMomentMode(!MOMENT_MODE); }
+    else if (e.key === "v" || e.key === "V") flipTimelineView();
     else if (e.key === "s" || e.key === "S") toggleSound();
     else if (e.key === "h" || e.key === "H") toggleBare();
     else if (e.key === "f" || e.key === "F") toggleFullscreen();
