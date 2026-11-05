@@ -121,7 +121,10 @@ function spotStep(P, s, st) {
     at = inAt + n * every;
     prevAt = inAt + Math.max(0, n - 1) * every;
   } else if (P.moveOn) {
-    const hits = s.hits(P.moveOn, inAt + 1e-6, Bc);
+    let hits = s.hits(P.moveOn, inAt + 1e-6, Bc);
+    // switchUnder: only the quick taps move it — a hit counts when it lands
+    // within that many beats of the hit before; the spaced-out ones hold still
+    if (P.switchUnder) hits = hits.filter((h, i, all) => i > 0 && h[1] - all[i - 1][1] < P.switchUnder);
     n = hits.length;
     at = n ? hits[n - 1][1] : inAt;
     prevAt = n > 1 ? hits[n - 2][1] : inAt;

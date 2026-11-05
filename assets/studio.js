@@ -180,7 +180,7 @@ function paramsFor(el, L) {
   for (const [k, def] of Object.entries(el.params)) P[k] = L[k] ?? def[0];
   if (el.spots) P.spots = L.spots ?? el.spots;
   if (L.shape) P.shape = L.shape;
-  for (const k of ["spotsMode", "moveOn", "thenEvery", "moveBars", "switchBy", "keys", "fx"]) if (L[k] != null) P[k] = L[k];
+  for (const k of ["spotsMode", "moveOn", "thenEvery", "moveBars", "switchBy", "switchUnder", "keys", "fx"]) if (L[k] != null) P[k] = L[k];
   return P;
 }
 

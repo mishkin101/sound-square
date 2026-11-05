@@ -218,11 +218,22 @@ function paletteAt(score, B) {
 function colorsNow(score, B) {
   let col = paletteAt(score, B);
   for (const cm of score.colorMoves || []) {
+    const base = col[cm.slot];
+    if (typeof base !== "string") continue;
+    if (cm.on) {
+      // the pulse rides a moment's taps: one pulse per hit, bright right on
+      // the tap and dying away over `beats`
+      const hits = score.moments?.find((x) => x.name === cm.on)?.hits ?? [];
+      let h = null;
+      for (const x of hits) if (x <= B && (h == null || x > h)) h = x;
+      const ph = h == null ? 1 : (B - h) / (cm.beats || 1);
+      if (ph >= 1) continue;
+      col = { ...col, [cm.slot]: mix(base, col[cm.to] ?? cm.to, smoothstep(1 - ph) * (cm.amount ?? 1)) };
+      continue;
+    }
     const from = cm.from ? momentStart(score, cm.from) : 0;
     const until = cm.until ? momentEnd(score, cm.until) : songBeats(score);
     if (from == null || until == null || B < from || B >= until) continue;
-    const base = col[cm.slot];
-    if (typeof base !== "string") continue;
     const phase = ((((B - from) / (cm.beats || 4)) % 1) + 1) % 1;
     // the pulse's shape: "snap" builds and snaps back, "fade" breathes both
     // ways, "decay" lands bright on the beat and dies away (a drum hit)

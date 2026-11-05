@@ -3,18 +3,17 @@
 // Edit by hand, or tune with the studio's sliders and use "Copy score.js".
 
 const SCORE = {
-  // The song. The Spotify id gets filled in when we connect Spotify.
+  // The song.
   song: {
     title: "I Haven't Recovered From Last Night With You",
     artist: "Divorce from New York",
-    spotifyId: "",
+    spotifyId: "0KJKIGebZqDyMoxI2NMpL0",
   },
-  // Timing grid: the song sits at 126 BPM throughout; bar 1 still needs
-  // marking against the real recording.
-  bpm: 126,
+  // Timing grid: tapped along to the real song.
+  bpm: 125.874,
   beatsPerBar: 4,
-  firstDownbeatMs: 0,
-  bars: 48,
+  firstDownbeatMs: 731,
+  bars: 216,
   // Energy from 0 to 1 at chosen bars; bars in between blend smoothly.
   energy: [[1, 0.2], [9, 0.4], [17, 0.65], [25, 0.7], [33, 0.85], [41, 0.55], [48, 0.3]],
   // What happens in the music. A pattern lists beats inside one bar and repeats
@@ -54,13 +53,13 @@ const SCORE = {
   // Which palette starts at which bar. Changes blend over colorFadeBars.
   colors: [[1, "salmon"], [33, "dream"], [41, "deep"]],
   colorFadeBars: 2,
-  // Color pulses: a palette slot moving toward a color between two moments.
-  // beats: the cycle. back: "snap" builds then snaps back, "fade" breathes,
-  // "decay" lands bright on the beat and dies away. amount: how far it goes.
-  // The opening: the ground breathes slowly, a pulse every three beats, the
-  // whole time the eyes are up — gone when the bongos come in.
+  // Color pulses: a palette slot moving toward a color. With `on`, the pulse
+  // rides that moment's taps: one pulse per hit, bright right on the tap and
+  // dying away over `beats`. With from/until instead, it cycles between two
+  // moments: back "snap" builds then snaps back, "fade" breathes, "decay"
+  // lands bright on the beat and dies away. amount: how far it goes.
   colorMoves: [
-    { slot: "ground", to: "#ffffff", amount: 0.35, beats: 3, back: "fade", from: "stick tap", until: "bongos in" },
+    { slot: "ground", to: "#ffffff", amount: 0.35, beats: 3, on: "Pulse" },
   ],
   // Names for the timeline. Number keys 1-6 jump to them.
   sections: [],
@@ -69,9 +68,9 @@ const SCORE = {
   // Layers come in and leave on them, spots move on their hits, pulses run between them.
   // Each can carry a note; hide: true keeps its marker off the timeline.
   moments: [
-    { name: "stick tap", hits: [0] },
-    { name: "fast taps", hits: [3, 3.5], note: "the fast 4/5 after three waiting beats", hide: true },
-    { name: "bongos in", hits: [32] },
+    { name: "eye panning", hits: [6.31, 6.99, 7.71, 8.81, 9.25, 10.31, 11.04, 11.76, 12.83, 13.28] },
+    { name: "Bongo drum Start", hits: [14.28] },
+    { name: "Pulse", hits: [10.04, 14.08] },
   ],
   // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
   // A clip: el is a coded shape from assets/elements.js; shape is a drawing,
@@ -79,7 +78,8 @@ const SCORE = {
   // a bar number, or a moment's name to land right on it. in / out: "cut",
   // "fade" or "clap". spotsMode: all (every spot), turns (one per hit of moveOn),
   // one (a single copy moves between spots, switching by jump, blink or slide;
-  // moveBars caps the moving). A spot is [x, y, size]; add -1 to mirror it there,
+  // moveBars caps the moving; switchUnder: only a hit within that many beats
+  // of the hit before moves it). A spot is [x, y, size]; add -1 to mirror it there,
   // then degrees to turn it. hidden: true keeps a whole layer off the square.
   // keys: [{ at, x, y, size, deg, fade, flip }] ease the clip's place over time
   // (K in the studio); at is "bar:beat" or a moment's name; flip: -1 mirrors
@@ -92,24 +92,26 @@ const SCORE = {
   // keys: [{ at, amount }], the amount eased over time (0 is off), replacing
   // from/to as the envelope.
   layers: [
-    { name: "ground", clips: [{ el: "ground", from: 1, to: 48 }] },
+    { name: "ground", clips: [{ el: "ground", from: 1, to: 216 }] },
     {
       name: "eyes",
       clips: [
-        // The opening, her first square: one eye. It waits top left for three
-        // beats, then the fast 4/5 flashes it to the top right — they switch,
-        // the left corner empties — mirrored to face back where it came from.
+        // The opening: one eye, top left, facing right. It holds through the
+        // spaced-out taps of "eye panning" and flashes to the other corner
+        // (mirrored to face back) only on the quick ones — a tap within 0.6
+        // beats of the tap before. It leaves when the bongo drums start.
+        // Re-tapping the moment retimes the whole dance.
         {
           shape: "eye",
-          from: "stick tap",
-          to: "bongos in",
+          from: 1,
+          to: "Bongo drum Start",
           out: "fade",
           outBeats: 2,
+          spotsMode: "one",
+          moveOn: "eye panning",
+          switchBy: "jump",
+          switchUnder: 0.6,
           spots: [[0.11, 0.11, 0.055], [0.89, 0.11, 0.055, -1]],
-          keys: [
-            { at: "stick tap", x: 0.11, y: 0.11, size: 0.055 },
-            { at: "1:4.5", x: 0.89, y: 0.11, size: 0.055, flip: -1, ease: "snap" },
-          ],
         },
       ],
     },
