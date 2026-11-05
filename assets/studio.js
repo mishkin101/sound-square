@@ -1699,9 +1699,15 @@ function buildLayerDetail() {
     EDIT.clip = null;
     buildLayers();
   });
-  wrap.append(whenRow(L, "from", "from"), whenRow(L, "to", "until"));
-  wrap.append(menuRow(L, "in", "comes in by", [["cut", "cutting in"], ["fade", "fading in"], ["clap", "a clap line"]], "cut"));
-  wrap.append(menuRow(L, "out", "leaves by", [["cut", "cutting out"], ["fade", "fading out"], ["clap", "a clap line"]], "cut"));
+  if (L.shape) {
+    // a drawing's timing lives on the timeline and in its keys; the pane just
+    // says which moment it rides, and lets that change
+    wrap.append(momentRow(L));
+  } else {
+    wrap.append(whenRow(L, "from", "from"), whenRow(L, "to", "until"));
+    wrap.append(menuRow(L, "in", "comes in by", [["cut", "cutting in"], ["fade", "fading in"], ["clap", "a clap line"]], "cut"));
+    wrap.append(menuRow(L, "out", "leaves by", [["cut", "cutting out"], ["fade", "fading out"], ["clap", "a clap line"]], "cut"));
+  }
   if (L.shape && !L.keys?.length) {
     const seg = document.createElement("div");
     seg.className = "seg";
@@ -1842,6 +1848,40 @@ function spotsWords(L) {
 function timeWords(L) {
   const w = (v, edge) => (v == null ? edge : typeof v === "string" ? v : `bar ${v}`);
   return `${w(L.from, "start")} → ${w(L.to, "end")}`;
+}
+
+// Which moment the shape rides: named, and switchable. Picking one anchors the
+// clip to it (both ends, for a hold), and a moment with a drawing re-follows
+// its path; none unanchors it, start to end.
+function momentRow(L) {
+  const row = document.createElement("label");
+  row.className = "param";
+  row.innerHTML = `<span>moment</span><span></span><select class="input"></select>`;
+  const sel = row.querySelector("select");
+  const current = L.keysFrom ?? (typeof L.from === "string" ? L.from : "");
+  sel.innerHTML = `<option value="">none</option>` +
+    (SCORE.moments || []).map((m) => `<option${m.name === current ? " selected" : ""}>${m.name}</option>`).join("");
+  sel.addEventListener("change", () => {
+    rememberScore();
+    const name = sel.value;
+    sel.blur();
+    if (!name) {
+      delete L.keysFrom;
+      if (typeof L.from === "string") delete L.from;
+      if (typeof L.to === "string") delete L.to;
+    } else {
+      const m = SCORE.moments.find((x) => x.name === name);
+      L.from = name;
+      if (m?.hold) L.to = name;
+      if (m?.path) {
+        L.keys = pathKeys(m, L.keys?.[0]?.size ?? 0.12);
+        L.keysFrom = name;
+      } else delete L.keysFrom;
+    }
+    buildLayers();
+    renderMoments();
+  });
+  return row;
 }
 
 // A menu for when a layer comes in or leaves: its bar, or any moment.
