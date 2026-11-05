@@ -157,6 +157,42 @@ body.bare .topbar, body.bare .panel { display: none; }
 .param .val { color: var(--bright); }
 .layer.editing { border-color: var(--live); }
 
+/* Sliders, in the house style: a hairline track, a square thumb. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 14px;
+  margin: 0;
+  background: none;
+  cursor: ew-resize;
+}
+input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: var(--rule); }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 9px;
+  height: 13px;
+  margin-top: -5.5px;
+  border: none;
+  border-radius: 0;
+  background: var(--mid);
+}
+input[type="range"]:hover::-webkit-slider-thumb,
+input[type="range"]:active::-webkit-slider-thumb { background: var(--live); }
+input[type="range"]::-moz-range-track { height: 2px; background: var(--rule); }
+input[type="range"]::-moz-range-thumb {
+  width: 9px;
+  height: 13px;
+  border: none;
+  border-radius: 0;
+  background: var(--mid);
+}
+input[type="range"]:hover::-moz-range-thumb,
+input[type="range"]:active::-moz-range-thumb { background: var(--live); }
+input[type="range"]:focus-visible { outline: var(--hair) solid var(--mid); outline-offset: 2px; }
+
 /* ---- Small square buttons ---- */
 .mini {
   font: var(--t-label);
