@@ -121,6 +121,24 @@ the spot modes step aside; delete all keys and the modes come back. The spots
 stay as drag handles for authoring ("one at a time" etc. remain the shortcut
 for hit-driven switching).
 
+## Proposed next: one keying rule, hold moments, timing → keys
+Keys already animate size and rotation (each key stores x, y, size, deg, fade,
+all eased); dragging a spot's edge or turning it writes through when parked on
+a key. The proposal, in build order:
+
+1. **One rule everywhere**: parked on a key, every control writes into it — the
+   size slider and mirror included, not just dragging and turning. Between
+   keys, controls edit the resting shape as today.
+2. **Hold moments**: a moment can be a span, not just hits. Hold M down for the
+   length of what you hear; a quick tap stays a hit. Holds draw as draggable
+   bands on the timeline, the panel says "8 beats long", and the when-menus
+   gain "during <hold>" — one pick anchors both ends to the hold.
+3. **→ keys**: a button that bakes a clip's from/until/in/out into fade keys
+   (fade 0 at the in, 1 after the fade-in, mirrored at the out). The keys list
+   gains a fade column and the when-menus fold away for that clip. Rules are
+   for what the music decides; keys are for what's sculpted by hand — and any
+   rule can be baked into keys when it gets too rigid.
+
 ## Open questions
 - After the three intro hits, does the eye keep switching corners with the beat
   (every beat? every bar?) until the bongos, or stay put?
