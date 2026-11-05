@@ -2211,9 +2211,9 @@ function appendFxControls(card, f) {
     card.append(menuRow(f, "on", "rides", moveOnOptions(), ""));
     card.append(menuRow(f, "order", "order", [["cycle", "in a cycle"], ["bounce", "back and forth"], ["random", "at random"]], "cycle"));
     card.append(menuRow(f, "by", "moves by", [["jump", "jump"], ["blink", "blink"], ["slide", "slide"]], "jump"));
-    card.append(fxSlider(f, "under", 0, 2, 0.05, 0, "only quick taps (beats)"));
+    card.append(fxSlider(f, "under", 0, 2, 0.05, 0, "max gap (beats)"));
     card.querySelector(".param:last-child").title =
-      "0: every tap moves it. Above 0: only a tap landing within this many beats of the tap before moves it — for a tapped moment where only the quick taps mean moves";
+      "A gap filter on the moment's taps. 0: off, every tap moves it. Above 0: a tap moves it only when the gap since the previous tap is under this many beats";
     return;
   }
   card.append(fxAmountSlider(f));
