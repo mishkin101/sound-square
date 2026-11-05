@@ -313,10 +313,15 @@ function drawTimeline(B, top) {
       return;
     }
     (m.hits || []).forEach((h, hi) => {
-      const x = X(h), picked = MOMENT_DRAG && MOMENT_DRAG.mi === mi && MOMENT_DRAG.hi === hi;
+      const x = X(h), picked = MOMENT_DRAG && MOMENT_DRAG.mi === mi && (MOMENT_DRAG.hi === hi || MOMENT_DRAG.all);
       noStroke(); fill(picked ? "#ffffff" : momentColor(mi));
       triangle(x - 4, y + 7, x + 4, y + 7, x, y + 14);
-      if (hi === 0) { fill(140); text(m.name, x + 6, y - 4); }
+      if (hi === 0) {
+        fill(140); text(m.name, x + 6, y - 4);
+        if (mouseY >= y - 14 && mouseY <= y - 2 && mouseX >= x + 4 && mouseX <= x + 10 + 6.2 * m.name.length) {
+          hover = `${m.name} — drag the name to move every hit together`;
+        }
+      }
       if (Math.abs(mouseX - x) <= 5 && mouseY >= y && mouseY <= y + 16) hover = m.note ? `${m.name} · ${m.note}` : m.name;
     });
   });
@@ -1671,18 +1676,29 @@ function renameMoment(m, name) {
 function momentMarkerAt() {
   if (HIDE_MOMENTS || mouseX < TL_GUT) return null;
   const y = height - timelineHeight() + 34;
-  if (mouseY < y || mouseY > y + 16) return null;
+  const onName = mouseY >= y - 14 && mouseY <= y - 2; // the name line above the markers
+  if ((mouseY < y || mouseY > y + 16) && !onName) return null;
   const list = SCORE.moments || [];
   for (let mi = list.length - 1; mi >= 0; mi--) {
     const m = list[mi];
     if (m.hide) continue;
     if (m.hold) {
+      if (onName) continue;
       const a = timelineX(m.hold[0]), b = timelineX(m.hold[1]);
       if (Math.abs(mouseX - a) <= 5) return { mi, hold: 0 };
       if (Math.abs(mouseX - b) <= 5) return { mi, hold: 1 };
       if (mouseX > a && mouseX < b) return { mi, hold: "body", grab: msToBeats(SCORE, mouseMs()) - m.hold[0] };
       continue;
     }
+    if (onName && m.hits?.length) {
+      // the name is the whole moment's handle: dragging it moves every hit
+      const x0 = timelineX(m.hits[0]);
+      if (mouseX >= x0 + 4 && mouseX <= x0 + 10 + 6.2 * m.name.length) {
+        return { mi, all: true, grab: msToBeats(SCORE, mouseMs()) - m.hits[0] };
+      }
+      continue;
+    }
+    if (onName) continue;
     for (let hi = (m.hits || []).length - 1; hi >= 0; hi--) {
       if (Math.abs(mouseX - timelineX(m.hits[hi])) <= 5) return { mi, hi };
     }
@@ -1700,7 +1716,11 @@ function dragMoment() {
     m.hold[0] = round2(beat - MOMENT_DRAG.grab);
     m.hold[1] = round2(m.hold[0] + len);
   } else if (MOMENT_DRAG.hold != null) m.hold[MOMENT_DRAG.hold] = beat;
-  else m.hits[MOMENT_DRAG.hi] = beat;
+  else if (MOMENT_DRAG.all) {
+    // dragged by its name: the whole moment shifts, spacing kept
+    const delta = round2(beat - MOMENT_DRAG.grab) - m.hits[0];
+    m.hits = m.hits.map((h) => round2(h + delta));
+  } else m.hits[MOMENT_DRAG.hi] = beat;
   WORLD = prepare(SCORE); // the full refresh (and the hold's ends sorting) comes on release
 }
 
