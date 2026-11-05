@@ -290,12 +290,12 @@ function drawTimeline(B, top) {
       // open: a dim header row, each shape nested on its own row under it
       const open = layerOpen(R);
       if (R.clips.length > 1) {
-        noStroke(); fill(0); rect(0, y + 1, open ? 13 + textWidth(R.name) + 8 : 11, 11);
+        noStroke(); fill(0); rect(0, y + 1, 13 + textWidth(R.name) + 8, 11);
         fill(open ? 170 : 110); textAlign(LEFT, CENTER);
-        text(open ? `▾ ${R.name}` : "▸", 2, y + 7);
+        text(`${open ? "▾" : "▸"} ${R.name}`, 2, y + 7);
         textAlign(LEFT, TOP);
         if (open) { stroke(50); strokeWeight(1); line(4.5, y + 13, 4.5, y + layerRows(R) * 13 - 3); noStroke(); }
-        if (!CLIP_DRAG && mouseY >= y && mouseY < y + 12 && mouseX <= (open ? 13 + textWidth(R.name) + 8 : 11))
+        if (!CLIP_DRAG && mouseY >= y && mouseY < y + 12 && mouseX <= 13 + textWidth(R.name) + 8)
           hover = open ? `${R.name} — click packs its shapes into one strip` : `${R.name} — click gives each shape its row (V flips all)`;
       }
       R.clips.forEach((L, ci) => {
@@ -338,12 +338,15 @@ function drawTimeline(B, top) {
           if (!KEY_DRAG && Math.abs(mouseX - kx) <= 4 && mouseY >= yr && mouseY < yr + 13) hover = `key · ${atKeyWords(k.at)}`;
         });
         // the label sits beside the bar, right of it when there's room, else
-        // left; only a bar spanning the whole view keeps it inside
-        const nm = clipLabel(R, ci), tw = textWidth(nm);
-        fill(on ? 200 : 140);
-        if (b + 5 + tw <= width - 4) text(nm, b + 5, yr + 3);
-        else if (a - 5 - tw >= 4) text(nm, a - 5 - tw, yr + 3);
-        else { fill(on ? 0 : 200); text(nm, a + 4, yr + 3); }
+        // left; only a bar spanning the whole view keeps it inside. A packed
+        // many-shape strip shows just the layer's title, not a pile of names.
+        if (open || R.clips.length === 1) {
+          const nm = clipLabel(R, ci), tw = textWidth(nm);
+          fill(on ? 200 : 140);
+          if (b + 5 + tw <= width - 4) text(nm, b + 5, yr + 3);
+          else if (a - 5 - tw >= 4) text(nm, a - 5 - tw, yr + 3);
+          else { fill(on ? 0 : 200); text(nm, a + 4, yr + 3); }
+        }
         if (!CLIP_DRAG && mouseY >= yr && mouseY < yr + 13 && mouseX >= a - 5 && mouseX <= b + 5) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
         if (CLIP_DRAG && CLIP_DRAG.ri === ri && CLIP_DRAG.ci === ci) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
       });
@@ -421,7 +424,7 @@ function tlCaretAt() {
   for (let ri = 0; ri < SCORE.layers.length; ri++) {
     const R = SCORE.layers[ri];
     if (R.clips.length > 1 && mouseY >= y && mouseY < y + 12 &&
-        mouseX <= (layerOpen(R) ? 13 + textWidth(R.name) + 8 : 11)) return ri;
+        mouseX <= 13 + textWidth(R.name) + 8) return ri;
     y += layerRows(R) * 13;
   }
   return null;
@@ -1841,13 +1844,6 @@ function buildLayerDetail() {
     wrap.append(menuRow(L, "in", "comes in by", [["cut", "cutting in"], ["fade", "fading in"], ["clap", "a clap line"]], "cut"));
     wrap.append(menuRow(L, "out", "leaves by", [["cut", "cutting out"], ["fade", "fading out"], ["clap", "a clap line"]], "cut"));
   }
-  if (L.shape && !L.keys?.length) {
-    const seg = document.createElement("div");
-    seg.className = "seg";
-    seg.innerHTML = `<button class="btn" title="Bake the timing above into keyframes, then sculpt them freely">→ keys</button>`;
-    seg.querySelector("button").addEventListener("click", (e) => { e.currentTarget.blur(); bakeKeys(); });
-    wrap.append(seg);
-  }
   if (L.shape && !L.keys?.length && (L.spots ?? el?.spots ?? []).length > 1) {
     wrap.append(menuRow(L, "spotsMode", "spots", [["all", "still — all show"], ["turns", "appear one per hit"], ["one", "one copy, moving"]], "all"));
     if ((L.spotsMode ?? "all") !== "all") {
@@ -1968,38 +1964,20 @@ function buildLayerDetail() {
     wrap.append(row);
   }
   for (const [name, [def, min, max, step]] of Object.entries(el ? el.params : {})) {
-    // the size slider follows the one rule: on a keyed clip it writes the key
-    // under the playhead; otherwise it sizes the picked spot (0.1 per step)
-    const keyed = name === "size" && L.keys?.length;
-    const spots = !keyed && name === "size" && L.shape ? (L.spots ?? el.spots ?? []) : null;
-    const si = spots?.length ? Math.min(EDIT.spot ?? 0, spots.length - 1) : null;
-    const kNow = keyed ? parkedKey(L) ?? keyedPlace(SCORE, L.keys, Math.max(0, msToBeats(SCORE, songNow()))) : null;
-    const val = keyed ? Math.min(max, Math.max(min, kNow.size / 0.1))
-      : si != null ? Math.min(max, Math.max(min, spots[si][2] / 0.1))
-      : L[name] ?? def;
-    const dec = decimals(step);
-    const label = keyed ? "size (the key's)" : si != null && spots.length > 1 ? `size (spot ${si + 1})` : name;
+    if (L.shape && name === "size") continue; // size lives in the square's toolbar
+    const val = L[name] ?? def, dec = decimals(step);
     const row = document.createElement("label");
     row.className = "param";
-    row.innerHTML = `<span>${label}</span><span class="val">${val.toFixed(dec)}</span>` +
+    row.innerHTML = `<span>${name}</span><span class="val">${val.toFixed(dec)}</span>` +
       `<input type="range" min="${min}" max="${max}" step="${step}" value="${val}">`;
     const out = row.querySelector(".val"), slider = row.querySelector("input");
     slider.addEventListener("input", (e) => {
       if (!SLIDING) { rememberScore(); SLIDING = true; }
       const v = parseFloat(e.target.value);
-      if (keyed) {
-        const p = parkedKey(L) ?? keyedPlace(SCORE, L.keys, Math.max(0, msToBeats(SCORE, songNow())));
-        keyThrough(L, [p.x, p.y, round4(0.1 * v), p.flip ?? 1, p.deg ? round2(p.deg) : 0]);
-      } else if (si != null) {
-        const arr = L.spots ?? (L.spots = spots.map((s) => [...s])); // own copy, not the element's default
-        arr[si][2] = round4(0.1 * v);
-      } else L[name] = v;
+      L[name] = v;
       out.textContent = v.toFixed(dec);
     });
-    slider.addEventListener("change", () => {
-      SLIDING = false;
-      if (keyed) buildLayerDetail();
-    });
+    slider.addEventListener("change", () => { SLIDING = false; });
     wrap.append(row);
   }
   renderShapeMenus();
