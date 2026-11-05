@@ -1881,17 +1881,8 @@ function buildLayerDetail() {
   }
   // coded elements show just their header: their tuning (the ground's pulse)
   // moves into the effects system later
-  if (L.shape && !L.keys?.length && (L.spots ?? el?.spots ?? []).length > 1) {
-    wrap.append(menuRow(L, "spotsMode", "spots", [["all", "still — all show"], ["turns", "appear one per hit"], ["one", "one copy, moving"]], "all"));
-    if ((L.spotsMode ?? "all") !== "all") {
-      wrap.append(menuRow(L, "moveOn", "moves on", moveOnOptions(), ""));
-      wrap.append(menuRow(L, "thenEvery", "then", [["stay", "stays put"], ["beat", "every beat"], ["bar", "every bar"]], "stay"));
-      wrap.append(menuRow(L, "moveBars", "moving for", [["", "the whole time"], ["1", "1 bar"], ["2", "2 bars"], ["4", "4 bars"], ["8", "8 bars"], ["16", "16 bars"]], ""));
-      if (L.spotsMode === "one") wrap.append(menuRow(L, "switchBy", "switches by", [["jump", "jumping"], ["blink", "blinking across"], ["slide", "sliding"]], "jump"));
-    }
-    const words = spotsWords(L);
-    if (words) wrap.insertAdjacentHTML("beforeend", `<p class="note">${words}</p>`);
-  }
+  // spot-motion menus (spots mode, moves on, …) are gone from the pane:
+  // that behavior returns later as effects; the score fields still play
   if (hasSpots(L)) {
     wrap.insertAdjacentHTML("beforeend",
       `<div class="spot-head"><span class="label" title="Places of this one ${layerName(L)}. Duplicate makes another shape.">Spots</span></div>`);
