@@ -66,58 +66,50 @@ const SCORE = {
     { name: "split", from: 33 },
     { name: "fringes", from: 41 },
   ],
-  // Things you hear, marked on the song (M in the studio while it plays).
-  // Layers come in and leave on them, spots move on their hits, pulses run
-  // between them. These sit on the placeholder grid until they're re-marked.
+  // Things you hear, marked on the song (M in the studio while it plays; held
+  // down, M marks a hold: [start, end] in beats, a span like the bongo section).
+  // Layers come in and leave on them, spots move on their hits, pulses run between them.
+  // Each can carry a note; hide: true keeps its marker off the timeline.
   moments: [
     { name: "stick tap", hits: [0] },
     { name: "fast taps", hits: [1, 1.5], note: "two quick taps right after the first", hide: true },
     { name: "bongos in", hits: [32] },
   ],
-  // Layers are named rows on the timeline, drawn bottom to top; each holds shape
-  // clips. A clip is one thing on the square: el is a coded shape from
-  // assets/elements.js; shape is a drawing, shapes/<name>.svg, drawn at each of
-  // its spots ([x, y, size]), made in the Shapes tab. On from `from` through
-  // `to`: a bar number, or a moment's name to land right on it. in / out:
-  // "cut", "fade" or "clap". spotsMode: "all" (every spot at once), "turns"
-  // (they appear one per hit of `moveOn`), "one" (a single copy moves between
-  // spots on each hit, switching by "jump", "blink" or "slide"; `thenEvery`
-  // keeps it moving after the hits, `moveBars` ends the moving). A spot is
-  // [x, y, size]; add -1 to mirror the drawing there, then degrees to turn it.
-  // `hidden: true` on a layer keeps the whole row off the square.
+  // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
+  // A clip: el is a coded shape from assets/elements.js; shape is a drawing,
+  // shapes/<name>.svg, drawn at each of its spots. On from `from` through `to`:
+  // a bar number, or a moment's name to land right on it. in / out: "cut",
+  // "fade" or "clap". spotsMode: all (every spot), turns (one per hit of moveOn),
+  // one (a single copy moves between spots, switching by jump, blink or slide;
+  // moveBars caps the moving). A spot is [x, y, size]; add -1 to mirror it there,
+  // then degrees to turn it. hidden: true keeps a whole layer off the square.
+  // keys: [{ at, x, y, size, deg, fade, flip }] ease the clip's place over time
+  // (K in the studio); at is "bar:beat" or a moment's name; flip: -1 mirrors
+  // from that key on; ease: "line" keeps the approach linear. Keys replace the
+  // spot modes. keysFrom names the moment whose drawn path made them: editing
+  // that path in the studio re-samples the keys. fx: [{ kind, amount, rate,
+  // from, to }] are effects on the shape (spin, breathe, wobble), each running
+  // in its own window or the clip's whole life — or with keys of its own:
+  // keys: [{ at, amount }], the amount eased over time (0 is off), replacing
+  // from/to as the envelope.
   layers: [
     { name: "ground", clips: [{ el: "ground", from: 1, to: 48 }] },
     {
       name: "eyes",
       clips: [
         {
-          shape: "eye", from: "stick tap", to: "bongos in", out: "fade", outBeats: 2,
-          spotsMode: "one", moveOn: "fast taps", thenEvery: "beat", moveBars: 4, switchBy: "jump",
+          shape: "eye",
+          from: "stick tap",
+          to: "bongos in",
+          out: "fade",
+          outBeats: 2,
+          spotsMode: "one",
+          moveOn: "fast taps",
+          thenEvery: "beat",
+          moveBars: 4,
+          switchBy: "jump",
           spots: [[0.11, 0.11, 0.055], [0.89, 0.11, 0.055, -1]],
         },
-      ],
-    },
-    { name: "bongo line", clips: [{ el: "bongoLine", from: 9, to: 24, in: "fade", out: "fade" }] },
-    {
-      name: "triangles",
-      clips: [
-        { el: "triangles", from: 25, to: 32, in: "fade", out: "clap" },
-        { el: "bongoBoxes", from: 25, to: 40, in: "fade", out: "fade" },
-      ],
-    },
-    {
-      name: "split",
-      clips: [
-        { el: "divider", from: 33, to: 40, in: "clap", out: "fade" },
-        { el: "clapBongos", from: 33, to: 40, in: "clap", out: "fade" },
-        { el: "dreamTones", from: 33, to: 42, in: "clap", out: "fade", outBeats: 8 },
-      ],
-    },
-    {
-      name: "fringes",
-      clips: [
-        { el: "fringes", from: 41, to: 48, in: "fade", inBeats: 4 },
-        { el: "hangers", from: 41, to: 48, in: "fade" },
       ],
     },
   ],

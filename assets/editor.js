@@ -1059,6 +1059,7 @@ async function deleteShape() {
     }
   }
   if (layers) {
+    rememberScore();
     for (const R of SCORE.layers) for (let ci = R.clips.length - 1; ci >= 0; ci--) if (R.clips[ci].shape === name) R.clips.splice(ci, 1);
     EDIT.clip = null;
     buildLayers();

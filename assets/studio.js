@@ -342,10 +342,13 @@ function drawTimeline(B, top) {
         // many-shape strip shows just the layer's title, not a pile of names.
         if (open || R.clips.length === 1) {
           const nm = clipLabel(R, ci), tw = textWidth(nm);
-          fill(on ? 200 : 140);
-          if (b + 5 + tw <= width - 4) text(nm, b + 5, yr + 3);
-          else if (a - 5 - tw >= 4) text(nm, a - 5 - tw, yr + 3);
-          else { fill(on ? 0 : 200); text(nm, a + 4, yr + 3); }
+          if (b + 5 + tw <= width - 4) { fill(on ? 200 : 140); text(nm, b + 5, yr + 3); }
+          else if (a - 5 - tw >= 4) { fill(on ? 200 : 140); text(nm, a - 5 - tw, yr + 3); }
+          else { // no room beside: a black tag pinned at the bar's end
+            const lx = width - 4 - tw;
+            noStroke(); fill(0); rect(lx - 4, yr + 1, tw + 8, 11);
+            fill(on ? 217 : 200); text(nm, lx, yr + 3);
+          }
         }
         if (!CLIP_DRAG && mouseY >= yr && mouseY < yr + 13 && mouseX >= a - 5 && mouseX <= b + 5) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
         if (CLIP_DRAG && CLIP_DRAG.ri === ri && CLIP_DRAG.ci === ci) hover = `${R.name} › ${nm}  ${timeWords(L)}`;
