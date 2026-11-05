@@ -96,24 +96,20 @@ const SCORE = {
     {
       name: "eyes",
       clips: [
-        // The opening, her first square: an eye in each top corner, facing
-        // each other. The left one opens on the stick tap; the right one
-        // flashes in on the fast 4/5. Both hold until the bongos come in.
+        // The opening, her first square: one eye. It waits top left for three
+        // beats, then the fast 4/5 flashes it to the top right — they switch,
+        // the left corner empties — mirrored to face back where it came from.
         {
           shape: "eye",
           from: "stick tap",
           to: "bongos in",
           out: "fade",
           outBeats: 2,
-          spots: [[0.11, 0.11, 0.055]],
-        },
-        {
-          shape: "eye",
-          from: "fast taps",
-          to: "bongos in",
-          out: "fade",
-          outBeats: 2,
-          spots: [[0.89, 0.11, 0.055, -1]],
+          spots: [[0.11, 0.11, 0.055], [0.89, 0.11, 0.055, -1]],
+          keys: [
+            { at: "stick tap", x: 0.11, y: 0.11, size: 0.055 },
+            { at: "1:4.5", x: 0.89, y: 0.11, size: 0.055, flip: -1, ease: "snap" },
+          ],
         },
       ],
     },
