@@ -50,6 +50,35 @@ function momentStart(score, name) {
   return h.length ? Math.min(...h) : null;
 }
 
+// ---- Keyframes -----------------------------------------------------------------
+// A clip's keys ease its place over time: keys: [{ at, x, y, size, deg, fade }].
+// `at` is a moment's name, "bar:beat" (beat 1 is the downbeat), or a bar number.
+
+function keyBeat(score, at) {
+  if (typeof at === "string") {
+    const m = momentStart(score, at);
+    if (m != null) return m;
+    const [bar, beat = 1] = at.split(":").map(Number);
+    return barToBeats(score, bar || 1) + (beat - 1);
+  }
+  return barToBeats(score, at);
+}
+
+// Where the keys put the clip at beat B: eased between the two around B, held
+// flat before the first and after the last.
+function keyedPlace(score, keys, B) {
+  const ks = keys.map((k) => ({ ...k, b: keyBeat(score, k.at) })).sort((p, q) => p.b - q.b);
+  let a = ks[0], b = ks[ks.length - 1];
+  for (const k of ks) if (k.b <= B) a = k;
+  for (let i = ks.length - 1; i >= 0; i--) if (ks[i].b >= B) b = ks[i];
+  const t = b.b > a.b ? smoothstep((B - a.b) / (b.b - a.b)) : 1;
+  const mix = (p, q, d) => { p = p ?? d; q = q ?? d; return p + (q - p) * t; };
+  return {
+    x: mix(a.x, b.x, 0.5), y: mix(a.y, b.y, 0.5), size: mix(a.size, b.size, 0.1),
+    deg: mix(a.deg, b.deg, 0), fade: mix(a.fade, b.fade, 1),
+  };
+}
+
 // ---- Events ------------------------------------------------------------------
 
 // The score, ready to play: tracks as sorted beat times, energy keys in beats.

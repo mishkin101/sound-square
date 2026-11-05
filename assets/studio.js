@@ -112,7 +112,7 @@ function renderSquare(B, x, y) {
         drawingContext.clip();
       }
       const P = paramsFor(el, L);
-      if (editing() && picked) P.spotsMode = "all"; // place every spot while editing
+      if (editing() && picked) { P.spotsMode = "all"; P.editing = true; } // place the spots while editing
       el.draw(P, s, st);
       pop();
     });
@@ -128,7 +128,7 @@ function paramsFor(el, L) {
   for (const [k, def] of Object.entries(el.params)) P[k] = L[k] ?? def[0];
   if (el.spots) P.spots = L.spots ?? el.spots;
   if (L.shape) P.shape = L.shape;
-  for (const k of ["spotsMode", "moveOn", "thenEvery", "moveBars", "switchBy"]) if (L[k] != null) P[k] = L[k];
+  for (const k of ["spotsMode", "moveOn", "thenEvery", "moveBars", "switchBy", "keys"]) if (L[k] != null) P[k] = L[k];
   return P;
 }
 
@@ -261,6 +261,15 @@ function drawTimeline(B, top) {
         if (typeof L.from === "string") triangle(a - 3, y, a + 3, y, a, y + 5);
         if (typeof L.to === "string") triangle(b - 4, y, b + 2, y, b - 1, y + 5);
         if (sel) { noFill(); stroke(255); strokeWeight(1); rect(a - 0.5, y + 1.5, b - a, 10); noStroke(); }
+        // the picked clip's keyframes, as diamonds
+        if (sel) (L.keys ?? []).forEach((k, ki) => {
+          const kx = X(keyBeat(SCORE, k.at));
+          const held = KEY_DRAG && KEY_DRAG.ri === ri && KEY_DRAG.ci === ci && KEY_DRAG.ki === ki;
+          noStroke(); fill(held ? 255 : 0); stroke(255); strokeWeight(1);
+          quad(kx, y + 1.5, kx + 4.5, y + 6, kx, y + 10.5, kx - 4.5, y + 6);
+          noStroke();
+          if (!KEY_DRAG && Math.abs(mouseX - kx) <= 4 && mouseY >= y && mouseY < y + 13) hover = `key · ${atKeyWords(k.at)}`;
+        });
         const nm = layerName(L);
         if (textWidth(nm) < b - a - 10) { fill(on ? 0 : 200); text(nm, a + 4, y + 3); }
         else { fill(140); text(nm, b + 5, y + 3); }
@@ -296,7 +305,8 @@ function drawTimeline(B, top) {
   if (!editing()) {
     const c = CLIP_DRAG ?? (inTimeline() && !scrubbing ? clipAt() : null);
     const want = CLIP_DRAG ? (CLIP_DRAG.zone === "body" ? "grabbing" : "ew-resize")
-      : MOMENT_DRAG || (inTimeline() && momentMarkerAt()) ? "grab"
+      : KEY_DRAG ? "grabbing"
+      : MOMENT_DRAG || (inTimeline() && (momentMarkerAt() || keyAt())) ? "grab"
       : c ? (c.zone === "body" ? "grab" : "ew-resize") : "default";
     if (canvasCursor !== want) cursor(canvasCursor = want);
   }
@@ -365,6 +375,8 @@ function mousePressed(e) {
   if (inTimeline()) {
     MOMENT_DRAG = momentMarkerAt();
     if (MOMENT_DRAG) return;
+    KEY_DRAG = keyAt();
+    if (KEY_DRAG) return;
     const clip = clipAt();
     if (clip) {
       selectLayer(clip.ri, clip.ci, true);
@@ -384,12 +396,20 @@ function mousePressed(e) {
 }
 function mouseDragged() {
   if (MOMENT_DRAG) dragMoment();
+  else if (KEY_DRAG) dragKey();
   else if (CLIP_DRAG) dragClip();
   else if (scrubbing) scrubMs = mouseMs();
   else if (EDIT.drag) dragSpot();
 }
 function mouseReleased() {
   if (MOMENT_DRAG) { MOMENT_DRAG = null; momentsChanged(); return; }
+  if (KEY_DRAG) {
+    const L = SCORE.layers[KEY_DRAG.ri]?.clips?.[KEY_DRAG.ci];
+    L?.keys?.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at));
+    KEY_DRAG = null;
+    buildLayers();
+    return;
+  }
   if (CLIP_DRAG) { CLIP_DRAG = null; buildLayers(); return; }
   if (scrubbing) { const ms = scrubMs; run(() => source.seek(ms)); scrubMs = null; }
   scrubbing = false;
@@ -542,6 +562,66 @@ function removeSpot(i) {
   buildLayerDetail();
 }
 
+// ---- Keyframes -----------------------------------------------------------------
+// K drops a key at the playhead: the selected spot's place, kept in the clip's
+// keys and eased between on playback. Scrub, drag the spot (E), K — repeat.
+// On the timeline the picked clip shows its keys as diamonds; drag to move one.
+
+function setKeyAtPlayhead() {
+  const L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
+  if (!L?.shape) return;
+  rememberScore();
+  const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
+  const sp = (L.spots ?? elementOf(L).spots)[EDIT.spot ?? 0];
+  const key = { at: atKey(B), x: sp[0], y: sp[1], size: sp[2] };
+  if (sp[4]) key.deg = sp[4];
+  const keys = (L.keys ??= []);
+  const same = keys.find((k) => Math.abs(keyBeat(SCORE, k.at) - B) < 0.1);
+  if (same) Object.assign(same, key);
+  else keys.push(key);
+  keys.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at));
+  buildLayers();
+}
+
+// A key's `at` for this beat: a moment it lands on, else "bar:beat".
+function atKey(B) {
+  for (const m of SCORE.moments || []) for (const h of m.hits) if (Math.abs(h - B) < 0.1) return m.name;
+  const bar = Math.floor(B / SCORE.beatsPerBar) + 1;
+  return `${bar}:${round2(B - (bar - 1) * SCORE.beatsPerBar + 1)}`;
+}
+
+// A key's `at`, in words for the panel.
+function atKeyWords(at) {
+  if (typeof at === "string" && !/^\d+(:|$)/.test(at)) return at; // a moment's name
+  return `bar ${String(at).replace(":", " · beat ")}`;
+}
+
+// The key diamond under the mouse, on the picked clip's timeline row.
+let KEY_DRAG = null;
+function keyAt() {
+  if (!showLayerRows() || EDIT.clip == null) return null;
+  const ri = EDIT.layer, ci = EDIT.clip, L = SCORE.layers[ri]?.clips?.[ci];
+  if (!L?.keys?.length) return null;
+  const y = TL_ROWS_Y + ri * 13;
+  if (mouseY < y || mouseY > y + 12) return null;
+  for (let ki = L.keys.length - 1; ki >= 0; ki--) {
+    if (Math.abs(mouseX - timelineX(keyBeat(SCORE, L.keys[ki].at))) <= 4) return { ri, ci, ki };
+  }
+  return null;
+}
+
+// Dragging a diamond: a moment within reach attaches, else the nearest quarter beat.
+function dragKey() {
+  const d = KEY_DRAG, L = SCORE.layers[d.ri]?.clips?.[d.ci], k = L?.keys?.[d.ki];
+  if (!k) return (KEY_DRAG = null);
+  if (!d.kept) { rememberScore(); d.kept = true; }
+  let at = null;
+  for (const m of SCORE.moments || []) {
+    for (const h of m.hits) if (Math.abs(timelineX(h) - mouseX) <= 8) at = m.name;
+  }
+  k.at = at ?? atKey(Math.max(0, Math.round(msToBeats(SCORE, mouseMs()) * 4) / 4));
+}
+
 // Edit mode works on the open layer that has spots, or the first one.
 function setEdit(on, layer = EDIT.layer, clip = EDIT.clip) {
   EDIT.on = on;
@@ -596,6 +676,7 @@ function drawEditOverlay() {
     : `drag: move · edge: resize · double-click: add ${layerName(L)}`);
   for (const id of ["sq-dup", "sq-flip", "sq-turn", "sq-del"]) $(id).disabled = EDIT.spot == null;
   $("sq-order").disabled = P.spots.length < 2;
+  $("sq-key").disabled = !L.shape;
   // the cursor says what a press would do
   const [mx, my] = squareMouse(), hit = mx >= 0 && mx <= 1 && my >= 0 && my <= 1 ? spotAt(mx, my) : null;
   const want = EDIT.drag ? (EDIT.drag.mode === "move" ? "grabbing" : "nwse-resize")
@@ -963,7 +1044,7 @@ function buildLayerDetail() {
   wrap.append(whenRow(L, "from", "from"), whenRow(L, "to", "until"));
   wrap.append(menuRow(L, "in", "comes in by", [["cut", "cutting in"], ["fade", "fading in"], ["clap", "a clap line"]], "cut"));
   wrap.append(menuRow(L, "out", "leaves by", [["cut", "cutting out"], ["fade", "fading out"], ["clap", "a clap line"]], "cut"));
-  if (L.shape && (L.spots ?? el?.spots ?? []).length > 1) {
+  if (L.shape && !L.keys?.length && (L.spots ?? el?.spots ?? []).length > 1) {
     wrap.append(menuRow(L, "spotsMode", "spots", [["all", "all at once"], ["turns", "take turns"], ["one", "one at a time"]], "all"));
     if ((L.spotsMode ?? "all") !== "all") {
       wrap.append(menuRow(L, "moveOn", "moves on", moveOnOptions(), ""));
@@ -998,6 +1079,33 @@ function buildLayerDetail() {
         else if (a === "dup") duplicateSpot(i);
         else if (a === "del") removeSpot(i);
         else buildLayerDetail();
+      });
+      wrap.append(row);
+    });
+  }
+  // the clip's keyframes: when it is, where it is; → jumps the song there
+  if (L.keys?.length) {
+    wrap.insertAdjacentHTML("beforeend",
+      `<div class="spot-head"><span class="label">Keys</span><span class="data dimmed">K sets one at the playhead</span></div>`);
+    L.keys.forEach((k, i) => {
+      const row = document.createElement("div");
+      row.className = "spot-row";
+      row.innerHTML = `<span class="dimmed">${i + 1}</span>` +
+        `<span>${atKeyWords(k.at)}</span>` +
+        `<span class="dimmed">${Math.round(k.x * 100)}, ${Math.round(k.y * 100)}</span>` +
+        `<span class="dimmed">×${round2(k.size)}</span>` +
+        `<button class="mini" data-a="go" title="Play from this key">→</button>` +
+        `<button class="mini" data-a="del" title="Remove">×</button>`;
+      row.addEventListener("click", (e) => {
+        const a = e.target.dataset.a;
+        e.target.blur?.();
+        if (a === "go") run(() => source.seek(beatsToMs(SCORE, keyBeat(SCORE, k.at))));
+        else if (a === "del") {
+          rememberScore();
+          L.keys.splice(i, 1);
+          if (!L.keys.length) delete L.keys;
+          buildLayers();
+        }
       });
       wrap.append(row);
     });
@@ -1212,6 +1320,7 @@ function wireControls() {
   });
   button("sq-order", () => { ORDER.next = 0; ORDER.at = millis(); });
   button("sq-del", () => { if (EDIT.spot != null) removeSpot(EDIT.spot); });
+  button("sq-key", setKeyAtPlayhead);
   $("moments-hide-all").addEventListener("change", (e) => {
     HIDE_MOMENTS = e.target.checked;
     e.target.blur();
@@ -1303,6 +1412,7 @@ function wireControls() {
     } else if ((e.key === "x" || e.key === "X") && editing() && EDIT.spot != null) flipSpot(EDIT.spot);
     else if ((e.key === "d" || e.key === "D") && editing() && EDIT.spot != null) duplicateSpot(EDIT.spot);
     else if ((e.key === "r" || e.key === "R") && editing() && EDIT.spot != null) rotateSpot(EDIT.spot, e.shiftKey ? -15 : 15);
+    else if (e.key === "k" || e.key === "K") setKeyAtPlayhead();
     else if (e.key === "Escape" && editing() && EDIT.spot != null) EDIT.spot = null;
     else if (e.key === "Escape") undoTaps();
     else if (e.key === "m" || e.key === "M") { if (!e.repeat) markMoment(e); }
@@ -1584,6 +1694,8 @@ const SCORE_NOTES = {
     "one (a single copy moves between spots, switching by jump, blink or slide;",
     "moveBars caps the moving). A spot is [x, y, size]; add -1 to mirror it there,",
     "then degrees to turn it. hidden: true keeps a whole layer off the square.",
+    "keys: [{ at, x, y, size, deg, fade }] ease the clip's place over time (K in",
+    "the studio); at is \"bar:beat\" or a moment's name. Keys replace the spot modes.",
   ],
 };
 

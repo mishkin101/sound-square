@@ -98,13 +98,24 @@ own from/until, spots and behavior. Rows give z-order (drag to restack), rename
 off the timeline (per-moment eye, or hide all) while still anchoring and
 triggering — the panel is the record, the ruler only shows pinned anchors.
 
-## Keyframes: proposed, not built
+## Keyframes: built
 Rules (moments, moves on, pulses) stay the backbone because they re-sync when
-the song is re-marked and react to claps/bongos/energy. Keyframes would be added
-for placement over time: a clip gets `keys: [{ at, x, y, size, deg, fade }]`
-where `at` is a bar:beat or a moment's name, eased between. Selected clip shows
-its keys as diamonds on the timeline: drag to move, K to set one at the playhead.
-"One at a time" spot modes stay as shortcuts; keyframes are the general tool.
+the song is re-marked and react to claps/bongos/energy. Keyframes are the
+general tool for placement over time: a clip gets
+`keys: [{ at, x, y, size, deg, fade }]` where `at` is `"bar:beat"` or a
+moment's name, eased (smoothstep) between keys and held flat outside them.
+`fade` scales the clip's visibility on top of its in/out.
+
+Authoring: scrub to a time, drag the spot where the shape should be (E), press
+K (or + Key in the toolbar) — the spot's place becomes a key at the playhead; a
+key within a tenth of a beat is updated instead. Landing on a moment's hit
+stores the moment's name, so the key re-syncs with it. The picked clip shows
+its keys as diamonds on its timeline row: drag one to move it (it attaches to a
+moment within reach, else the nearest quarter beat); the panel lists them with
+→ to jump there and × to remove. While a clip has keys they drive its place and
+the spot modes step aside; delete all keys and the modes come back. The spots
+stay as drag handles for authoring ("one at a time" etc. remain the shortcut
+for hit-driven switching).
 
 ## Open questions
 - After the three intro hits, does the eye keep switching corners with the beat

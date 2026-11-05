@@ -71,6 +71,7 @@ Without BlackHole, tap **T** on the 1 of every bar for at least 8 bars, and the 
 | **Esc** | undo the last round of taps |
 | **E** | edit mode: place the picked layer's shapes on the square |
 | **D / X / R** | in edit mode: copy the selected spot · mirror it · turn it 15° (Shift turns back) |
+| **K** | a keyframe at the playhead: the selected spot's place, eased between keys (diamonds on the picked clip) |
 | **⌘Z / ⇧⌘Z** | undo / redo square edits: spots, clips, layers, moments, pulses |
 | **Delete** | in edit mode, remove the selected spot |
 | **S** | preview sounds: a click on every beat, blips for claps and bongos, a tone while keys are held |

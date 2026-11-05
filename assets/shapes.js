@@ -34,6 +34,8 @@ ELEMENTS.shape = {
   draw(P, s, st) {
     const sh = SHAPES[P.shape];
     if (!sh?.items) return;
+    // keys drive the place over time; while editing the spots show instead
+    if (P.keys?.length && !P.editing) return drawKeyed(sh, P, s, st);
     const mode = P.spots.length > 1 ? P.spotsMode ?? "all" : "all";
     const step = mode === "all" ? null : spotStep(P, s, st);
     if (mode === "one") return drawOneSpot(sh, P, s, st, step);
@@ -50,6 +52,21 @@ ELEMENTS.shape = {
     });
   },
 };
+
+// One copy wherever the clip's keys put it right now (see keyedPlace).
+function drawKeyed(sh, P, s, st) {
+  const k = keyedPlace(SCORE, P.keys, s.B);
+  if (k.fade <= 0.001 || k.size <= 0.001) return;
+  const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, 0) : null;
+  if (frame?.hidden) return;
+  push();
+  drawingContext.globalAlpha *= clamp01(k.fade);
+  translate(k.x, k.y);
+  if (k.deg) rotate((k.deg * Math.PI) / 180);
+  scale(k.size * P.size, k.size * P.size);
+  drawShape(sh, s.col, drawingContext, frame);
+  pop();
+}
 
 // How many times the spots have stepped since the layer came in, and when the
 // last two steps landed. Steps come from `moveOn` (a moment's hits, or every
