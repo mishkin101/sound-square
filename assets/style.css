@@ -308,6 +308,7 @@ details.fold[open] > summary { margin-bottom: var(--u); }
   display: flex; flex-direction: column; gap: 3px; z-index: 5;
 }
 body.bare #moments-rail { display: none; }
+.mo-title { padding: 0 var(--u) 4px 6px; color: var(--dim); }
 .mo-chip { position: relative; }
 .mo-tab {
   display: block; height: 22px; max-width: 14px; padding: 0 10px 0 6px;

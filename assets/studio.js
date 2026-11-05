@@ -933,7 +933,11 @@ function renderMoments() {
   if (MO_OPEN != null && MO_OPEN >= list.length) MO_OPEN = null;
   const order = list.map((m, mi) => ({ m, mi }))
     .sort((a, b) => (momentStart(SCORE, a.m.name) ?? 0) - (momentStart(SCORE, b.m.name) ?? 0));
-  rail.replaceChildren(...order.map(({ m, mi }) => moChip(m, mi)));
+  const title = document.createElement("span");
+  title.className = "label mo-title";
+  title.textContent = "Moments";
+  title.title = "M while the song plays marks one: tap for a hit, hold for a span";
+  rail.replaceChildren(title, ...order.map(({ m, mi }) => moChip(m, mi)));
   if (list.length) {
     const all = document.createElement("button");
     all.className = "mo-all";
