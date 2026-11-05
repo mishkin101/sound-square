@@ -2219,7 +2219,7 @@ function buildFxPanel(R, L) {
       ? (f.on ?? "pick a moment")
       : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`;
     head.innerHTML = `<span class="caret dimmed">${open ? "▾" : "▸"}</span><span class="kind">${f.kind}</span>` +
-      `<span class="data dimmed" title="${f.kind === "hop" ? "the moment it rides" : `amount now${f.keys?.length ? " (keyed)" : ""}`}">${meta}</span>` +
+      `<span class="data dimmed" title="${f.kind === "hop" || f.kind === "pulse" ? "its trigger" : `intensity now${f.keys?.length ? " (keyed)" : ""}`}">${meta}</span>` +
       `<button class="mini" data-x title="Remove the effect">×</button>`;
     head.addEventListener("click", (e) => {
       if (e.target.dataset.x != null) {
@@ -2263,36 +2263,35 @@ function buildFxPanel(R, L) {
 // What a clip can wear: drawn shapes move and turn; the background (and other
 // coded elements) pulse their color.
 function fxKinds(L) {
-  return L.shape ? ["spin", "breathe", "wobble", "hop"] : ["pulse"];
+  return L.shape ? ["spin", "breathe", "wobble", "hop", "pulse"] : ["pulse"];
 }
 
 // The open effect's controls, under its header row.
 function appendFxControls(card, f, L) {
-  const kindWords = { spin: "spin", breathe: "breathe with the beat", wobble: "wobble", hop: "hop between the spots", pulse: "pulse the color" };
-  card.append(menuRow(f, "kind", "does", fxKinds(L).map((k) => [k, kindWords[k]]), "#none"));
+  card.append(menuRow(f, "kind", "type", fxKinds(L).map((k) => [k, k]), "#none"));
   if (f.kind === "pulse") {
-    // the pulse rides a moment: one flare per tap, toward a color, dying away
-    card.append(menuRow(f, "on", "rides", [["", "nothing — a steady cycle"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
+    // one flare per trigger tap on a palette slot, decaying back to the palette
+    card.append(menuRow(f, "on", "trigger", [["", "none — a steady cycle"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
+    card.append(menuRow(f, "slot", "slot", ["ground", "glow", "line", "ink", "light"].map((s) => [s, s]), "ground"));
     const colorRow = document.createElement("label");
     colorRow.className = "param";
-    colorRow.innerHTML = `<span>toward</span><span></span><input type="color" class="input fx-color" value="${/^#[0-9a-f]{6}$/i.test(f.to ?? "") ? f.to : "#ffffff"}">`;
+    colorRow.innerHTML = `<span>color</span><span></span><input type="color" class="input fx-color" title="The color the slot flares to" value="${/^#[0-9a-f]{6}$/i.test(f.to ?? "") ? f.to : "#ffffff"}">`;
     colorRow.querySelector("input").addEventListener("change", (e) => {
       rememberScore();
       f.to = e.target.value;
       buildLayerDetail();
     });
     card.append(colorRow);
-    card.append(fxSlider(f, "amount", 0, 1, 0.05, 0.35, "amount"));
-    card.append(fxSlider(f, "beats", 0.25, 8, 0.25, 3, "dies over (beats)"));
+    card.append(fxSlider(f, "amount", 0, 1, 0.05, 0.35, "intensity"));
+    card.append(fxSlider(f, "beats", 0.25, 8, 0.25, 3, "decay (beats)"));
     return;
   }
   if (f.kind === "hop") {
-    // the hop rides a moment: every tap moves the one copy to its next spot.
-    // order says where next; "quick under" is an optional filter for a moment
-    // whose taps aren't all moves.
-    card.append(menuRow(f, "on", "rides", moveOnOptions(), ""));
-    card.append(menuRow(f, "order", "order", [["cycle", "in a cycle"], ["bounce", "back and forth"], ["random", "at random"]], "cycle"));
-    card.append(menuRow(f, "by", "moves by", [["jump", "jump"], ["blink", "blink"], ["slide", "slide"]], "jump"));
+    // every trigger tap moves the one copy to its next spot; order says where
+    // next; max gap is an optional filter for a moment whose taps aren't all moves
+    card.append(menuRow(f, "on", "trigger", moveOnOptions(), ""));
+    card.append(menuRow(f, "order", "order", [["cycle", "cycle"], ["bounce", "bounce"], ["random", "random"]], "cycle"));
+    card.append(menuRow(f, "by", "transition", [["jump", "jump"], ["blink", "blink"], ["slide", "slide"]], "jump"));
     card.append(fxSlider(f, "under", 0, 2, 0.05, 0, "max gap (beats)"));
     card.querySelector(".param:last-child").title =
       "A gap filter on the moment's taps. 0: off, every tap moves it. Above 0: a tap moves it only when the gap since the previous tap is under this many beats";
@@ -2363,7 +2362,7 @@ function fxAmountSlider(f) {
   const val = round2(fxAmountNow(f));
   const row = document.createElement("label");
   row.className = "param";
-  row.innerHTML = `<span>${keyed ? "amount (the key's)" : "amount"}</span><span class="val">${val}</span>` +
+  row.innerHTML = `<span>${keyed ? "intensity (the key's)" : "intensity"}</span><span class="val">${val}</span>` +
     `<input type="range" min="0" max="1" step="0.05" value="${val}">`;
   const out = row.querySelector(".val"), slider = row.querySelector("input");
   slider.addEventListener("input", (e) => {

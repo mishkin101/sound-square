@@ -101,18 +101,21 @@ const SCORE = {
   // by: jump, blink or slide; under: an optional filter — only a tap within
   // that many beats of the tap before moves it, for a moment whose taps
   // aren't all moves }. On a raw clip the same order is spotOrder.
-  // A pulse effect (the background's): { kind: "pulse", on: a moment — one
-  // flare per tap, toward `to`, `amount` strong, dying over `beats` }.
+  // A pulse effect: { kind: "pulse", on: its trigger moment — one flare per
+  // tap (none: a steady cycle), slot: the palette slot it flares ("ground"
+  // unless said), to: the color, amount: intensity, beats: the decay }.
   layers: [
-    // The square is a blank canvas; the background is a clip like any other.
-    // Its pulse effect flares the ground color toward white on each tap of
-    // "Pulse", dying away over 3 beats.
+    // The square is a blank canvas; the background is a shape from the
+    // library (shapes/background.svg, its fill on the ground slot), filling
+    // the square from one centered spot. Its pulse effect flares the ground
+    // color toward white on each tap of "Pulse", decaying over 3 beats.
     {
-      name: "ground",
+      name: "background",
       clips: [{
-        el: "ground",
+        shape: "background",
         from: 1,
         to: 216,
+        spots: [[0.5, 0.5, 0.5]],
         fx: [{ kind: "pulse", on: "Pulse", to: "#ffffff", amount: 0.35, beats: 3 }],
       }],
     },

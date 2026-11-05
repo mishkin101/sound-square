@@ -228,13 +228,13 @@ function paletteAt(score, B) {
 // "fade" comes back down too. `to` is a hex color or another slot's name.
 function colorsNow(score, B) {
   let col = paletteAt(score, B);
-  // the background clip's pulse effects join the score's own color moves:
-  // same engine, worn by the layer like any other effect
+  // clip-worn pulse effects join the score's own color moves: same engine.
+  // A pulse flares one palette slot (its `slot`, the ground by default), so
+  // every shape drawn with that slot follows.
   const moves = [...(score.colorMoves || [])];
   for (const R of score.layers || []) for (const L of R.clips || []) {
-    if (L.el !== "ground") continue;
     for (const f of L.fx || []) if (f.kind === "pulse") {
-      moves.push({ slot: "ground", to: f.to ?? "#ffffff", amount: f.amount ?? 0.35, beats: f.beats ?? 3, back: f.back ?? "decay", on: f.on, from: f.from, until: f.until });
+      moves.push({ slot: f.slot ?? "ground", to: f.to ?? "#ffffff", amount: f.amount ?? 0.35, beats: f.beats ?? 3, back: f.back ?? "decay", on: f.on, from: f.from, until: f.until });
     }
   }
   for (const cm of moves) {

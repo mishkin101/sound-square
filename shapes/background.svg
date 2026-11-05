@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">
+  <g id="wash" data-name="wash">
+    <path d="M0,0L1000,0L1000,1000L0,1000Z" fill="#f3a08b" data-fill-slot="ground"/>
+  </g>
+</svg>
