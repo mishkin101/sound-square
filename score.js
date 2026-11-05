@@ -90,28 +90,28 @@ const SCORE = {
   // from, to }] are effects on the shape (spin, breathe, wobble), each running
   // in its own window or the clip's whole life — or with keys of its own:
   // keys: [{ at, amount }], the amount eased over time (0 is off), replacing
-  // from/to as the envelope.
+  // from/to as the envelope. A hop effect moves one copy between the spots:
+  // { kind: "hop", on: a moment's name, under: only a tap within that many
+  // beats of the tap before switches (0 or absent: every tap), by: jump,
+  // blink or slide }.
   layers: [
     { name: "ground", clips: [{ el: "ground", from: 1, to: 216 }] },
     {
       name: "eyes",
       clips: [
-        // The opening: one eye, top left, facing right. It holds through the
-        // spaced-out taps of "eye panning" and flashes to the other corner
-        // (mirrored to face back) only on the quick ones — a tap within 0.6
-        // beats of the tap before. It leaves when the bongo drums start.
-        // Re-tapping the moment retimes the whole dance.
+        // The opening: one eye, top left, facing right. The hop effect rides
+        // "eye panning": the eye holds through the spaced-out taps and
+        // flashes to the other corner (mirrored to face back) only on the
+        // quick ones — a tap within 0.6 beats of the tap before. It leaves
+        // when the bongo drums start. Re-tapping the moment retimes it all.
         {
           shape: "eye",
           from: 1,
           to: "Bongo drum Start",
           out: "fade",
           outBeats: 2,
-          spotsMode: "one",
-          moveOn: "eye panning",
-          switchBy: "jump",
-          switchUnder: 0.6,
           spots: [[0.11, 0.11, 0.055], [0.89, 0.11, 0.055, -1]],
+          fx: [{ kind: "hop", on: "eye panning", under: 0.6 }],
         },
       ],
     },

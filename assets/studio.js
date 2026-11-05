@@ -181,6 +181,16 @@ function paramsFor(el, L) {
   if (el.spots) P.spots = L.spots ?? el.spots;
   if (L.shape) P.shape = L.shape;
   for (const k of ["spotsMode", "moveOn", "thenEvery", "moveBars", "switchBy", "switchUnder", "keys", "fx"]) if (L[k] != null) P[k] = L[k];
+  // a hop effect is the spot motion worn as an effect: one copy rides a
+  // moment's taps between the spots, and the effect's fields win
+  const hop = P.fx?.find((f) => f.kind === "hop" && f.on);
+  if (hop) {
+    P.spotsMode = "one";
+    P.moveOn = hop.on;
+    P.switchBy = hop.by ?? "jump";
+    if (hop.under) P.switchUnder = hop.under;
+    else delete P.switchUnder;
+  }
   return P;
 }
 
@@ -774,7 +784,7 @@ function removeSpot(i) {
 
 function setKeyAtPlayhead() {
   const L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
-  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN]) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key
+  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && L.fx[FX_OPEN].kind !== "hop") return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (a hop has no envelope)
   if (!L?.shape) return;
   rememberScore();
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
@@ -2145,8 +2155,11 @@ function buildFxPanel(R, L) {
     const open = FX_OPEN === fi;
     const head = document.createElement("div");
     head.className = "fx-head" + (open ? " on" : "");
+    const meta = f.kind === "hop"
+      ? (f.on ?? "pick a moment")
+      : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`;
     head.innerHTML = `<span class="caret dimmed">${open ? "▾" : "▸"}</span><span class="kind">${f.kind}</span>` +
-      `<span class="data dimmed" title="amount now${f.keys?.length ? " (keyed)" : ""}">${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}</span>` +
+      `<span class="data dimmed" title="${f.kind === "hop" ? "the moment it rides" : `amount now${f.keys?.length ? " (keyed)" : ""}`}">${meta}</span>` +
       `<button class="mini" data-x title="Remove the effect">×</button>`;
     head.addEventListener("click", (e) => {
       if (e.target.dataset.x != null) {
@@ -2167,7 +2180,7 @@ function buildFxPanel(R, L) {
     `<div class="fx-none data dimmed">nothing yet — an effect runs on the shape for a stretch of the song</div>`);
   const add = document.createElement("div");
   add.className = "seg fx-new";
-  for (const kind of ["spin", "breathe", "wobble"]) {
+  for (const kind of ["spin", "breathe", "wobble", "hop"]) {
     const b = document.createElement("button");
     b.className = "btn";
     b.textContent = `+ ${kind}`;
@@ -2189,7 +2202,17 @@ function buildFxPanel(R, L) {
 
 // The open effect's controls, under its header row.
 function appendFxControls(card, f) {
-  card.append(menuRow(f, "kind", "does", [["spin", "spin"], ["breathe", "breathe with the beat"], ["wobble", "wobble"]], "#none"));
+  card.append(menuRow(f, "kind", "does", [["spin", "spin"], ["breathe", "breathe with the beat"], ["wobble", "wobble"], ["hop", "hop between the spots"]], "#none"));
+  if (f.kind === "hop") {
+    // the hop rides a moment: one copy jumping between the clip's spots on
+    // its taps — "quick under" keeps the spaced-out taps from moving it
+    card.append(menuRow(f, "on", "rides", moveOnOptions(), ""));
+    card.append(fxSlider(f, "under", 0, 2, 0.05, 0, "quick under (beats)"));
+    card.querySelector(".param:last-child").title =
+      "0: every tap moves it. Above 0: only a tap landing within this many beats of the tap before switches the spot";
+    card.append(menuRow(f, "by", "switches by", [["jump", "jump"], ["blink", "blink"], ["slide", "slide"]], "jump"));
+    return;
+  }
   card.append(fxAmountSlider(f));
   const rates = {
     spin: ["bars per turn", 0.25, 8, 0.25],
