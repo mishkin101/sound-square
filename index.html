@@ -8,7 +8,7 @@
     // Spotify only accepts 127.0.0.1 for a local sign-in, so the studio always runs there.
     if (location.hostname === "localhost") location.replace(location.href.replace("//localhost", "//127.0.0.1"));
   </script>
-  <link rel="stylesheet" href="assets/style.css?v=42">
+  <link rel="stylesheet" href="assets/style.css?v=43">
 </head>
 <body>
   <header class="topbar">
@@ -38,6 +38,9 @@
       <span class="tb-gap"></span>
       <span class="data dimmed" id="sq-edit-hint"></span>
     </div>
+    <!-- Moments: a colored chip per moment; hover shows its name, click its card.
+         M while the song plays marks one: tap for a hit, hold for a span. -->
+    <nav id="moments-rail"></nav>
   </main>
 
   <!-- The Shapes tab: library, the shape on a large canvas, tools -->
@@ -228,14 +231,6 @@
       <span class="data dimmed" id="listen-status"></span>
       <span class="data dimmed" id="tap-status"></span>
     </section>
-    <details class="fold" open>
-      <summary class="label">Moments</summary>
-      <div class="stack">
-      <label class="check"><input type="checkbox" id="moments-hide-all"><span>Hide all markers on the timeline</span></label>
-      <div class="stack" id="moments"></div>
-      <span class="data dimmed">M while the song plays marks what you hear: tap for a hit, hold for a span. The eye keeps its marker off the timeline.</span>
-      </div>
-    </details>
     <section>
       <span class="label">Now</span>
       <span class="data" id="now"></span>
@@ -280,21 +275,21 @@
     window.getStroke = getStroke;
   </script>
   <!-- ?v=N: bump it when files change, so browsers load the new ones instead of old copies -->
-  <script src="score.js?v=42"></script>
-  <script src="assets/engine.js?v=42"></script>
-  <script src="assets/elements.js?v=42"></script>
-  <script src="assets/geom.js?v=42"></script>
-  <script src="assets/motions.js?v=42"></script>
-  <script src="assets/shapes.js?v=42"></script>
-  <script src="assets/shapedoc.js?v=42"></script>
-  <script src="assets/tools.js?v=42"></script>
-  <script src="assets/trace.js?v=42"></script>
-  <script src="assets/editor.js?v=42"></script>
-  <script src="assets/sound.js?v=42"></script>
-  <script src="assets/sources.js?v=42"></script>
-  <script src="assets/spotify.js?v=42"></script>
-  <script src="assets/tempo.js?v=42"></script>
-  <script src="assets/listen.js?v=42"></script>
-  <script src="assets/studio.js?v=42"></script>
+  <script src="score.js?v=43"></script>
+  <script src="assets/engine.js?v=43"></script>
+  <script src="assets/elements.js?v=43"></script>
+  <script src="assets/geom.js?v=43"></script>
+  <script src="assets/motions.js?v=43"></script>
+  <script src="assets/shapes.js?v=43"></script>
+  <script src="assets/shapedoc.js?v=43"></script>
+  <script src="assets/tools.js?v=43"></script>
+  <script src="assets/trace.js?v=43"></script>
+  <script src="assets/editor.js?v=43"></script>
+  <script src="assets/sound.js?v=43"></script>
+  <script src="assets/sources.js?v=43"></script>
+  <script src="assets/spotify.js?v=43"></script>
+  <script src="assets/tempo.js?v=43"></script>
+  <script src="assets/listen.js?v=43"></script>
+  <script src="assets/studio.js?v=43"></script>
 </body>
 </html>

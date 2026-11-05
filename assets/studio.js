@@ -230,7 +230,7 @@ function drawTimeline(B, top) {
     if (m.hold) { // a hold is a band, dragged at its ends or as a whole
       const a = X(m.hold[0]), b = X(m.hold[1]);
       const picked = MOMENT_DRAG && MOMENT_DRAG.mi === mi;
-      noStroke(); fill(picked ? 255 : 190, 150);
+      noStroke(); fill(picked ? "#ffffff" : momentColor(mi));
       rect(a, y + 4, Math.max(2, b - a), 7);
       fill(140); text(m.name, a + 3, y - 1);
       if (mouseX >= a - 5 && mouseX <= b + 5 && mouseY >= y && mouseY <= y + 13) {
@@ -240,7 +240,7 @@ function drawTimeline(B, top) {
     }
     (m.hits || []).forEach((h, hi) => {
       const x = X(h), picked = MOMENT_DRAG && MOMENT_DRAG.mi === mi && MOMENT_DRAG.hi === hi;
-      noStroke(); fill(picked ? 255 : 190);
+      noStroke(); fill(picked ? "#ffffff" : momentColor(mi));
       triangle(x - 4, y + 4, x + 4, y + 4, x, y + 11);
       if (hi === 0) { fill(140); text(m.name, x + 6, y); }
       if (Math.abs(mouseX - x) <= 5 && mouseY >= y && mouseY <= y + 13) hover = m.note ? `${m.name} · ${m.note}` : m.name;
@@ -919,51 +919,92 @@ function momentsChanged() {
   renderPulses();
 }
 
-// One card per moment: its name, a note about what you heard, and an eye that
-// keeps its marker off the timeline (an unmarked moment still anchors clips and
-// triggers spots; it just doesn't clutter the ruler).
+// The moments rail: a colored chip per moment on the square's left, in song
+// order. Hover slides a chip out to its name; a click opens its card — name,
+// when, a note about what you heard, the eye, remove. The same color marks it
+// on the timeline. The eye at the rail's foot hides every marker at once.
+const MO_COLORS = ["#e76f51", "#f4a261", "#e9c46a", "#2a9d8f", "#4fb3d9", "#b388eb", "#ef6292", "#8bc34a"];
+let MO_OPEN = null; // the open moment (its index in SCORE.moments)
+
+function momentColor(mi) { return MO_COLORS[mi % MO_COLORS.length]; }
+
 function renderMoments() {
-  const list = SCORE.moments || [];
-  if (!list.length) {
-    $("moments").innerHTML = `<span class="data dimmed">None yet.</span>`;
-    return;
-  }
-  $("moments").replaceChildren(...list.map((m, mi) => {
-    const card = document.createElement("div");
-    card.className = "moment-card";
-    const meta = m.hold
-      ? `${round2(m.hold[1] - m.hold[0])} beats · ${atWords(m.hold[0])}`
-      : `${m.hits.length} hit${m.hits.length === 1 ? "" : "s"} · ${atWords(m.hits[0] ?? 0)}`;
-    card.innerHTML =
-      `<div class="moment-row"><input class="input name" type="text" spellcheck="false" autocomplete="off">` +
-      `<button class="mini eye" title="${m.hide ? "Show its marker on the timeline" : "Hide its marker (it still anchors and triggers)"}">${m.hide ? EYE_OFF : EYE}</button>` +
-      `<button class="mini" data-del title="Remove the moment (what used it falls back to bars)">×</button></div>` +
-      `<span class="data dimmed">${meta}</span>` +
-      `<input class="input note" type="text" spellcheck="false" autocomplete="off" placeholder="a note about what you heard">`;
-    const name = card.querySelector(".name");
-    name.value = m.name;
-    name.addEventListener("change", () => renameMoment(m, name.value));
-    const note = card.querySelector(".note");
-    note.value = m.note ?? "";
-    note.addEventListener("change", () => {
-      rememberScore();
-      if (note.value.trim()) m.note = note.value.trim();
-      else delete m.note;
-    });
-    card.querySelector(".eye").addEventListener("click", (e) => {
+  const rail = $("moments-rail"), list = SCORE.moments || [];
+  if (MO_OPEN != null && MO_OPEN >= list.length) MO_OPEN = null;
+  const order = list.map((m, mi) => ({ m, mi }))
+    .sort((a, b) => (momentStart(SCORE, a.m.name) ?? 0) - (momentStart(SCORE, b.m.name) ?? 0));
+  rail.replaceChildren(...order.map(({ m, mi }) => moChip(m, mi)));
+  if (list.length) {
+    const all = document.createElement("button");
+    all.className = "mo-all";
+    all.title = HIDE_MOMENTS ? "Show all markers on the timeline" : "Hide all markers on the timeline";
+    all.innerHTML = HIDE_MOMENTS ? EYE_OFF : EYE;
+    all.addEventListener("click", (e) => {
       e.currentTarget.blur();
-      rememberScore();
-      if (m.hide) delete m.hide;
-      else m.hide = true;
+      HIDE_MOMENTS = !HIDE_MOMENTS;
       renderMoments();
     });
-    card.querySelector("[data-del]").addEventListener("click", () => {
-      rememberScore();
-      list.splice(mi, 1);
-      momentsChanged();
-    });
-    return card;
-  }));
+    rail.append(all);
+  }
+}
+
+function momentMeta(m) {
+  return m.hold
+    ? `${round2(m.hold[1] - m.hold[0])} beats · ${atWords(m.hold[0])}`
+    : `${m.hits.length} hit${m.hits.length === 1 ? "" : "s"} · ${atWords(m.hits[0] ?? 0)}`;
+}
+
+function moChip(m, mi) {
+  const chip = document.createElement("div");
+  chip.className = "mo-chip" + (MO_OPEN === mi ? " open" : "") + (m.hide ? " off" : "");
+  chip.style.setProperty("--mc", momentColor(mi));
+  const b = document.createElement("button");
+  b.className = "mo-tab";
+  b.textContent = m.name;
+  b.title = momentMeta(m);
+  b.addEventListener("click", (e) => {
+    e.currentTarget.blur();
+    MO_OPEN = MO_OPEN === mi ? null : mi;
+    renderMoments();
+  });
+  chip.append(b);
+  if (MO_OPEN === mi) chip.append(moCard(m, mi));
+  return chip;
+}
+
+function moCard(m, mi) {
+  const card = document.createElement("div");
+  card.className = "moment-card mo-card";
+  card.innerHTML =
+    `<div class="moment-row"><input class="input name" type="text" spellcheck="false" autocomplete="off">` +
+    `<button class="mini eye" title="${m.hide ? "Show its marker on the timeline" : "Hide its marker (it still anchors and triggers)"}">${m.hide ? EYE_OFF : EYE}</button>` +
+    `<button class="mini" data-del title="Remove the moment (what used it falls back to bars)">×</button></div>` +
+    `<span class="data dimmed">${momentMeta(m)}</span>` +
+    `<input class="input note" type="text" spellcheck="false" autocomplete="off" placeholder="a note about what you heard">`;
+  const name = card.querySelector(".name");
+  name.value = m.name;
+  name.addEventListener("change", () => renameMoment(m, name.value));
+  const note = card.querySelector(".note");
+  note.value = m.note ?? "";
+  note.addEventListener("change", () => {
+    rememberScore();
+    if (note.value.trim()) m.note = note.value.trim();
+    else delete m.note;
+  });
+  card.querySelector(".eye").addEventListener("click", (e) => {
+    e.currentTarget.blur();
+    rememberScore();
+    if (m.hide) delete m.hide;
+    else m.hide = true;
+    renderMoments();
+  });
+  card.querySelector("[data-del]").addEventListener("click", () => {
+    rememberScore();
+    SCORE.moments.splice(mi, 1);
+    MO_OPEN = null;
+    momentsChanged();
+  });
+  return card;
 }
 
 function atWords(beat) {
@@ -1582,10 +1623,6 @@ function wireControls() {
   button("sq-order", () => { ORDER.next = 0; ORDER.at = millis(); });
   button("sq-del", () => { if (EDIT.spot != null) removeSpot(EDIT.spot); });
   button("sq-key", setKeyAtPlayhead);
-  $("moments-hide-all").addEventListener("change", (e) => {
-    HIDE_MOMENTS = e.target.checked;
-    e.target.blur();
-  });
   button("add-layer", () => {
     rememberScore();
     let n = SCORE.layers.length + 1;
