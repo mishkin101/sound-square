@@ -345,7 +345,8 @@ body.bare #moments-rail { display: none; }
 }
 .mo-all:hover { color: var(--live); }
 .moment-card { display: grid; gap: 4px; padding: var(--u); border: var(--hair) solid var(--rule); }
-.moment-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px; align-items: center; font: var(--t-data); color: var(--dim); }
+.moment-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 4px; align-items: center; font: var(--t-data); color: var(--dim); }
+.mini.pen.on { background: var(--mark); border-color: var(--mark); color: #000; }
 .moment-row .input, .moment-card .note { height: 24px; padding: 0 4px; }
 .moment-card .eye { display: grid; place-items: center; }
 .pulse { display: grid; gap: 4px; padding: var(--u); border: var(--hair) solid var(--rule); }
