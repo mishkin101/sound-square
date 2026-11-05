@@ -909,19 +909,25 @@ function pressMark() {
   MARK_FX = { x: clamp01(x), y: clamp01(y), t0: millis(), released: null, r: 0.02 };
 }
 
+// Song time under the marking pointer: the song itself while it plays; paused,
+// the gesture takes the time it's drawn in, starting at the playhead.
+function markMs() {
+  return source.playing ? songNow() : SQ_MARK.atMs + (performance.now() - SQ_MARK.t);
+}
+
 function dragMark() {
   const [x, y] = squareMouse(), p = SQ_MARK.path, last = p[p.length - 1];
   MARK_FX.x = clamp01(x);
   MARK_FX.y = clamp01(y);
   if (last && Math.hypot(x - last[0], y - last[1]) < 0.005) return;
-  p.push([round4(clamp01(x)), round4(clamp01(y)), round2(msToBeats(SCORE, songNow()))]);
+  p.push([round4(clamp01(x)), round4(clamp01(y)), round2(msToBeats(SCORE, markMs()))]);
 }
 
 function releaseMark() {
+  const endMs = markMs();
   const { atMs, t, path } = SQ_MARK;
   SQ_MARK = null;
   if (MARK_FX) { MARK_FX.r = markFxGrown(); MARK_FX.released = millis(); }
-  const endMs = songNow();
   const span = Math.abs(msToBeats(SCORE, endMs) - msToBeats(SCORE, atMs));
   // a quick tap, or a hold with no song time under it (paused), is a hit
   if ((performance.now() - t < 350 && path.length <= 2) || span < 0.1) return markHit(atMs);
