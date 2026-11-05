@@ -64,6 +64,7 @@ function setup() {
 function windowResized() {
   const r = stageRect();
   resizeCanvas(r.width, r.height);
+  if (FX_PANEL) buildLayerDetail(); // the side panel re-docks beside the panel
 }
 
 // Nothing may shove the layout: any scroll that sneaks onto the document,
@@ -773,7 +774,7 @@ function removeSpot(i) {
 
 function setKeyAtPlayhead() {
   const L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
-  if (FX_OPEN != null && L?.fx?.[FX_OPEN]) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key
+  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN]) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key
   if (!L?.shape) return;
   rememberScore();
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
@@ -1885,7 +1886,7 @@ function buildLayers() {
 function buildLayerDetail() {
   const wrap = $("layer-detail"), R = SCORE.layers[EDIT.layer], L = R?.clips?.[EDIT.clip];
   wrap.replaceChildren();
-  if (!L || !L.shape || PANE_FOLD) return; // coded elements have no pane at all
+  if (!L || !L.shape || PANE_FOLD) return hideFxPanel(); // coded elements have no pane at all
   const el = elementOf(L);
   wrap.insertAdjacentHTML("beforeend",
     `<div class="head"><span>${clipLabel(R, EDIT.clip)} <span class="dimmed">· ${el ? el.note : `no element called "${L.el}"`}</span></span>` +
@@ -2015,6 +2016,8 @@ function buildLayerDetail() {
     wrap.append(row);
   }
   renderShapeMenus();
+  if (FX_PANEL) buildFxPanel(R, L);
+  else hideFxPanel();
 }
 
 // The clip's spot behavior, compressed: what shows and what moves it.
@@ -2036,48 +2039,35 @@ function timeWords(L) {
 }
 
 // ---- Effects --------------------------------------------------------------------
-// A shape's effects live as chips on its pane; each opens a small card beside
-// the panel (its own submenu, so nothing nests deeper), with the effect's
-// amount, rate and window. On the timeline the picked shape's effects show as
-// green strips along its row.
+// The shape pane carries one Effects button; it opens the effects panel, a
+// side panel docked to the left of the main panel. The panel lists the picked
+// shape's effects (one open at a time, with its amount, rate and window) and
+// adds new ones. Side panels are the home for the richer interfaces to come.
+// On the timeline the picked shape's effects show as green strips along its row.
+let FX_PANEL = false; // the effects panel: open or closed (follows the picked shape)
 let FX_OPEN = null; // the open effect's index on the picked clip
 
 function fxRow(L) {
   const row = document.createElement("div");
-  row.className = "fx-row";
-  if (FX_OPEN != null && !L.fx?.[FX_OPEN]) FX_OPEN = null;
-  (L.fx ?? []).forEach((f, fi) => {
-    const chip = document.createElement("button");
-    chip.className = "fx-chip" + (FX_OPEN === fi ? " on" : "");
-    chip.textContent = f.kind;
-    chip.addEventListener("click", (e) => {
-      e.currentTarget.blur();
-      FX_OPEN = FX_OPEN === fi ? null : fi;
-      buildLayerDetail();
-    });
-    row.append(chip);
-    if (FX_OPEN === fi) requestAnimationFrame(() => placeFxCard(chip, L, fi));
-  });
-  const add = document.createElement("select");
-  add.className = "input fx-add";
-  add.title = "An effect on this shape: it can run for a stretch of the song";
-  add.innerHTML = `<option value="">+ effect…</option><option>spin</option><option>breathe</option><option>wobble</option>`;
-  add.addEventListener("change", () => {
-    const kind = add.value;
-    add.value = "";
-    add.blur();
-    if (!kind) return;
-    rememberScore();
-    (L.fx ??= []).push({ kind });
-    FX_OPEN = L.fx.length - 1;
+  row.className = "seg fx-row";
+  const btn = document.createElement("button");
+  btn.className = "btn" + (FX_PANEL ? " on" : "");
+  btn.textContent = "Effects";
+  btn.title = "This shape's effects, in their own panel beside this one";
+  btn.addEventListener("click", (e) => {
+    e.currentTarget.blur();
+    FX_PANEL = !FX_PANEL;
+    if (FX_PANEL && FX_OPEN == null && L.fx?.length === 1) FX_OPEN = 0;
     buildLayerDetail();
   });
-  row.append(add);
-  if (FX_OPEN == null) hideFxCard();
+  const sum = document.createElement("span");
+  sum.className = "data dimmed";
+  sum.textContent = L.fx?.length ? L.fx.map((f) => f.kind).join(" · ") : "none yet";
+  row.append(btn, sum);
   return row;
 }
 
-function hideFxCard() { $("fx-card").hidden = true; }
+function hideFxPanel() { $("fx-panel").hidden = true; }
 
 // An effect's own keys: its amount over time (0 is off), the envelope that
 // replaces from/until. K with the card open sets one at the playhead; with
@@ -2105,20 +2095,68 @@ function fxKeyThrough(f, amount) {
   k.amount = round2(amount);
 }
 
-function placeFxCard(anchor, L, fi) {
-  const card = $("fx-card"), f = L.fx?.[fi];
-  if (!f || !anchor.isConnected) return hideFxCard();
+// The effects panel: a side panel flush with the main panel's left edge.
+// One section per effect — its header row opens or folds it — and an add
+// row of the effect kinds at the bottom.
+function buildFxPanel(R, L) {
+  const card = $("fx-panel");
   card.hidden = false;
   card.replaceChildren();
+  if (FX_OPEN != null && !L.fx?.[FX_OPEN]) FX_OPEN = null;
   card.insertAdjacentHTML("beforeend",
-    `<div class="head"><span>effect</span><button class="mini" data-x title="Remove the effect">×</button></div>`);
+    `<div class="head"><span>effects · ${clipLabel(R, EDIT.clip)}</span><button class="mini" data-x title="Close (the effects keep playing)">×</button></div>`);
   card.querySelector("[data-x]").addEventListener("click", () => {
-    rememberScore();
-    L.fx.splice(fi, 1);
-    if (!L.fx.length) delete L.fx;
-    FX_OPEN = null;
+    FX_PANEL = false;
     buildLayerDetail();
   });
+  (L.fx ?? []).forEach((f, fi) => {
+    const open = FX_OPEN === fi;
+    const head = document.createElement("div");
+    head.className = "fx-head" + (open ? " on" : "");
+    head.innerHTML = `<span class="caret dimmed">${open ? "▾" : "▸"}</span><span class="kind">${f.kind}</span>` +
+      `<span class="data dimmed" title="amount now${f.keys?.length ? " (keyed)" : ""}">${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}</span>` +
+      `<button class="mini" data-x title="Remove the effect">×</button>`;
+    head.addEventListener("click", (e) => {
+      if (e.target.dataset.x != null) {
+        rememberScore();
+        L.fx.splice(fi, 1);
+        if (!L.fx.length) delete L.fx;
+        FX_OPEN = null;
+        buildLayerDetail();
+        return;
+      }
+      FX_OPEN = open ? null : fi;
+      buildLayerDetail();
+    });
+    card.append(head);
+    if (open) appendFxControls(card, f);
+  });
+  if (!L.fx?.length) card.insertAdjacentHTML("beforeend",
+    `<div class="fx-none data dimmed">nothing yet — an effect runs on the shape for a stretch of the song</div>`);
+  const add = document.createElement("div");
+  add.className = "seg fx-new";
+  for (const kind of ["spin", "breathe", "wobble"]) {
+    const b = document.createElement("button");
+    b.className = "btn";
+    b.textContent = `+ ${kind}`;
+    b.addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      rememberScore();
+      (L.fx ??= []).push({ kind });
+      FX_OPEN = L.fx.length - 1;
+      buildLayerDetail();
+    });
+    add.append(b);
+  }
+  card.append(add);
+  // docked beside the panel, never over it: flush against its left edge
+  const panel = document.querySelector(".panel").getBoundingClientRect();
+  card.style.top = `${Math.max(8, panel.top + 8)}px`;
+  card.style.left = `${Math.max(8, panel.left - card.offsetWidth - 10)}px`;
+}
+
+// The open effect's controls, under its header row.
+function appendFxControls(card, f) {
   card.append(menuRow(f, "kind", "does", [["spin", "spin"], ["breathe", "breathe with the beat"], ["wobble", "wobble"]], "#none"));
   card.append(fxAmountSlider(f));
   const rates = {
@@ -2176,11 +2214,6 @@ function placeFxCard(anchor, L, fi) {
     card.append(seg);
     card.append(whenRow(f, "from", "from"), whenRow(f, "to", "until"));
   }
-  // beside the panel, never over it: flush against its left edge, at chip height
-  const r = anchor.getBoundingClientRect();
-  const panel = document.querySelector(".panel").getBoundingClientRect();
-  card.style.top = `${Math.max(8, Math.min(window.innerHeight - card.offsetHeight - 8, r.top - 4))}px`;
-  card.style.left = `${Math.max(8, panel.left - card.offsetWidth - 10)}px`;
 }
 
 // The amount slider follows the one keying rule: with keys on the effect it
