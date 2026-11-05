@@ -72,6 +72,7 @@ function draw() {
   SQ_X = Math.round((width - SQ) / 2);
   SQ_Y = Math.round((height - tl - SQ) / 2);
   renderSquare(B, SQ_X, SQ_Y);
+  drawMarkPath();
   if (editing() && hasSpots(editLayer()) && !liveNow()) drawEditOverlay();
   else if (editing()) setText("sq-edit-hint", scrubMs != null ? "scrubbing — the keys play" : "playing — pause to drag");
   if (tl) drawTimeline(B, height - tl);
@@ -408,6 +409,8 @@ function mousePressed(e) {
     scrubMs = mouseMs();
     return;
   }
+  // while the song plays, a press on the square marks what you hear
+  if (onSquare(e) && source.playing && scrubMs == null) return pressMark();
   if (editing() && hasSpots(editLayer()) && onSquare(e) && !liveNow()) return pressSpot();
   if (onSquare(e)) {
     const hit = shapeOnSquare(...squareMouse());
@@ -415,13 +418,15 @@ function mousePressed(e) {
   }
 }
 function mouseDragged() {
-  if (MOMENT_DRAG) dragMoment();
+  if (SQ_MARK) dragMark();
+  else if (MOMENT_DRAG) dragMoment();
   else if (KEY_DRAG) dragKey();
   else if (CLIP_DRAG) dragClip();
   else if (scrubbing) scrubMs = mouseMs();
   else if (EDIT.drag) dragSpot();
 }
 function mouseReleased() {
+  if (SQ_MARK) { releaseMark(); return; }
   if (MOMENT_DRAG) { MOMENT_DRAG = null; momentsChanged(); return; }
   if (KEY_DRAG) {
     const L = SCORE.layers[KEY_DRAG.ri]?.clips?.[KEY_DRAG.ci];
@@ -881,15 +886,55 @@ function momentKeyUp(e) {
   markHold(at, songNow() - (performance.now() - e.timeStamp));
 }
 
-function markHold(fromMs, toMs) {
+function markHold(fromMs, toMs, path) {
   rememberScore();
   SCORE.moments ??= [];
   const hold = [round2(msToBeats(SCORE, fromMs)), round2(msToBeats(SCORE, toMs))].sort((a, b) => a - b);
   let n = SCORE.moments.length + 1;
   while (SCORE.moments.some((x) => x.name === `moment ${n}`)) n++;
-  SCORE.moments.push({ name: `moment ${n}`, hold });
+  const m = { name: `moment ${n}`, hold };
+  if (path?.length > 2) m.path = path; // the motion drawn on the square, [x, y, beat] each
+  SCORE.moments.push(m);
   momentsChanged();
   setText("tap-status", `moment ${n} · ${round2(hold[1] - hold[0])} beats long · rename it in Moments`);
+}
+
+// Marking on the square itself: while the song plays, a press marks what you
+// hear — a tap is a hit, held longer a hold, and dragging records the motion's
+// path into the moment (the hold spans the drag).
+let SQ_MARK = null;
+
+function pressMark() {
+  SQ_MARK = { atMs: songNow(), t: performance.now(), path: [] };
+}
+
+function dragMark() {
+  const [x, y] = squareMouse(), p = SQ_MARK.path, last = p[p.length - 1];
+  if (last && Math.hypot(x - last[0], y - last[1]) < 0.005) return;
+  p.push([round4(clamp01(x)), round4(clamp01(y)), round2(msToBeats(SCORE, songNow()))]);
+}
+
+function releaseMark() {
+  const { atMs, t, path } = SQ_MARK;
+  SQ_MARK = null;
+  if (performance.now() - t < 350 && path.length <= 2) return markHit(atMs);
+  markHold(atMs, songNow(), path);
+}
+
+// The path so far, while the mouse draws it.
+function drawMarkPath() {
+  if (!SQ_MARK || SQ_MARK.path.length < 2) return;
+  push();
+  translate(SQ_X, SQ_Y);
+  scale(SQ);
+  noFill(); stroke(255); strokeWeight(px(2));
+  drawingContext.save();
+  drawingContext.globalCompositeOperation = "difference";
+  beginShape();
+  for (const [x, y] of SQ_MARK.path) vertex(x, y);
+  endShape();
+  drawingContext.restore();
+  pop();
 }
 
 function markHit(at) {
@@ -1008,7 +1053,117 @@ function moCard(m, mi) {
     MO_OPEN = null;
     momentsChanged();
   });
+  if (m.path) card.append(pathPreview(m));
+  card.append(moShapes(m));
   return card;
+}
+
+// The moment's shapes: a small image per attached shape (click opens it), and
+// a picker that attaches another — anchored to the moment, and following its
+// drawn path as keyframes when it has one.
+function moShapes(m) {
+  const wrap = document.createElement("div");
+  wrap.className = "mo-shapes";
+  SCORE.layers.forEach((R, ri) => R.clips.forEach((L, ci) => {
+    if (!L.shape || (L.from !== m.name && L.to !== m.name)) return;
+    const b = document.createElement("button");
+    b.className = "mo-shape";
+    b.title = "Open its settings";
+    b.innerHTML = `<img src="shapes/${encodeURIComponent(L.shape)}.svg" alt=""><span>${clipLabel(R, ci)}</span>`;
+    b.addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      selectLayer(ri, ci, true);
+    });
+    wrap.append(b);
+  }));
+  const sel = document.createElement("select");
+  sel.className = "input";
+  sel.title = "Attach a shape: it runs on this moment, along its drawn path if there is one";
+  sel.innerHTML = `<option value="">+ shape…</option>` + ED.library.map((n) => `<option>${n}</option>`).join("");
+  sel.addEventListener("change", () => {
+    const name = sel.value;
+    sel.value = "";
+    sel.blur();
+    if (name) attachShape(m, name);
+  });
+  wrap.append(sel);
+  return wrap;
+}
+
+function attachShape(m, name) {
+  rememberScore();
+  loadShape(name);
+  const start = momentStart(SCORE, m.name) ?? 0;
+  const bar = Math.floor(start / SCORE.beatsPerBar) + 1;
+  const clip = { shape: name, from: m.name, in: "fade", out: "fade", spots: [[0.5, 0.5, 0.15]] };
+  clip.to = m.hold ? m.name : Math.min(SCORE.bars, bar + 7); // a hold wraps it ("during")
+  if (m.path) {
+    clip.keys = pathKeys(m);
+    const k = clip.keys[0];
+    clip.spots = [[k.x, k.y, k.size]];
+  }
+  let ri = SCORE.layers.findIndex((R) => R.name === m.name);
+  if (ri < 0) {
+    SCORE.layers.push({ name: m.name, clips: [] });
+    ri = SCORE.layers.length - 1;
+  }
+  SCORE.layers[ri].clips.push(clip);
+  EDIT.layer = ri;
+  EDIT.clip = SCORE.layers[ri].clips.length - 1;
+  flashPick();
+  buildLayers();
+  renderMoments();
+}
+
+// A drawn path as keyframes: up to a dozen keys along it, at the recorded beats.
+function pathKeys(m, size = 0.12) {
+  const pts = m.path, n = Math.min(12, pts.length);
+  const keys = [];
+  for (let i = 0; i < n; i++) {
+    const p = pts[Math.round((i * (pts.length - 1)) / (n - 1))];
+    keys.push({ at: atKey(p[2]), x: p[0], y: p[1], size });
+  }
+  return keys.filter((k, i) => i === 0 || keyBeat(SCORE, k.at) > keyBeat(SCORE, keys[i - 1].at) + 1e-6);
+}
+
+// A little looping playback of the motion drawn on the square: the path, with
+// a dot tracing it at the recorded timing.
+function pathPreview(m) {
+  const c = document.createElement("canvas");
+  c.className = "mo-path";
+  c.width = c.height = 228;
+  const ctx = c.getContext("2d");
+  const pts = m.path, b0 = pts[0][2], b1 = pts[pts.length - 1][2];
+  const spanMs = Math.max(400, beatsToMs(SCORE, b1) - beatsToMs(SCORE, b0));
+  const at = (beat) => { // the point on the path at this beat
+    let p = pts[0];
+    for (const q of pts) { if (q[2] > beat) break; p = q; }
+    return p;
+  };
+  const frame = (now) => {
+    if (!c.isConnected) return; // the card closed; stop
+    const t = Math.min(1, (now % (spanMs + 600)) / spanMs);
+    ctx.clearRect(0, 0, 228, 228);
+    ctx.lineWidth = 2;
+    ctx.lineJoin = ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.beginPath();
+    for (const [x, y] of pts) ctx.lineTo(x * 228, y * 228);
+    ctx.stroke();
+    const beat = b0 + (b1 - b0) * t;
+    ctx.strokeStyle = "#ffffff";
+    ctx.beginPath();
+    for (const p of pts) { if (p[2] > beat) break; ctx.lineTo(p[0] * 228, p[1] * 228); }
+    ctx.stroke();
+    const [dx, dy] = at(beat);
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(dx * 228, dy * 228, 4, 0, 2 * Math.PI);
+    ctx.fill();
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+  return c;
 }
 
 function atWords(beat) {
