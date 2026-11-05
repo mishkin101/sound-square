@@ -2109,6 +2109,9 @@ function wireControls() {
     else if ((e.key === "d" || e.key === "D") && editing() && EDIT.clip != null) duplicateClip();
     else if ((e.key === "r" || e.key === "R") && editing() && EDIT.spot != null) rotateSpot(EDIT.spot, e.shiftKey ? -15 : 15);
     else if (e.key === "k" || e.key === "K") setKeyAtPlayhead();
+    else if ((e.key === "p" || e.key === "P") && SCORE.moments?.[MO_OPEN]?.path) {
+      PATH_PLAY = PATH_PLAY ? null : { mi: MO_OPEN, t0: millis() }; // preview the open drawing, or stop it
+    }
     else if (e.key === "Escape" && MOMENT_MODE) setMomentMode(false);
     else if (e.key === "Escape" && editing() && EDIT.spot != null) EDIT.spot = null;
     else if (e.key === "Escape") undoTaps();
