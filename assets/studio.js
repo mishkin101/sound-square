@@ -39,6 +39,10 @@ function setup() {
   // the topbar off-screen); over the timeline it zooms the view instead
   document.addEventListener("wheel", (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
   restoreWork(); // edits made in the studio survive a reload
+  // a note Claude once wrote into saved work; it goes wherever it's still kept
+  for (const m of SCORE.moments || []) {
+    if (m.note === "the full tapped record; the quick pairs became eye moves") delete m.note;
+  }
   const signingIn = restoreAfterSignIn();
   WORLD = prepare(SCORE);
   const r = stageRect();
