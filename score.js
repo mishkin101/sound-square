@@ -62,14 +62,14 @@ const SCORE = {
   // Layers come in and leave on them, spots move on their hits, pulses run between them.
   // Each can carry a note; hide: true keeps its marker off the timeline.
   moments: [
-    { name: "eye moves", hits: [9.3, 13.28], hide: true },
     {
       name: "eye panning",
       hits: [4.15, 5.06, 5.78, 6.88, 7.32, 8.38, 9.11, 9.83, 10.9, 11.35],
       repeat: { every: 8, times: 3 },
     },
-    { name: "Bongo drum Start", hits: [14.28], hide: true },
     { name: "Pulse", hits: [0.05], repeat: { every: 4, times: 610 } },
+    { name: "deep drums", hits: [28.11] },
+    { name: "bongo drum start", hits: [12.38] },
   ],
   // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
   // A clip: el is a coded shape from assets/elements.js; shape is a drawing,
