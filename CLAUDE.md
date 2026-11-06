@@ -17,3 +17,5 @@
 - NEVER long text in the UI: no explaining sentences in status lines or
   hints. Prefer a mini button or action; any explanation goes in its hover
   title. Status messages stay a few words.
+- Hover titles say the action only (e.g. "⇧W: record the waveform while the
+  song plays") — no reasons, no background, no "because".

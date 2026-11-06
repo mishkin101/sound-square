@@ -1477,7 +1477,7 @@ function moCard(m, mi) {
     `<div class="moment-row"><input class="input name" type="text" spellcheck="false" autocomplete="off">` +
     (m.path ? "" : penBtn) +
     `<button class="mini eye" title="${m.hide ? "Show its marker on the timeline" : "Hide its marker (it still anchors and triggers)"}">${m.hide ? EYE_OFF : EYE}</button>` +
-    `<button class="mini" data-close title="Close the card (delete the moment with the Delete key over its marker or name)">×</button></div>` +
+    `<button class="mini" data-close title="Close the card">×</button></div>` +
     `<span class="data dimmed">${momentMeta(m)}</span>` +
     moRhythm(m) +
     `<input class="input note" type="text" spellcheck="false" autocomplete="off" placeholder="a note about what you heard">`;
@@ -1549,7 +1549,7 @@ function moQuantizeRow(m) {
 function moRepeatRow(m) {
   const row = document.createElement("div");
   row.className = "mo-repeat";
-  row.title = "The tapped pattern plays again: how many more times, and how many beats apart. Hops and pulses riding this moment follow along; no extra markers appear";
+  row.title = "Play the tapped pattern again: times, and beats apart";
   const spanOf = () => { const h = m.hits ?? []; return h.length > 1 ? Math.ceil(h[h.length - 1] - h[0]) : SCORE.beatsPerBar; };
   row.innerHTML = `<span class="data dimmed">repeat ×</span>` +
     `<input type="number" class="input" data-k="times" min="0" max="99" step="1" value="${m.repeat?.times ?? 0}" title="How many more times the pattern plays (0: no repeat)">` +
