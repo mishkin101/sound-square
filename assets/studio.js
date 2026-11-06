@@ -1394,7 +1394,7 @@ function moCard(m, mi) {
     renderMoments();
   });
   card.querySelector("[data-del]").addEventListener("click", () => deleteMoment(mi));
-  if (!m.hold) card.append(moRepeatRow(m));
+  if (!m.hold) card.append(moQuantizeRow(m), moRepeatRow(m));
   if (m.path) {
     // the ▶ and ✎ live inside the animation, top right
     const anim = document.createElement("div");
@@ -1416,6 +1416,26 @@ function moCard(m, mi) {
   });
   card.append(moShapes(m));
   return card;
+}
+
+// Tapped hits land a touch late (reaction time), so they sit just past the
+// lines they mean. Quantize moves every hit to its nearest grid line — whole,
+// half or quarter beat. Anchors, hops and pulses riding the moment follow.
+function moQuantizeRow(m) {
+  const row = document.createElement("div");
+  row.className = "mo-quantize";
+  row.innerHTML = `<span class="data dimmed">quantize</span>` +
+    [["1", "beat"], ["0.5", "½ beat"], ["0.25", "¼ beat"]].map(([v, t]) =>
+      `<button class="mini" data-q="${v}" title="Move every hit to its nearest ${t} line">${t}</button>`).join("");
+  for (const b of row.querySelectorAll("[data-q]")) b.addEventListener("click", (e) => {
+    e.currentTarget.blur();
+    rememberScore();
+    const q = parseFloat(b.dataset.q);
+    m.hits = [...new Set(m.hits.map((h) => round2(Math.round(h / q) * q)))].sort((x, y) => x - y);
+    WORLD = prepare(SCORE);
+    renderMoments();
+  });
+  return row;
 }
 
 // Repeating a moment: the tapped pattern plays again `times` more times,
@@ -2950,7 +2970,11 @@ function wireGridEdit() {
       if (bpm >= 20 && bpm <= 300) SCORE.bpm = Math.round(bpm * 1000) / 1000;
       if (Number.isFinite(at)) SCORE.firstDownbeatMs = Math.round(at * 1000);
       if (bars >= 1) SCORE.bars = Math.min(999, bars);
-      if (gridFor === songKey()) saveGrid();
+      // a grid set by hand is the song's grid: it's saved for the song, the
+      // listener is stopped if it's running, and it won't start by itself
+      saveGrid();
+      listenedFor = songKey();
+      if (Listen.on) Listen.stop();
       setText("tap-status", "set by hand");
     }
     shown.grid = null; // the readout takes the line back over
