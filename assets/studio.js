@@ -877,7 +877,7 @@ function removeSpot(i) {
 
 function setKeyAtPlayhead() {
   const L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
-  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "pulse", "fill", "follow", "paint", "ripple"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (these have no envelope)
+  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "scatter", "pulse", "fill", "follow", "paint", "ripple"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (these have no envelope)
   if (!L?.shape) return;
   rememberScore();
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
@@ -2386,11 +2386,11 @@ function buildFxPanel(R, L) {
     const head = document.createElement("div");
     head.className = "fx-head" + (open ? " on" : "");
     const meta = f.kind === "hop" || f.kind === "pulse" ? (f.on ?? "pick a moment")
-      : f.kind === "fill" || f.kind === "ripple" ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}`
+      : f.kind === "fill" || f.kind === "ripple" || f.kind === "scatter" ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}${f.apart ? " · apart" : ""}`
       : f.kind === "follow" ? `${f.source ?? "pitch"} → ${f.target ?? "height"}`
       : f.kind === "paint" ? `${f.style ?? "gradient"} · ${f.color ?? "ground"}`
       : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`;
-    const metaTitle = f.kind === "hop" || f.kind === "pulse" || f.kind === "ripple" ? "its trigger"
+    const metaTitle = f.kind === "hop" || f.kind === "pulse" || f.kind === "ripple" || f.kind === "scatter" ? "its trigger"
       : f.kind === "fill" ? "its step" : f.kind === "follow" ? "source → property" : f.kind === "paint" ? "style · color"
       : `${f.kind === "oscillate" ? "distance" : "intensity"} now${f.keys?.length ? " (keyed)" : ""}`;
     head.innerHTML = `<span class="caret dimmed">${open ? "▾" : "▸"}</span><span class="kind">${f.kind}</span>` +
@@ -2438,7 +2438,7 @@ function buildFxPanel(R, L) {
 // What a clip can wear: drawn shapes move and turn; the background (and other
 // coded elements) pulse their color.
 function fxKinds(L) {
-  return L.shape ? ["spin", "breathe", "wobble", "oscillate", "hop", "fill", "follow", "paint", "pulse", "ripple"] : ["pulse"];
+  return L.shape ? ["spin", "breathe", "wobble", "oscillate", "hop", "scatter", "fill", "follow", "paint", "pulse", "ripple"] : ["pulse"];
 }
 
 // The open effect's controls, under its header row.
@@ -2469,7 +2469,7 @@ function appendFxControls(card, f, L) {
   if (f.kind === "fill") {
     // the spots appear one at a time in list order: on a moment's hits, or
     // on the grid every step; repeat: once, or loop back to empty and fill again
-    card.append(menuRow(f, "on", "trigger", [["", "grid"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
+    card.append(menuRow(f, "on", "trigger", gridOrMoments(), ""));
     if (!f.on) card.append(fxSlider(f, "every", 0.125, 4, 0.125, 1, "step (beats)"));
     card.append(boolRow(f, "loop", "repeat", "once", "loop"));
     card.append(fxSlider(f, "fade", 0, 8, 0.25, 0, "fade in (beats)"));
@@ -2502,6 +2502,15 @@ function appendFxControls(card, f, L) {
       "Only hits within this many beats of the previous hit move it (0: every hit)";
     return;
   }
+  if (f.kind === "scatter") {
+    // the spots land somewhere new on a moment's hits, or on the grid every
+    // step, inside the area: together (keeping their layout) or apart
+    card.append(menuRow(f, "on", "trigger", gridOrMoments(), ""));
+    if (!f.on) card.append(fxSlider(f, "every", 0.125, 8, 0.125, 1, "step (beats)"));
+    card.append(boolRow(f, "apart", "spots", "together", "apart"));
+    card.append(rectRow(f, "area", "area"));
+    return;
+  }
   if (f.kind === "paint") {
     // the shape's own color in place of the palette's: solid, or a soft
     // gradient around it (spread: the hue range; drift: turns per bar)
@@ -2517,7 +2526,7 @@ function appendFxControls(card, f, L) {
   if (f.kind === "ripple") {
     // a ring out from the rim on a moment's hits, or on the grid every step,
     // fading as it travels
-    card.append(menuRow(f, "on", "trigger", [["", "grid"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
+    card.append(menuRow(f, "on", "trigger", gridOrMoments(), ""));
     if (!f.on) card.append(fxSlider(f, "every", 0.125, 8, 0.125, 1, "step (beats)"));
     card.append(colorPickRow(f, "#000000"));
     card.append(fxSlider(f, "distance", 0.01, 0.5, 0.01, 0.12, "distance"));
@@ -2745,21 +2754,25 @@ function transitionRow(L, side) {
 
 // The clip drawn only inside a rectangle of the square: x from left to right,
 // y from top to bottom, 0–1. The full square (0 1 0 1) is no crop.
-function cropRow(L) {
+function cropRow(L) { return rectRow(L, "crop", "crop"); }
+
+// A box on the square, [left, top, right, bottom] as 0–1 of it, typed; the
+// whole square is the default and isn't stored.
+function rectRow(o, key, name) {
   const row = document.createElement("div");
   row.className = "len-row crop-row";
-  const [x0, y0, x1, y1] = L.crop ?? [0, 0, 1, 1];
+  const [x0, y0, x1, y1] = o[key] ?? [0, 0, 1, 1], Name = name[0].toUpperCase() + name.slice(1);
   const box = (i, v, title) => `<input type="number" class="input" data-i="${i}" min="0" max="1" step="0.01" value="${v}" title="${title}">`;
-  row.innerHTML = `<span class="data dimmed">crop x</span>${box(0, x0, "Crop left (0–1)")}${box(2, x1, "Crop right (0–1)")}` +
-    `<span class="data dimmed">y</span>${box(1, y0, "Crop top (0–1)")}${box(3, y1, "Crop bottom (0–1)")}`;
+  row.innerHTML = `<span class="data dimmed">${name} x</span>${box(0, x0, `${Name} left (0–1)`)}${box(2, x1, `${Name} right (0–1)`)}` +
+    `<span class="data dimmed">y</span>${box(1, y0, `${Name} top (0–1)`)}${box(3, y1, `${Name} bottom (0–1)`)}`;
   row.addEventListener("change", (e) => {
     const i = Number(e.target.dataset.i), v = parseFloat(e.target.value);
     if (!(v >= 0 && v <= 1)) return buildLayerDetail();
     rememberScore();
-    const c = [...(L.crop ?? [0, 0, 1, 1])];
+    const c = [...(o[key] ?? [0, 0, 1, 1])];
     c[i] = round2(v);
-    if (c[0] === 0 && c[1] === 0 && c[2] === 1 && c[3] === 1) delete L.crop;
-    else L.crop = c;
+    if (c[0] === 0 && c[1] === 0 && c[2] === 1 && c[3] === 1) delete o[key];
+    else o[key] = c;
     buildLayers();
   });
   return row;
@@ -2874,6 +2887,11 @@ function menuRow(L, key, label, options, def) {
     buildLayers();
   });
   return row;
+}
+
+// What a grid-or-moment effect (fill, ripple, scatter) steps on.
+function gridOrMoments() {
+  return [["", "grid"], ...(SCORE.moments || []).map((m) => [m.name, m.name])];
 }
 
 // What spots can move on: any moment's hits, or the song's own pulse and tracks.

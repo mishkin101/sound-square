@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">
+  <g id="triangle" data-name="triangle">
+    <path d="M531.18,100.95 L971.18,863.05 A36,36 0 0 1 940,917.05 L60,917.05 A36,36 0 0 1 28.82,863.05 L468.82,100.95 A36,36 0 0 1 531.18,100.95 Z M500,190.95 L122.35,845.05 L877.65,845.05 Z" fill="#1c5954" fill-rule="evenodd" data-fill-slot="ink"/>
+  </g>
+</svg>

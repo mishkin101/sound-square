@@ -401,6 +401,8 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
 .len-row { display: flex; gap: 4px; align-items: center; padding: 0 var(--u); }
 .len-row .input { width: 52px; height: 20px; padding: 0 4px; }
 .crop-row .input { width: 44px; }
+.crop-row .data { white-space: nowrap; }
+#fx-panel .crop-row .input { width: 38px; }
 .len-row .trans { width: 72px; }
 .len-row input::-webkit-outer-spin-button, .len-row input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .len-row input[type="number"] { -moz-appearance: textfield; appearance: textfield; }

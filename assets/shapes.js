@@ -63,6 +63,8 @@ ELEMENTS.shape = {
     const shapeAlpha = sp?.flashing ? sp.w : 1;
     const rings = P.fx?.filter((f) => f.kind === "ripple").flatMap((f) => ripplesNow(f, s.B, st)) ?? [];
     if (shapeAlpha <= 0.001 && !rings.length) return;
+    // a scatter's placement moves the spots (not while they're being placed)
+    const moved = P.editing ? null : scatterOffsets(sh, P, s, st);
     P.spots.forEach(([x, y, size, flip = 1, deg = 0, skew = 0], i) => {
       if (step && i > shown) return; // take turns: spot i waits for the i-th hit
       const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
@@ -79,7 +81,8 @@ ELEMENTS.shape = {
       }
       push();
       drawingContext.globalAlpha *= fadeIn;
-      translate(x + fx.dx + ox, y + fx.dy + oy);
+      const [mx, my] = moved ? moved[i] : [0, 0];
+      translate(x + mx + fx.dx + ox, y + my + fx.dy + oy);
       if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
       if (skew) shearX((-skew * Math.PI) / 180);
       scale(flip * size * P.size * fx.k * wv, size * P.size * fx.k * wv);
@@ -246,6 +249,67 @@ function ripplesNow(f, B, st) {
   return out;
 }
 
+// The scatter effect: on each hit of its trigger (a moment), or on the grid
+// every `every` beats, the spots land somewhere new inside its area ([left,
+// top, right, bottom], 0–1 of the square): together, keeping their layout,
+// or apart, each on its own. The places are random but the same every
+// playback, each well away from the one before. Per spot, how far it moves;
+// null when the clip has no scatter.
+function scatterOffsets(sh, P, s, st) {
+  const f = P.fx?.find((x) => x.kind === "scatter");
+  if (!f) return null;
+  const inAt = st.T?.inAt ?? 0, every = f.every || 1;
+  const n = f.on ? s.hits(f.on, inAt + 1e-6, s.B).length
+    : Math.max(0, Math.floor(s.B / every + 1e-6) - stepOrigin(inAt, every));
+  const [ax0, ay0, ax1, ay1] = f.area ?? [0, 0, 1, 1];
+  const seed = 1 + (Math.round(inAt * 64) % 997);
+  // a box's move to its n-th place: anywhere it fits, or centered if it can't
+  const place = (b, key) => {
+    const { u, v } = scatterUV(seed + key * 131, n);
+    const rx = ax1 - ax0 - (b.x1 - b.x0), ry = ay1 - ay0 - (b.y1 - b.y0);
+    return [ax0 + (rx > 0 ? u * rx : rx / 2) - b.x0, ay0 + (ry > 0 ? v * ry : ry / 2) - b.y0];
+  };
+  const boxes = P.spots.map((sp) => spotBox(sh, P, sp));
+  if (f.apart) return boxes.map((b, i) => place(b, i + 1));
+  const all = place(boxOf(boxes), 0);
+  return boxes.map(() => all);
+}
+
+// Where a spot's drawing sits on the square at rest (its size, mirror, turn
+// and lean; not its effects).
+function spotBox(sh, P, [x, y, size, flip = 1, deg = 0, skew = 0]) {
+  const b = sh.moves.box, k = sh.k * size * P.size, a = (deg * Math.PI) / 180, lean = Math.tan((-skew * Math.PI) / 180);
+  const out = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+  for (const [u, v] of [[b.x0, b.y0], [b.x1, b.y0], [b.x0, b.y1], [b.x1, b.y1]]) {
+    const py = (v - sh.cy) * k, px = (u - sh.cx) * k * flip + lean * py;
+    const rx = x + px * Math.cos(a) - py * Math.sin(a), ry = y + px * Math.sin(a) + py * Math.cos(a);
+    out.x0 = Math.min(out.x0, rx); out.x1 = Math.max(out.x1, rx);
+    out.y0 = Math.min(out.y0, ry); out.y1 = Math.max(out.y1, ry);
+  }
+  return out;
+}
+
+// A scatter's n-th place as 0..1 across and down: stable pseudo-random, at
+// least a third of the way across from the place before (the best of eight
+// tries). Each sequence remembers how far it got, so playing on is one step.
+const SCATTER_AT = new Map(); // seed -> { n, u, v }
+function scatterUV(seed, n) {
+  let m = SCATTER_AT.get(seed);
+  if (!m || m.n > n) m = { n: 0, u: rnd01(seed * 0.731), v: rnd01(seed * 1.913) };
+  while (m.n < n) {
+    const k = m.n + 1;
+    let best = null, far = -1;
+    for (let t = 0; t < 8 && far < 1 / 3; t++) {
+      const u = rnd01(seed * 0.731 + k * 3.17 + t * 0.53), v = rnd01(seed * 1.913 + k * 5.29 + t * 0.89);
+      const d = Math.hypot(u - m.u, v - m.v);
+      if (d > far) { far = d; best = { u, v }; }
+    }
+    m = { n: k, ...best };
+  }
+  SCATTER_AT.set(seed, m);
+  return m;
+}
+
 // One ring, drawn in the spot's own frame (scale: the spot's size, so the
 // distance and width stay in square units). It eases out as it travels.
 function drawRing(sh, s, r, scale, ctx = drawingContext) {
@@ -375,16 +439,19 @@ function rnd01(k) { const x = Math.sin(k * 12.9898) * 43758.5453; return x - Mat
 function drawOneSpot(sh, P, s, st, step) {
   const spots = P.spots, i = spotIndex(P, spots.length, step.n), last = spotIndex(P, spots.length, step.n - 1);
   const how = P.switchBy ?? "jump", len = 0.35, since = s.B - step.at;
-  let [x, y, size, flip = 1, deg = 0, skew = 0] = spots[i], squash = 1;
+  // a spot where a scatter's placement has moved it
+  const moved = P.editing ? null : scatterOffsets(sh, P, s, st);
+  const at = (j) => (moved ? [spots[j][0] + moved[j][0], spots[j][1] + moved[j][1], ...spots[j].slice(2)] : spots[j]);
+  let [x, y, size, flip = 1, deg = 0, skew = 0] = at(i), squash = 1;
   if (step.n > 0 && since < len && how !== "jump") {
     const t = clamp01(since / len);
     if (how === "slide") {
-      const k = smoothstep(t), [px, py, ps] = spots[last];
+      const k = smoothstep(t), [px, py, ps] = at(last);
       x = px + (x - px) * k;
       y = py + (y - py) * k;
       size = ps + (size - ps) * k;
     } else if (t < 0.5) { // blink: shut at the old spot...
-      [x, y, size, flip = 1, deg = 0, skew = 0] = spots[last];
+      [x, y, size, flip = 1, deg = 0, skew = 0] = at(last);
       squash = Math.max(0.03, 1 - 2 * t);
     } else { // ...open at the new one
       squash = Math.max(0.03, 2 * t - 1);

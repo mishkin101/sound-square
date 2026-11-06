@@ -75,8 +75,9 @@ const SCORE = {
       name: "bongo drum start",
       hits: [12.38, 12.92, 13.49, 14.04, 15.21, 15.76, 16.32, 16.88, 17.43, 17.98],
     },
-    { name: "tick", hits: [36.03] },
+    { name: "triangle tick", hits: [36.03] },
     { name: "heavy kick", hits: [43.89] },
+    { name: "line and circle", hits: [56.04] },
   ],
   // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
   // A clip: el is a coded shape from assets/elements.js; shape is a drawing,
@@ -112,7 +113,12 @@ const SCORE = {
   // moment, or every: the grid step in beats, color: a
   // palette slot or a hex, distance: how far it travels,
   // width: its thickness (both in square units), beats: how long it lives,
-  // amount: its opacity }, between from and until.
+  // amount: its opacity }, between from and until. A scatter effect lands
+  // the spots somewhere new on each hit: { kind: "scatter", on: a moment, or
+  // every: the grid step in beats, area: [left, top, right, bottom] (0–1 of
+  // the square) they stay inside, apart: true places each spot on its own
+  // (else they move together, keeping their layout) } — random, but the
+  // same every playback.
   // A follow effect sets a property
   // from the song: { kind: "follow", source: "pitch" | "loudness", target:
   // "height" | "size", mapping: "relative" (lowest hit to min, highest to max)
@@ -235,6 +241,21 @@ const SCORE = {
             { kind: "breathe", amount: 1, rate: 1, from: 12 },
             { kind: "ripple", every: 1, from: 12, color: "#000000", distance: 0.04, width: 0.02, beats: 0.5, amount: 1 },
           ],
+        },
+      ],
+    },
+    {
+      // From the triangle tick until the line and circle: three outline
+      // triangles, stepped up to the right, landing somewhere new in the
+      // left middle half of the square on every beat.
+      name: "triangles",
+      clips: [
+        {
+          shape: "triangle",
+          from: "triangle tick",
+          to: "line and circle",
+          spots: [[0.1784, 0.5335, 0.08], [0.25, 0.5, 0.08], [0.3216, 0.4665, 0.08]],
+          fx: [{ kind: "scatter", every: 1, area: [0, 0.25, 0.5, 0.75] }],
         },
       ],
     },
