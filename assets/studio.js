@@ -198,7 +198,7 @@ function paramsFor(el, L) {
     else delete P.switchUnder;
   }
   // a fill effect: the spots appear one at a time in list order, on its
-  // trigger's taps or every `every` beats; loop starts over once all have shown
+  // trigger's hits or every `every` beats; loop starts over once all have shown
   const fill = !hop && P.fx?.find((f) => f.kind === "fill");
   if (fill) {
     P.spotsMode = "turns";
@@ -1589,7 +1589,7 @@ function moQuantizeRow(m) {
 function moRepeatRow(m) {
   const row = document.createElement("div");
   row.className = "mo-repeat";
-  row.title = "Play the tapped pattern again: times, and beats apart";
+  row.title = "Play the hits again: times, and beats apart";
   const spanOf = () => { const h = m.hits ?? []; return h.length > 1 ? Math.ceil(h[h.length - 1] - h[0]) : SCORE.beatsPerBar; };
   row.innerHTML = `<span class="data dimmed">repeat ×</span>` +
     `<input type="number" class="input" data-k="times" min="0" max="99" step="1" value="${m.repeat?.times ?? 0}" title="How many more times the pattern plays (0: no repeat)">` +
@@ -2472,9 +2472,9 @@ function appendFxControls(card, f, L) {
     return;
   }
   if (f.kind === "fill") {
-    // the spots appear one at a time in list order: on a moment's taps, or
-    // in steady steps; repeat: once, or loop back to empty and fill again
-    card.append(menuRow(f, "on", "trigger", [["", "steady steps"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
+    // the spots appear one at a time in list order: on a moment's hits, or
+    // on the grid every step; repeat: once, or loop back to empty and fill again
+    card.append(menuRow(f, "on", "trigger", [["", "grid"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
     if (!f.on) card.append(fxSlider(f, "every", 0.125, 4, 0.125, 1, "step (beats)"));
     card.append(boolRow(f, "loop", "repeat", "once", "loop"));
     return;
@@ -2503,7 +2503,7 @@ function appendFxControls(card, f, L) {
     card.append(menuRow(f, "by", "transition", [["jump", "jump"], ["blink", "blink"], ["slide", "slide"]], "jump"));
     card.append(fxSlider(f, "under", 0, 2, 0.05, 0, "max gap (beats)"));
     card.querySelector(".param:last-child").title =
-      "A gap filter on the moment's taps. 0: off, every tap moves it. Above 0: a tap moves it only when the gap since the previous tap is under this many beats";
+      "Only hits within this many beats of the previous hit move it (0: every hit)";
     return;
   }
   card.append(fxAmountSlider(f));

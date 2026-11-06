@@ -94,7 +94,8 @@ const SCORE = {
   // in its own window or the clip's whole life — or with keys of its own:
   // keys: [{ at, amount }], the amount eased over time (0 is off), replacing
   // from/to as the envelope. A fill effect shows the spots one at a time in
-  // list order: { kind: "fill", on: a moment, or every: beats per step; loop:
+  // list order: { kind: "fill", on: a moment (a spot per hit), or every: the
+  // grid step in beats; loop:
   // true starts over once all have shown }. A follow effect sets a property
   // from the song: { kind: "follow", source: "pitch" | "loudness", target:
   // "height" | "size", mapping: "relative" (lowest hit to min, highest to max)
