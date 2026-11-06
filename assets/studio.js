@@ -185,7 +185,7 @@ function paramsFor(el, L) {
   for (const [k, def] of Object.entries(el.params)) P[k] = L[k] ?? def[0];
   if (el.spots) P.spots = L.spots ?? el.spots;
   if (L.shape) P.shape = L.shape;
-  for (const k of ["spotsMode", "moveOn", "thenEvery", "moveBars", "switchBy", "switchUnder", "keys", "fx"]) if (L[k] != null) P[k] = L[k];
+  for (const k of ["spotsMode", "moveOn", "thenEvery", "moveBars", "switchBy", "switchUnder", "sizeFrom", "keys", "fx"]) if (L[k] != null) P[k] = L[k];
   // a hop effect is the spot motion worn as an effect: one copy rides a
   // moment's taps between the spots, and the effect's fields win
   const hop = P.fx?.find((f) => f.kind === "hop" && f.on);

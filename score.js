@@ -68,8 +68,11 @@ const SCORE = {
       repeat: { every: 8, times: 3 },
     },
     { name: "Pulse", hits: [0.05], repeat: { every: 4, times: 610 } },
-    { name: "deep drums", hits: [28.11] },
-    { name: "bongo drum start", hits: [12.38] },
+    { name: "Bongo drums", hits: [28.11] },
+    {
+      name: "bongo drum start",
+      hits: [12.38, 12.92, 13.49, 14.04, 15.21, 15.76, 16.32, 16.88, 17.43, 17.98],
+    },
   ],
   // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
   // A clip: el is a coded shape from assets/elements.js; shape is a drawing,
@@ -87,7 +90,8 @@ const SCORE = {
   // from, to }] are effects on the shape (spin, breathe, wobble), each running
   // in its own window or the clip's whole life — or with keys of its own:
   // keys: [{ at, amount }], the amount eased over time (0 is off), replacing
-  // from/to as the envelope.
+  // from/to as the envelope. sizeFrom: "wave" scales each appearing spot by
+  // the song's loudness at its hit (needs a kept waveform).
   layers: [
     {
       name: "background",
@@ -99,6 +103,28 @@ const SCORE = {
           to: 216,
           spots: [[0.5, 0.5, 0.5]],
           fx: [{ kind: "pulse", on: "Pulse", to: "#ffffff", amount: 0.9, beats: 3 }],
+        },
+      ],
+    },
+    {
+      // Tilted strokes across the bottom third: one appears per hit of
+      // "bongo drum start" (left to right, in spot order), each sized by the
+      // wave's loudness at that hit. Tap the full drum pattern into the
+      // moment and every tap lands a line.
+      name: "bongos",
+      clips: [
+        {
+          shape: "line",
+          from: "bongo drum start",
+          to: 40,
+          spotsMode: "turns",
+          moveOn: "bongo drum start",
+          sizeFrom: "wave",
+          spots: [
+            [0.12, 0.82, 0.05, 1, -30], [0.2, 0.82, 0.05, 1, -30], [0.28, 0.82, 0.05, 1, -30],
+            [0.36, 0.82, 0.05, 1, -15], [0.44, 0.82, 0.05], [0.52, 0.82, 0.05], [0.6, 0.82, 0.05],
+            [0.68, 0.82, 0.05, 1, 15], [0.76, 0.82, 0.05, 1, 30], [0.84, 0.82, 0.05, 1, 30],
+          ],
         },
       ],
     },

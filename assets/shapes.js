@@ -40,14 +40,16 @@ ELEMENTS.shape = {
     const step = mode === "all" ? null : spotStep(P, s, st);
     if (mode === "one") return drawOneSpot(sh, P, s, st, step);
     const fx = fxNow(P, s, st);
+    const waveBeats = P.sizeFrom === "wave" && step ? spotHitBeats(P, s, st) : null;
     P.spots.forEach(([x, y, size, flip = 1, deg = 0], i) => {
       if (step && i > step.n) return; // take turns: spot i waits for the i-th hit
       const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
       if (frame?.hidden) return;
+      const wv = waveBeats ? waveSizeAt(waveBeats[i] ?? s.B) : 1;
       push();
       translate(x + fx.dx, y + fx.dy);
       if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
-      scale(flip * size * P.size * fx.k, size * P.size * fx.k);
+      scale(flip * size * P.size * fx.k * wv, size * P.size * fx.k * wv);
       drawShape(sh, s.col, drawingContext, frame);
       pop();
     });
@@ -110,6 +112,22 @@ function fxNow(P, s, st) {
 // last two steps landed. Steps come from `moveOn` (a moment's hits, or every
 // beat / bar, or the claps / bongos); `thenEvery` keeps stepping after the last
 // hit ("stay", the default, stops there).
+// sizeFrom "wave": a spot appearing on a hit takes its size from the song's
+// loudness right there — tall on a peak, small in a dip (needs a waveform).
+function spotHitBeats(P, s, st) {
+  const inAt = st.T?.inAt ?? 0;
+  const every = { beat: 1, bar: s.bpb }[P.moveOn];
+  if (every) return P.spots.map((_, i) => inAt + i * every);
+  if (!P.moveOn) return null;
+  return s.hits(P.moveOn, inAt + 1e-6, 1e9).map((h) => h[1]);
+}
+
+function waveSizeAt(beat) {
+  const dur = (typeof source !== "undefined" && source.durationMs) || Waveform.ms;
+  const v = dur ? Waveform.at(beatsToMs(SCORE, beat) / dur) : null;
+  return v == null ? 1 : 0.3 + 0.9 * v; // a quiet hit still leaves a mark
+}
+
 function spotStep(P, s, st) {
   const inAt = st.T?.inAt ?? 0;
   // `moveBars` ends the moving after that many bars; the copy stays where it is
