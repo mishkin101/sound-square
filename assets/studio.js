@@ -40,6 +40,8 @@ function setup() {
   document.addEventListener("wheel", (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
   restoreWork(); // edits made in the studio survive a reload
   delete SCORE.colorMoves; // the song-wide color pulses are gone: pulses are effects now
+  // a ripple no longer rides the breathe: it runs on the grid like the breathe does
+  for (const R of SCORE.layers || []) for (const L of R.clips || []) for (const f of L.fx || []) if (f.kind === "ripple") delete f.with;
   // a note Claude once wrote into saved work; it goes wherever it's still kept
   for (const m of SCORE.moments || []) {
     if (m.note === "the full tapped record; the quick pairs became eye moves") delete m.note;
@@ -2383,9 +2385,8 @@ function buildFxPanel(R, L) {
     const open = FX_OPEN === fi;
     const head = document.createElement("div");
     head.className = "fx-head" + (open ? " on" : "");
-    const meta = f.kind === "ripple" && f.with === "breathe" ? "the breath"
-      : f.kind === "hop" || f.kind === "pulse" || f.kind === "ripple" ? (f.on ?? "pick a moment")
-      : f.kind === "fill" ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}`
+    const meta = f.kind === "hop" || f.kind === "pulse" ? (f.on ?? "pick a moment")
+      : f.kind === "fill" || f.kind === "ripple" ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}`
       : f.kind === "follow" ? `${f.source ?? "pitch"} → ${f.target ?? "height"}`
       : f.kind === "paint" ? `${f.style ?? "gradient"} · ${f.color ?? "ground"}`
       : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`;
@@ -2514,8 +2515,10 @@ function appendFxControls(card, f, L) {
     return;
   }
   if (f.kind === "ripple") {
-    // a ring out from the rim on each trigger hit, fading as it travels
-    card.append(rippleTriggerRow(f, L));
+    // a ring out from the rim on a moment's hits, or on the grid every step,
+    // fading as it travels
+    card.append(menuRow(f, "on", "trigger", [["", "grid"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
+    if (!f.on) card.append(fxSlider(f, "every", 0.125, 8, 0.125, 1, "step (beats)"));
     card.append(colorPickRow(f, "#000000"));
     card.append(fxSlider(f, "distance", 0.01, 0.5, 0.01, 0.12, "distance"));
     card.append(fxSlider(f, "width", 0.002, 0.05, 0.002, 0.012, "width"));
@@ -2650,28 +2653,6 @@ function paintSpotsRow(f, L) {
     if (list.length) f.spots = list.sort((a, b) => a - b);
     else delete f.spots;
     buildLayerDetail();
-  });
-  return row;
-}
-
-// A ripple's trigger: every swell of the clip's breathe, or a moment's hits.
-function rippleTriggerRow(f, L) {
-  const row = document.createElement("label");
-  row.className = "param";
-  const breath = L.fx?.some((x) => x.kind === "breathe");
-  const cur = f.with === "breathe" ? "#breathe" : f.on ?? "";
-  row.innerHTML = `<span>trigger</span><span></span><select class="input"></select>`;
-  const sel = row.querySelector("select");
-  sel.innerHTML = [["", "pick one"], ...(breath || f.with ? [["#breathe", "the breath"]] : []), ...(SCORE.moments || []).map((m) => [m.name, m.name])]
-    .map(([v, t]) => `<option value="${v}"${v === cur ? " selected" : ""}>${t}</option>`).join("");
-  sel.addEventListener("change", () => {
-    rememberScore();
-    delete f.on;
-    delete f.with;
-    if (sel.value === "#breathe") f.with = "breathe";
-    else if (sel.value) f.on = sel.value;
-    sel.blur();
-    buildLayers();
   });
   return row;
 }

@@ -109,7 +109,7 @@ const SCORE = {
   // between from and until (a bar, included, or a moment); outside, nothing.
   // A clip can wear several, in separate windows. A ripple effect sends a
   // ring out from the shape's rim on each hit: { kind: "ripple", on: a
-  // moment, or with: "breathe" (every swell of the clip's breathe), color: a
+  // moment, or every: the grid step in beats, color: a
   // palette slot or a hex, distance: how far it travels,
   // width: its thickness (both in square units), beats: how long it lives,
   // amount: its opacity }, between from and until.
@@ -220,9 +220,9 @@ const SCORE = {
     },
     {
       // From the heavy kick, the black squares in their own layer: they stay
-      // and pulse by size, swelling on every pulse from bar 12 and settling
-      // (breathe), each swell throwing a very quick ripple off their rim, in
-      // time with the breath.
+      // and pulse by size, swelling on every beat from bar 12 and settling
+      // (breathe), with a very quick ripple off their rim on the same grid
+      // step, so each swell throws one.
       name: "heavy kick",
       clips: [
         {
@@ -233,7 +233,7 @@ const SCORE = {
           fx: [
             { kind: "paint", style: "solid", color: "#000000" },
             { kind: "breathe", amount: 1, rate: 1, from: 12 },
-            { kind: "ripple", with: "breathe", from: 12, color: "#000000", distance: 0.04, width: 0.02, beats: 0.5, amount: 1 },
+            { kind: "ripple", every: 1, from: 12, color: "#000000", distance: 0.04, width: 0.02, beats: 0.5, amount: 1 },
           ],
         },
       ],

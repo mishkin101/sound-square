@@ -61,7 +61,7 @@ ELEMENTS.shape = {
     // (a clip can wear several, each in its own window; the one in its window acts)
     const sp = selfPulseNow(P, s.B);
     const shapeAlpha = sp?.flashing ? sp.w : 1;
-    const rings = P.fx?.filter((f) => f.kind === "ripple").flatMap((f) => ripplesNow(f, s.B, P, st)) ?? [];
+    const rings = P.fx?.filter((f) => f.kind === "ripple").flatMap((f) => ripplesNow(f, s.B, st)) ?? [];
     if (shapeAlpha <= 0.001 && !rings.length) return;
     P.spots.forEach(([x, y, size, flip = 1, deg = 0, skew = 0], i) => {
       if (step && i > shown) return; // take turns: spot i waits for the i-th hit
@@ -140,7 +140,7 @@ function fxNow(P, s, st) {
     if (f.kind === "spin") {
       rot += amt * ((s.B - from) / (rate * s.bpb)) * 2 * Math.PI; // rate: bars per turn
     } else if (f.kind === "breathe") {
-      const phase = (((s.B - from) % rate) + rate) % rate; // rate: beats per breath
+      const phase = ((s.B % rate) + rate) % rate; // rate: beats per breath, swelling on the grid
       k *= 1 + 0.4 * amt * Math.exp(-3 * phase);
     } else if (f.kind === "wobble") {
       dx += 0.08 * amt * (noise(s.B * 1.5 * rate, 7) - 0.5) * 2; // rate: how fast it shivers
@@ -223,36 +223,26 @@ function flashNow(f, B) {
   return ph >= 1 ? 0 : smoothstep(1 - ph) * (f.amount ?? 0.35);
 }
 
-// The ripple effect: on each hit of its trigger (a moment, or with: "breathe"
-// — every swell of the clip's breathe) a ring leaves the shape's rim
-// and travels `distance` out (square units) over `beats`, fading as it goes;
-// width is the ring's thickness, color a palette slot or a hex. Rings from
-// hits close together overlap. Only inside its window (from / until).
-function ripplesNow(f, B, P, st) {
+// The ripple effect: a ring leaves the shape's rim on each hit of its trigger
+// (a moment), or on the grid every `every` beats, and travels `distance` out
+// (square units) over `beats`, fading as it goes; width is the ring's
+// thickness, color a palette slot or a hex. Rings from hits close together
+// overlap. Only inside its window (from / until; no from: the clip's own).
+function ripplesNow(f, B, st) {
   const win = fxWindow(SCORE, f.from, f.until), life = f.beats || 1;
   if (!win || B < win[0] || B >= win[1]) return [];
+  const lo = f.from == null ? Math.max(win[0], st.T?.inAt ?? 0) : win[0];
   let times = [];
-  if (f.with === "breathe") times = breathStarts(P, st, B - life, B);
-  else if (f.on) times = momentHits(SCORE, f.on);
+  if (f.on) times = momentHits(SCORE, f.on);
+  else {
+    const every = f.every || 1;
+    for (let g = Math.ceil(Math.max(lo, B - life) / every - 1e-9); g * every <= B; g++) times.push(g * every);
+  }
   const out = [];
   for (const h of times) {
-    if (h < win[0] || h > B || B - h >= life) continue;
+    if (h < lo - 1e-6 || h > B || B - h >= life) continue;
     out.push({ t: (B - h) / life, f });
   }
-  return out;
-}
-
-// When the clip's breathe swells, between beats a and b: its window's start
-// (its from, or the clip's) and every `rate` beats after, inside its window.
-function breathStarts(P, st, a, b) {
-  const f = P.fx?.find((x) => x.kind === "breathe");
-  if (!f) return [];
-  const from = f.from == null ? st.T?.s ?? 0
-    : typeof f.from === "string" ? momentStart(SCORE, f.from) ?? 0 : barToBeats(SCORE, f.from);
-  const to = f.to == null ? st.T?.e ?? 1e9
-    : typeof f.to === "string" ? momentEnd(SCORE, f.to) ?? 1e9 : barToBeats(SCORE, f.to + 1);
-  const rate = f.rate ?? 1, out = [];
-  for (let k = Math.max(0, Math.ceil((a - from) / rate - 1e-9)); from + k * rate <= b && from + k * rate < to; k++) out.push(from + k * rate);
   return out;
 }
 
