@@ -513,7 +513,8 @@ const SCORE = {
   // it showing and washes it toward the pulse color on each hit. A pulse runs
   // between from and until (a bar, included, or a moment); outside, nothing.
   // A clip can wear several, in separate windows, and a shape pulse can name
-  // its spots: [1, 2] (1 is the first). steps: [1, 5], of: 6 has a pulse or a
+  // its spots: [1, 2] (1 is the first). A pulse steps on a moment (on) or on
+  // the grid (every: beats). steps: [1, 5], of: 6 has a pulse or a
   // ripple act on only the first and fifth of every six trigger hits, counted
   // from its from (else the clip's start). A ripple effect sends a
   // ring out from the shape's rim on each hit: { kind: "ripple", on: a
@@ -676,22 +677,23 @@ const SCORE = {
       ],
     },
     {
-      // From the line and circle until the snare: two lines and two circles
-      // where the moment's drawing has them, stepping on each Pulse — the top
-      // left line lights, then the bottom right one, then both circles
-      // ripple; then the bottom right line, the top left one, the circles
-      // again; and around.
+      // From the line and circle until the snare: two lines and two circles,
+      // laid out as the moment's drawing has them, where the triangles were,
+      // stepping every half beat as the triangles did — the top left line
+      // lights, then the bottom right one, then both circles ripple (quick,
+      // close to their rim); then the bottom right line, the top left one,
+      // the circles again; and around.
       name: "line and circle",
       clips: [
         {
           shape: "stick",
           from: "line and circle",
           to: "snare",
-          spots: [[0.4862, 0.3664, 0.075], [0.6927, 0.5073, 0.075]],
+          spots: [[0.1206, 0.3031, 0.075], [0.3271, 0.444, 0.075]],
           fx: [
             {
               kind: "pulse",
-              on: "Pulse",
+              every: 0.5,
               steps: [1, 5],
               of: 6,
               slot: "shape",
@@ -699,11 +701,11 @@ const SCORE = {
               spots: [1],
               to: "#ffffff",
               amount: 1,
-              beats: 2,
+              beats: 0.5,
             },
             {
               kind: "pulse",
-              on: "Pulse",
+              every: 0.5,
               steps: [2, 4],
               of: 6,
               slot: "shape",
@@ -711,7 +713,7 @@ const SCORE = {
               spots: [2],
               to: "#ffffff",
               amount: 1,
-              beats: 2,
+              beats: 0.5,
             },
           ],
         },
@@ -719,17 +721,17 @@ const SCORE = {
           shape: "circle",
           from: "line and circle",
           to: "snare",
-          spots: [[0.7019, 0.3182, 0.064], [0.4873, 0.5364, 0.064]],
+          spots: [[0.3363, 0.2549, 0.064], [0.1217, 0.4731, 0.064]],
           fx: [
             {
               kind: "ripple",
-              on: "Pulse",
+              every: 0.5,
               steps: [3, 6],
               of: 6,
               color: "ink",
-              distance: 0.06,
-              width: 0.008,
-              beats: 2,
+              distance: 0.012,
+              width: 0.01,
+              beats: 0.5,
               amount: 1,
             },
           ],

@@ -64,6 +64,17 @@ function stepsKept(f, hits, start) {
   return f.steps?.length ? from.filter((_, k) => stepOn(f, k)) : from;
 }
 
+// A grid trigger's hits in [a, b], each with its place from the start (k): the
+// start itself (k 0), then every `every` beats on the grid, the first at
+// least a third of a step after it — the way a fill or a trail steps.
+function gridHits(start, every, a, b) {
+  const out = [];
+  if (start >= a - 1e-9 && start <= b + 1e-9) out.push([start, 0]);
+  const g0 = Math.ceil((start + every / 3) / every - 1e-9) - 1;
+  for (let g = Math.max(g0 + 1, Math.ceil(a / every - 1e-9)); g * every <= b + 1e-9; g++) out.push([g * every, g - g0]);
+  return out;
+}
+
 // Whether the k-th hit (from 0) of the rounds is one of the effect's steps.
 function stepOn(f, k) {
   return !f.steps?.length || f.steps.includes((k % (f.of || Math.max(...f.steps))) + 1);
@@ -250,7 +261,7 @@ function colorsNow(score, B) {
       // its steps count from its from, else from the clip's start
       const start = f.from != null ? null : L.from == null ? 0
         : typeof L.from === "string" ? momentStart(score, L.from) ?? 0 : barToBeats(score, L.from);
-      moves.push({ slot: f.slot ?? "ground", to: f.to ?? "#ffffff", amount: f.amount ?? 0.35, beats: f.beats ?? 3, back: f.back ?? "decay", on: f.on, from: f.from, until: f.until, steps: f.steps, of: f.of, start });
+      moves.push({ slot: f.slot ?? "ground", to: f.to ?? "#ffffff", amount: f.amount ?? 0.35, beats: f.beats ?? 3, back: f.back ?? "decay", on: f.on, every: f.every, from: f.from, until: f.until, steps: f.steps, of: f.of, start });
     }
   }
   for (const cm of moves) {
@@ -259,12 +270,13 @@ function colorsNow(score, B) {
     // the pulse runs only inside its window (from / until); outside, nothing
     const win = fxWindow(score, cm.from, cm.until);
     if (!win || B < win[0] || B >= win[1]) continue;
-    if (cm.on) {
-      // the pulse rides a moment's hits: one pulse per hit, bright right on
-      // the hit and dying away over `beats`
-      const hits = stepsKept(cm, momentHits(score, cm.on), cm.start ?? win[0]); // repeats included
+    if (cm.on || cm.every) {
+      // the pulse rides a moment's hits (or the grid's): one pulse per hit,
+      // bright right on the hit and dying away over `beats`
+      const lo = cm.start ?? win[0];
       let h = null;
-      for (const x of hits) if (x >= win[0] && x <= B && (h == null || x > h)) h = x;
+      if (cm.on) for (const x of stepsKept(cm, momentHits(score, cm.on), lo)) { if (x >= win[0] && x <= B && (h == null || x > h)) h = x; } // repeats included
+      else for (const [x, k] of gridHits(lo, cm.every, Math.max(lo, B - (cm.beats || 1)), B)) if (stepOn(cm, k) && x >= win[0] && (h == null || x > h)) h = x;
       const ph = h == null ? 1 : (B - h) / (cm.beats || 1);
       if (ph >= 1) continue;
       col = { ...col, [cm.slot]: mix(base, pulseColor(col, cm.to), smoothstep(1 - ph) * (cm.amount ?? 1)) };

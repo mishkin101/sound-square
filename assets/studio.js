@@ -2801,7 +2801,7 @@ function buildFxPanel(R, L) {
     const open = FX_OPEN === fi;
     const head = document.createElement("div");
     head.className = "fx-head" + (open ? " on" : "");
-    const meta = (f.kind === "hop" || f.kind === "pulse" ? (f.on ?? "pick a moment")
+    const meta = (f.kind === "hop" || f.kind === "pulse" ? (f.on ?? (f.every ? `every ${f.every}` : "pick a moment"))
       : ["fill", "ripple", "scatter", "trail"].includes(f.kind) ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}${f.apart ? " · apart" : ""}`
       : f.kind === "follow" ? `${f.source ?? "pitch"} → ${f.target ?? "height"}`
       : f.kind === "paint" ? `${f.style ?? "gradient"} · ${f.color ?? "ground"}`
@@ -2863,8 +2863,9 @@ function appendFxControls(card, f, L) {
   card.append(menuRow(f, "kind", "type", fxKinds(L).map((k) => [k, k]), "#none"));
   if (f.kind === "pulse") {
     // one flare per trigger tap on a palette slot, decaying back to the palette
-    card.append(menuRow(f, "on", "trigger", [["", "none — a steady cycle"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
-    if (f.on) card.append(stepsRow(f));
+    card.append(pulseTriggerRow(f));
+    if (f.every) card.append(fxSlider(f, "every", 0.125, 8, 0.125, 1, "step (beats)"));
+    if (f.on || f.every) card.append(stepsRow(f));
     card.append(menuRow(f, "slot", "slot", [...["ground", "glow", "line", "ink", "light"].map((s) => [s, s]), ["shape", "this shape"]], "ground"));
     // on the shape itself: flash shows it only on the pulse, tint washes it
     // toward the color; a flash uses the shape's own look, so it has no color
@@ -3094,6 +3095,27 @@ function paintSpotsRow(f, L) {
 // An effect's color: a palette slot (it follows the palette), or any color.
 function colorPickRow(f, def) {
   return colorSwatches(f.color ?? def, def, (c) => (c == null ? delete f.color : (f.color = c)));
+}
+
+// A pulse's trigger: none (a steady cycle), the grid every step, or a moment's hits.
+function pulseTriggerRow(f) {
+  const row = document.createElement("label");
+  row.className = "param";
+  const cur = f.on ?? (f.every ? "#grid" : "");
+  row.innerHTML = `<span>trigger</span><span></span><select class="input"></select>`;
+  const sel = row.querySelector("select");
+  sel.innerHTML = [["", "none — a steady cycle"], ["#grid", "grid"], ...(SCORE.moments || []).map((m) => [m.name, m.name])]
+    .map(([v, t]) => `<option value="${v}"${v === cur ? " selected" : ""}>${t}</option>`).join("");
+  sel.addEventListener("change", () => {
+    rememberScore();
+    delete f.on;
+    delete f.every;
+    if (sel.value === "#grid") f.every = 1;
+    else if (sel.value) f.on = sel.value;
+    sel.blur();
+    buildLayers();
+  });
+  return row;
 }
 
 // Which of the trigger's hits act: all of them, or some of each round —

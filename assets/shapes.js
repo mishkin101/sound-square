@@ -219,15 +219,18 @@ function drawPainted(sh, s, P, i, frame, sp) {
 }
 
 // A pulse worn on the shape itself (slot "shape"): how strong it is now,
-// 0..1 — full right on a trigger hit (one of its steps, counted from its
-// from, else from `start`), dying away over `beats`. Null outside its window
+// 0..1 — full right on a trigger hit (a moment's, or the grid's every
+// `every` beats; one of its steps, counted from its from, else from
+// `start`), dying away over `beats`. Null outside its window
 // (from / until): there it does nothing and the shape shows plainly.
 function flashNow(f, B, start) {
   const win = fxWindow(SCORE, f.from, f.until);
   if (!win || B < win[0] || B >= win[1]) return null;
-  if (!f.on) return 0;
+  if (!f.on && !f.every) return 0;
+  const lo = f.from == null ? start ?? win[0] : win[0];
   let h = null;
-  for (const x of stepsKept(f, momentHits(SCORE, f.on), f.from == null ? start ?? win[0] : win[0])) if (x >= win[0] && x <= B && (h == null || x > h)) h = x;
+  if (f.on) for (const x of stepsKept(f, momentHits(SCORE, f.on), lo)) { if (x >= win[0] && x <= B && (h == null || x > h)) h = x; }
+  else for (const [x, k] of gridHits(lo, f.every, Math.max(lo, B - (f.beats || 1)), B)) if (stepOn(f, k) && x >= win[0] && (h == null || x > h)) h = x;
   const ph = h == null ? 1 : (B - h) / (f.beats || 1);
   return ph >= 1 ? 0 : smoothstep(1 - ph) * (f.amount ?? 0.35);
 }
@@ -244,9 +247,8 @@ function ripplesNow(f, B, st) {
   let times = [];
   if (f.on) times = stepsKept(f, momentHits(SCORE, f.on), lo);
   else {
-    // grid lines from the window's start; with steps, only those of its rounds
-    const every = f.every || 1, g0 = Math.ceil(lo / every - 1e-9);
-    for (let g = Math.ceil(Math.max(lo, B - life) / every - 1e-9); g * every <= B; g++) if (stepOn(f, g - g0)) times.push(g * every);
+    // the grid from the window's start; with steps, only those of its rounds
+    for (const [x, k] of gridHits(lo, f.every || 1, Math.max(lo, B - life), B)) if (stepOn(f, k)) times.push(x);
   }
   const out = [];
   for (const h of times) {
