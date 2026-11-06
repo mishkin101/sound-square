@@ -118,19 +118,18 @@ const SCORE = {
       ],
     },
     {
-      // Two rows of eight parallelograms, leaning opposite ways (skew 30 and
-      // -30: flat tops and bottoms, sides at 30 degrees), the top row filling
-      // rightward, then the bottom row back leftward. One spacing unit
-      // throughout: the gap between neighbors (measured square to their sides)
-      // equals the gap between rows. Its effects: fill (one bar per quarter
-      // beat, looping until the "Bongo drums" moment) and follow (each bar's
-      // height from the pitch at its hit, growing out from the gap between rows).
+      // Pattern 1, kept in reserve (hidden, on plain bars): two rows of eight
+      // parallelograms leaning opposite ways (skew 30 and -30: flat tops and
+      // bottoms, sides at 30 degrees), the top row filling rightward, then the
+      // bottom row back leftward. One spacing unit throughout: the gap between
+      // neighbors (measured square to their sides) equals the gap between rows.
       name: "bongos",
+      hidden: true,
       clips: [
         {
           shape: "line",
-          from: "bongo drum start",
-          to: "Bongo drums",
+          from: 4,
+          to: 7,
           spots: [
             [0.1779, 0.4049, 0.1023, 1, 0, 30], [0.2699, 0.4049, 0.1023, 1, 0, 30], [0.362, 0.4049, 0.1023, 1, 0, 30], [0.454, 0.4049, 0.1023, 1, 0, 30], [0.546, 0.4049, 0.1023, 1, 0, 30], [0.638, 0.4049, 0.1023, 1, 0, 30], [0.7301, 0.4049, 0.1023, 1, 0, 30], [0.8221, 0.4049, 0.1023, 1, 0, 30],
             [0.8221, 0.5951, 0.1023, 1, 0, -30], [0.7301, 0.5951, 0.1023, 1, 0, -30], [0.638, 0.5951, 0.1023, 1, 0, -30], [0.546, 0.5951, 0.1023, 1, 0, -30], [0.454, 0.5951, 0.1023, 1, 0, -30], [0.362, 0.5951, 0.1023, 1, 0, -30], [0.2699, 0.5951, 0.1023, 1, 0, -30], [0.1779, 0.5951, 0.1023, 1, 0, -30],
@@ -143,16 +142,17 @@ const SCORE = {
       ],
     },
     {
-      // Pattern 2: a band of 45-degree stripes in the chevrons' frame, thickness
-      // equal to the gap, cut straight at the band's left and right sides by
-      // the crop. Each stripe's length follows the pitch at its hit, stretching
-      // from its middle, so the band staggers around its center line.
+      // A band of 45-degree stripes from "bongo drum start" until the "Bongo
+      // drums" moment, thickness equal to the gap, cut straight at the band's
+      // left and right sides by the crop. Each stripe's length follows the
+      // pitch at its hit, stretching from its middle, so the band staggers
+      // around its center line.
       name: "stripes",
       clips: [
         {
           shape: "stripe",
-          from: "Bongo drums",
-          to: 16,
+          from: "bongo drum start",
+          to: "Bongo drums",
           crop: [0.1, 0, 0.9, 1],
           spots: [
             [-0.0515, 0.5, 0.278, 1, 45], [0.022, 0.5, 0.278, 1, 45], [0.0955, 0.5, 0.278, 1, 45], [0.1691, 0.5, 0.278, 1, 45], [0.2426, 0.5, 0.278, 1, 45], [0.3162, 0.5, 0.278, 1, 45], [0.3897, 0.5, 0.278, 1, 45], [0.4632, 0.5, 0.278, 1, 45],
