@@ -3232,7 +3232,31 @@ function wireSong(tab) {
   $("sp-tab").addEventListener("click", (e) => { e.currentTarget.blur(); useSource(SpotifyTab); run(() => SpotifyTab.start(), SpotifyTab); });
   $("sp-app").addEventListener("click", (e) => { e.currentTarget.blur(); useSource(SpotifyApp); });
   if (!shown["sp-state"]) setText("sp-state", SpotifyAuth.connected() ? "Connected" : "Not connected");
+  const last = storeGet(SOURCE_KEY); // read before the default tab overwrites it
   songTab(tab);
+  restoreSource(last);
+}
+
+// The song source picked last comes back on reload — Spotify in this tab, or
+// following the Spotify app — so Play is all it takes (the in-tab player
+// starts on the first Play). A file has to be chosen again.
+const SOURCE_KEY = "soundsquare.source";
+const SOURCES = { standIn: StandIn, file: FileSource, spotifyTab: SpotifyTab, spotifyApp: SpotifyApp };
+
+function restoreSource(name) {
+  const last = SOURCES[name];
+  if ((last === SpotifyTab || last === SpotifyApp) && SpotifyAuth.connected()) {
+    songTab("spotify");
+    useSource(last);
+    if (last === SpotifyTab && !SpotifyTab.player) SpotifyTab.label = "Press Play";
+  }
+  markSpotifyPick();
+}
+
+// This tab / Spotify app are a choice: the one in use is lit.
+function markSpotifyPick() {
+  $("sp-tab").classList.toggle("on", source === SpotifyTab);
+  $("sp-app").classList.toggle("on", source === SpotifyApp);
 }
 
 // Which controls show under Song; Stand-in and a loaded file switch right away.
@@ -3251,6 +3275,8 @@ function useSource(next) {
   prev.deactivate?.();
   source = next;
   source.activate?.();
+  storeSet(SOURCE_KEY, Object.keys(SOURCES).find((k) => SOURCES[k] === next) ?? "standIn");
+  markSpotifyPick();
 }
 
 function connectSpotify() {
