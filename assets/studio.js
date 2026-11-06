@@ -103,10 +103,10 @@ function stageRect() {
   return { width: Math.max(1, Math.floor(r.width)), height: Math.max(1, Math.floor(r.height)) };
 }
 
-// The layer whose stretch of the song plays on repeat (the studio's, not the
-// score's), and when the last jump back was asked for: a seek can take a
-// moment to land.
-let LOOP_LAYER = null, LOOP_JUMPED = 0;
+// Playback on repeat (the studio's, not the score's): the stretch [from, to]
+// in beats, null when off; when the last jump back was asked for (a seek can
+// take a moment to land); and the end being dragged on the ruler.
+let LOOP = null, LOOP_JUMPED = 0, LOOP_DRAG = null;
 
 // A layer's stretch of the song in beats: its first clip coming in to its
 // last one gone. Null with no clips.
@@ -116,18 +116,22 @@ function layerSpan(R) {
   return [Math.min(...T.map((t) => t.inAt)), Math.max(...T.map((t) => t.outAt + t.outLen))];
 }
 
-// The looping layer's stretch, while it's still in the score.
-function loopSpan() {
-  return LOOP_LAYER && SCORE.layers.includes(LOOP_LAYER) ? layerSpan(LOOP_LAYER) : null;
+// While the song plays, the end of the loop jumps back to its start.
+function keepLooping() {
+  if (!LOOP || !source.playing || scrubMs != null || millis() - LOOP_JUMPED < 1000) return;
+  if (msToBeats(SCORE, source.now()) < LOOP[1]) return;
+  LOOP_JUMPED = millis();
+  run(() => source.seek(beatsToMs(SCORE, LOOP[0])));
 }
 
-// While the song plays, the end of the looping layer's stretch jumps back to its start.
-function keepLooping() {
-  const span = loopSpan();
-  if (!span || !source.playing || scrubMs != null || millis() - LOOP_JUMPED < 1000) return;
-  if (msToBeats(SCORE, source.now()) < span[1]) return;
-  LOOP_JUMPED = millis();
-  run(() => source.seek(beatsToMs(SCORE, span[0])));
+// The loop button: on, playback repeats the picked layer's stretch (or what
+// the timeline shows), starting there if the playhead is outside it.
+function toggleLoop() {
+  if (LOOP) { LOOP = null; return; }
+  LOOP = layerSpan(SCORE.layers[EDIT.layer])
+    ?? [msToBeats(SCORE, TL_VIEW.startMs), msToBeats(SCORE, TL_VIEW.startMs + tlSpanMs())];
+  const B = msToBeats(SCORE, songNow());
+  if (B < LOOP[0] || B >= LOOP[1]) run(() => source.seek(beatsToMs(SCORE, LOOP[0])));
 }
 
 function draw() {
@@ -332,6 +336,8 @@ function drawTimeline(B, top) {
   }
   stroke(38); strokeWeight(1);
   line(0, top + 0.5, width, top + 0.5);
+  const overLoop = overLoopButton();
+  drawLoopButton(overLoop);
   textSize(10); textAlign(LEFT, TOP);
 
   // everything on the time axis stays out of the left gutter: names live
@@ -351,12 +357,16 @@ function drawTimeline(B, top) {
     const every = TL_VIEW.zoom >= 8 ? 1 : TL_VIEW.zoom >= 2 ? 4 : 8;
     if (bar % every === 1 % every && bar <= SCORE.bars) { noStroke(); fill(140); text(bar, x + 3, y); }
   }
-  const loop = loopSpan(); // the looping layer's stretch, under the ticks
-  if (loop) { noStroke(); fill(85, 209, 135); rect(X(loop[0]), y + 17, X(loop[1]) - X(loop[0]), 2); }
+  if (LOOP) { // the loop's stretch, tinted, with a band under the ticks; its ends drag
+    const a = X(LOOP[0]), b = X(LOOP[1]);
+    noStroke(); fill(85, 209, 135, 28); rect(a, top + 1, b - a, 32);
+    fill(85, 209, 135); rect(a, y + 17, b - a, 2);
+    rect(a - 1, y + 9, 2, 10); rect(b - 1, y + 9, 2, 10);
+  }
 
   // moments: a marker per hit, named at the first; hidden ones stay off the ruler
   y += 22;
-  let hover = null;
+  let hover = overLoop ? (LOOP ? "Stop the loop" : "Loop playback") : null;
   // Shift makes any grab take the whole moment; the blue box says which one
   const shiftAll = !MOMENT_DRAG && keyIsDown(SHIFT) ? momentMarkerAt() : null;
   if (!HIDE_MOMENTS) (SCORE.moments || []).forEach((m, mi) => {
@@ -535,12 +545,66 @@ function drawTimeline(B, top) {
     const overSq = mouseX >= SQ_X && mouseX <= SQ_X + SQ && mouseY >= SQ_Y && mouseY <= SQ_Y + SQ;
     const want = CLIP_DRAG ? (CLIP_DRAG.zone === "body" ? "grabbing" : "ew-resize")
       : KEY_DRAG ? "grabbing"
+      : LOOP_DRAG || loopEndAt() != null ? "ew-resize"
+      : overLoopButton() ? "pointer"
       : MOMENT_MODE && overSq ? "crosshair"
       : inTimeline() && gutterRowAt() ? "pointer"
       : MOMENT_DRAG || (inTimeline() && (momentMarkerAt() || keyAt())) ? "grab"
       : c ? (c.zone === "body" ? "grab" : "ew-resize") : "default";
     if (canvasCursor !== want) cursor(canvasCursor = want);
   }
+}
+
+// The loop button's box: top left of the timeline, beside the ruler.
+function loopButtonBox() {
+  return { x: 6, y: height - timelineHeight() + 8, w: 22, h: 18 };
+}
+
+function overLoopButton() {
+  const b = loopButtonBox();
+  return inTimeline() && mouseX >= b.x && mouseX <= b.x + b.w && mouseY >= b.y && mouseY <= b.y + b.h;
+}
+
+// The button: a circling arrow, green while the loop is on.
+function drawLoopButton(over) {
+  const b = loopButtonBox(), c = LOOP ? [85, 209, 135] : over ? [230] : [140];
+  noFill(); strokeWeight(1);
+  stroke(...(LOOP ? c : over ? [120] : [60]));
+  rect(b.x + 0.5, b.y + 0.5, b.w, b.h);
+  const cx = b.x + b.w / 2 + 0.5, cy = b.y + b.h / 2 + 0.5, end = 4.4;
+  stroke(...c); strokeWeight(1.3);
+  arc(cx, cy, 9, 9, -1.1, end);
+  const ex = cx + 4.5 * Math.cos(end), ey = cy + 4.5 * Math.sin(end), tx = -Math.sin(end), ty = Math.cos(end);
+  line(ex, ey, ex - 3 * tx - 2.2 * ty, ey - 3 * ty + 2.2 * tx);
+  line(ex, ey, ex - 3 * tx + 2.2 * ty, ey - 3 * ty - 2.2 * tx);
+}
+
+// The loop's end under the mouse on the ruler: 0 its start, 1 its end.
+function loopEndAt() {
+  if (!LOOP || !inTimeline() || mouseX < TL_GUT) return null;
+  const top = height - timelineHeight();
+  if (mouseY < top || mouseY > top + 33) return null;
+  const d = LOOP.map((b) => Math.abs(mouseX - timelineX(b))), i = d[0] <= d[1] ? 0 : 1;
+  return d[i] <= 5 ? i : null;
+}
+
+// Dragging an end of the loop: it snaps to the bar lines, the clips' ends
+// and the moments' hits near the mouse, and keeps a quarter beat at least.
+function dragLoopEnd() {
+  let b = msToBeats(SCORE, mouseMs()), near = 7;
+  const snaps = [];
+  for (let bar = 1; bar <= SCORE.bars + 1; bar++) snaps.push(barToBeats(SCORE, bar));
+  for (const L of SCORE.layers.flatMap((R) => R.clips)) {
+    const T = layerTiming(SCORE, WORLD, L);
+    snaps.push(T.inAt, T.outAt + T.outLen);
+  }
+  for (const m of SCORE.moments || []) snaps.push(...momentHits(SCORE, m.name));
+  for (const c of snaps) {
+    const d = Math.abs(timelineX(c) - mouseX);
+    if (d < near) { near = d; b = c; }
+  }
+  const i = LOOP_DRAG.end;
+  LOOP[i] = i === 0 ? Math.min(b, LOOP[1] - 0.25) : Math.max(b, LOOP[0] + 0.25);
 }
 
 // The clip under the mouse: which layer, and whether an end or the body.
@@ -638,6 +702,9 @@ let CLIP_DRAG = null;
 
 function mousePressed(e) {
   if (inTimeline()) {
+    if (overLoopButton()) return toggleLoop();
+    const end = loopEndAt();
+    if (end != null) { LOOP_DRAG = { end }; return; }
     const gut = gutterRowAt();
     if (gut) {
       if (gut.ci != null) selectLayer(gut.ri, gut.ci); // a shape's name picks it
@@ -694,6 +761,7 @@ function mouseDragged() {
   else if (MOMENT_DRAG) dragMoment();
   else if (KEY_DRAG) dragKey();
   else if (CLIP_DRAG) dragClip();
+  else if (LOOP_DRAG) dragLoopEnd();
   else if (scrubbing) scrubMs = mouseMs();
   else if (EDIT.drag) dragSpot();
 }
@@ -709,6 +777,7 @@ function mouseReleased() {
     return;
   }
   if (CLIP_DRAG) { CLIP_DRAG = null; buildLayers(); return; }
+  if (LOOP_DRAG) { LOOP_DRAG = null; return; }
   if (scrubbing) { const ms = scrubMs; run(() => source.seek(ms)); scrubMs = null; }
   scrubbing = false;
   if (EDIT.drag?.kept) buildLayerDetail(); // a moved spot shows its new place in the list
@@ -2127,7 +2196,6 @@ function buildLayers() {
       : `<span class="fold-btn"></span>`;
     row.innerHTML = `${caret}<span class="grip" title="Drag to restack (lower layers draw on top)">⋮⋮</span>${name}` +
       `<span class="dimmed">${meta}</span>` +
-      `<button class="mini loop${LOOP_LAYER === R ? " on" : ""}" data-act="loop" title="${LOOP_LAYER === R ? "Stop the loop" : "Loop playback over this layer"}">${LOOP}</button>` +
       `<button class="mini lock${R.locked ? " on" : ""}" data-act="lock" title="${R.locked ? "Unlock: its spots take clicks on the square again" : "Lock: clicks on the square pass it by (the panel still edits it)"}">${R.locked ? LOCK : LOCK_OPEN}</button>` +
       `<button class="mini eye" data-act="eye" title="${R.hidden ? "Show the layer" : "Hide the layer on the square"}">${R.hidden ? EYE_OFF : EYE}</button>` +
       `<button class="mini" data-act="del" title="Remove the layer and its shapes">×</button>`;
@@ -2137,11 +2205,6 @@ function buildLayers() {
       if (act === "fold") {
         if (FOLDED.has(R.name)) FOLDED.delete(R.name);
         else FOLDED.add(R.name);
-        buildLayers();
-      } else if (act === "loop") {
-        LOOP_LAYER = LOOP_LAYER === R ? null : R;
-        const span = loopSpan();
-        if (span) run(() => source.seek(beatsToMs(SCORE, span[0])));
         buildLayers();
       } else if (act === "lock") {
         rememberScore();
