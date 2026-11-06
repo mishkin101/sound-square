@@ -1380,6 +1380,18 @@ function momentMeta(m) {
     : `${m.hits.length} hit${m.hits.length === 1 ? "" : "s"} · ${atWords(m.hits[0] ?? 0)}${rep}`;
 }
 
+// Opening a moment brings the timeline to it: the view zooms to frame its
+// hits (repeats included) or its hold, with two bars of air on each side.
+function zoomToMoment(m) {
+  const hits = m.hold ?? momentHitsAll(m);
+  if (!hits?.length) return;
+  const pad = 2 * SCORE.beatsPerBar;
+  const a = beatsToMs(SCORE, Math.min(...hits) - pad), b = beatsToMs(SCORE, Math.max(...hits) + pad);
+  TL_VIEW.zoom = constrain(songMs(SCORE) / Math.max(1, b - a), 1, 64);
+  TL_VIEW.startMs = a;
+  clampTlView();
+}
+
 function moChip(m, mi) {
   const chip = document.createElement("div");
   chip.className = "mo-chip" + (MO_OPEN === mi ? " open" : "") + (m.hide ? " off" : "");
@@ -1395,6 +1407,7 @@ function moChip(m, mi) {
     MO_OPEN = MO_OPEN === mi ? null : mi;
     DRAW_INTO = null;
     PATH_PLAY = null;
+    if (MO_OPEN === mi) zoomToMoment(m);
     renderMoments();
   });
   chip.append(b);
