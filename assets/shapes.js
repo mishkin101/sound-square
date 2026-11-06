@@ -409,9 +409,7 @@ function trailDrops(f, s, st, b) {
     const hits = s.hits(f.on, inAt + 1e-6, b).map((h) => h[1]);
     return hits.length && hits[0] - inAt < 1 / 3 ? hits : out.concat(hits);
   }
-  const every = f.every || 1;
-  for (let g = stepOrigin(inAt, every) + 1; g * every <= b + 1e-9; g++) out.push(g * every);
-  return out;
+  return gridHits(inAt, f.every || 1, inAt, b).map(([t]) => t);
 }
 
 // A moment's drawing as one walk: its strokes in the order they were drawn,

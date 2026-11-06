@@ -2973,7 +2973,7 @@ function appendFxControls(card, f, L) {
     const drawn = (SCORE.moments || []).filter((m) => m.path?.length).map((m) => [m.name, m.name]);
     card.append(menuRow(f, "path", "drawing", [...(drawn.some(([v]) => v === own) ? [] : [[own, "none"]]), ...drawn], own));
     card.append(menuRow(f, "on", "trigger", gridOrMoments(), ""));
-    if (!f.on) card.append(fxSlider(f, "every", 0.125, 8, 0.125, 1, "step (beats)"));
+    if (!f.on) card.append(fxSlider(f, "every", 0.05, 8, 0.01, 1, "step (beats)"));
     card.append(fxSlider(f, "spacing", 0.01, 0.5, 0.01, 0.08, "spacing"));
     card.append(fxSlider(f, "beats", 0.25, 8, 0.25, 1, "fade out (beats)"));
     return;

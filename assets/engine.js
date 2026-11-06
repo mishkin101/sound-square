@@ -65,11 +65,17 @@ function stepsKept(f, hits, start) {
 }
 
 // A grid trigger's hits in [a, b], each with its place from the start (k): the
-// start itself (k 0), then every `every` beats on the grid, the first at
-// least a third of a step after it — the way a fill or a trail steps.
+// start itself (k 0), then every `every` beats — on the song's grid when the
+// step divides it (an eighth, a quarter, a beat…), the first at least a third
+// of a step after the start, the way a fill or a trail steps; any other step
+// (a pace taken from a tapped moment, say) counts on from the start itself.
 function gridHits(start, every, a, b) {
   const out = [];
   if (start >= a - 1e-9 && start <= b + 1e-9) out.push([start, 0]);
+  if (Math.abs(every * 8 - Math.round(every * 8)) > 1e-6) {
+    for (let k = Math.max(1, Math.ceil((a - start) / every - 1e-9)); start + k * every <= b + 1e-9; k++) out.push([start + k * every, k]);
+    return out;
+  }
   const g0 = Math.ceil((start + every / 3) / every - 1e-9) - 1;
   for (let g = Math.max(g0 + 1, Math.ceil(a / every - 1e-9)); g * every <= b + 1e-9; g++) out.push([g * every, g - g0]);
   return out;
