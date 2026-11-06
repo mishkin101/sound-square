@@ -225,7 +225,7 @@ function draw() {
   SQ_X = Math.round((width - SQ) / 2);
   SQ_Y = Math.round((height - tl - SQ) / 2);
   renderSquare(B, SQ_X, SQ_Y);
-  Export.frame(drawingContext.canvas, SQ_X, SQ_Y, SQ); // the square alone, before any overlay
+  Export.frame(B); // the square into the video, drawn again at its own size
   drawMarkPath();
   drawMarkFx();
   drawMomentPath();

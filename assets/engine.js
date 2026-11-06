@@ -3,7 +3,10 @@
 // and (later) Spotify sync all draw exactly the same frames.
 
 let SQ = 600; // the square's size in pixels this frame
-function px(n) { return n / SQ; } // pixels -> square units, for line widths
+// pixels -> square units, for line widths (an export drawing the square
+// larger keeps them in proportion to the screen's square: PX_REF)
+let PX_REF = null;
+function px(n) { return n / (PX_REF ?? SQ); }
 
 // ---- Time --------------------------------------------------------------------
 // Song positions are counted in beats from the first downbeat:

@@ -53,9 +53,12 @@ const FileSource = {
 
   rawNow() { return (this.ctx.currentTime - this.startedAt) * 1000; },
 
-  // what you hear right now: the audio clock minus the output delay
+  // what you hear right now: the audio clock minus the output delay — but while
+  // an export records the sound straight from the playback, that sound's own
+  // clock, so picture and recorded sound stay together
   now() {
     if (!this.playing) return this.offset;
+    if (this.tap) return Math.max(0, this.rawNow());
     const delay = ((this.ctx.outputLatency || 0) + (this.ctx.baseLatency || 0)) * 1000;
     return Math.max(0, this.rawNow() - delay);
   },
