@@ -97,8 +97,11 @@ const SCORE = {
   // keys: [{ at, amount }], the amount eased over time (0 is off), replacing
   // from/to as the envelope. A fill effect shows the spots one at a time in
   // list order: { kind: "fill", on: a moment (a spot per hit), or every: the
-  // grid step in beats; loop:
-  // true starts over once all have shown }. A follow effect sets a property
+  // grid step in beats; loop: true starts over once all have shown; fade:
+  // beats each spot takes to fade in }. A pulse effect on a shape flares a
+  // palette slot, or with slot: "shape" the shape itself, which then shows
+  // only as its flash: the pulse color on each hit, fading out over `beats`.
+  // A follow effect sets a property
   // from the song: { kind: "follow", source: "pitch" | "loudness", target:
   // "height" | "size", mapping: "relative" (lowest hit to min, highest to max)
   // | "absolute", min, max: scales, before, after: the beats read around each
@@ -173,28 +176,39 @@ const SCORE = {
       ],
     },
     {
-      // A row of four touching squares from the "Bongo drums" moment, in the
-      // same frame as the other patterns (0.1 in from the sides, centered).
-      // The outer two are solid black and pull outward and back on every beat
-      // (oscillate, mirrored); the middle two are a soft gradient in vivid
-      // tones of the background color (paint).
+      // A bar of four squares across the bottom of the square from the "Bongo
+      // drums" moment. The outer two pulse black with the background's tempo
+      // (a flash on every "Pulse" hit, fading over 3 beats), fading in one at a
+      // time: the right one first, the left one on the next pulse. The middle
+      // two are a soft gradient in vivid tones of the background color. On the
+      // pulse after that ("tick") the whole square becomes the gradient,
+      // beneath the bar.
       name: "squares",
       clips: [
         {
           shape: "square",
+          from: "tick",
+          to: 16,
+          in: "fade",
+          inBeats: 2,
+          spots: [[0.5, 0.5, 0.5]],
+          fx: [{ kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 }],
+        },
+        {
+          shape: "square",
           from: "Bongo drums",
           to: 16,
-          spots: [[0.2, 0.5, 0.1], [0.8, 0.5, 0.1]],
+          spots: [[0.875, 0.875, 0.125], [0.125, 0.875, 0.125]],
           fx: [
-            { kind: "oscillate", axis: "x", direction: "mirror", amount: 0.05, rate: 1 },
-            { kind: "paint", style: "solid", color: "#000000" },
+            { kind: "fill", on: "Pulse", fade: 1 },
+            { kind: "pulse", on: "Pulse", slot: "shape", to: "#000000", amount: 1, beats: 3 },
           ],
         },
         {
           shape: "square",
           from: "Bongo drums",
           to: 16,
-          spots: [[0.4, 0.5, 0.1], [0.6, 0.5, 0.1]],
+          spots: [[0.375, 0.875, 0.125], [0.625, 0.875, 0.125]],
           fx: [{ kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 }],
         },
       ],

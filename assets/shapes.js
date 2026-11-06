@@ -50,10 +50,19 @@ ELEMENTS.shape = {
     const byHeight = (fol?.target ?? "height") === "height";
     const mid = fx.osc.length ? [0, 1].map((a) => P.spots.reduce((t, sp) => t + sp[a], 0) / P.spots.length) : null;
     const paint = P.fx?.find((f) => f.kind === "paint");
+    // a fill's fade: each spot fades in over that many beats from its turn
+    const fade = step ? P.fx?.find((f) => f.kind === "fill")?.fade ?? 0 : 0;
+    const turnAt = fade > 0 ? spotHitBeats(P, s, st, cyc) : null;
+    // a pulse on the shape itself: the shape shows only as its flash
+    const flashFx = P.fx?.find((f) => f.kind === "pulse" && f.slot === "shape");
+    const flash = flashFx ? flashNow(flashFx, s.B) : 1;
+    if (flashFx && flash <= 0.001) return;
     P.spots.forEach(([x, y, size, flip = 1, deg = 0, skew = 0], i) => {
       if (step && i > shown) return; // take turns: spot i waits for the i-th hit
       const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
       if (frame?.hidden) return;
+      const fadeIn = turnAt && turnAt[i] != null ? clamp01((s.B - turnAt[i]) / fade) : 1;
+      if (fadeIn <= 0.001) return;
       const kf = reach ? reach[i] : 1, wv = byHeight ? 1 : kf;
       let ox = 0, oy = 0;
       for (const o of fx.osc) {
@@ -63,6 +72,7 @@ ELEMENTS.shape = {
         else ox += o.v * dir;
       }
       push();
+      drawingContext.globalAlpha *= fadeIn * flash;
       translate(x + fx.dx + ox, y + fx.dy + oy);
       if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
       if (skew) shearX((-skew * Math.PI) / 180);
@@ -72,7 +82,8 @@ ELEMENTS.shape = {
         scale(1, kf);
         translate(0, -reach.anchor[i]);
       }
-      if (paint) paintShape(sh, s, paint, i);
+      if (flashFx) paintShape(sh, s, { style: "solid", color: flashFx.to ?? "#ffffff" }, i);
+      else if (paint) paintShape(sh, s, paint, i);
       else drawShape(sh, s.col, drawingContext, frame);
       pop();
     });
@@ -148,7 +159,9 @@ function fxNow(P, s, st) {
 // comes in on a tapped moment never lands two at once.
 function stepOrigin(inAt, every) { return Math.ceil((inAt + every / 3) / every - 1e-9) - 1; }
 
-// When each spot's turn lands, in beats (for pass `cyc` of a looping fill).
+// When each spot's turn lands, in beats (for pass `cyc` of a looping fill):
+// step 0 is the clip coming in, step n the n-th grid line or trigger hit
+// after it; spot j of pass c is step c * (number of spots) + j.
 function spotHitBeats(P, s, st, cyc = 0) {
   const inAt = st.T?.inAt ?? 0, first = cyc * P.spots.length;
   const every = stepBeats(P, s);
@@ -157,7 +170,18 @@ function spotHitBeats(P, s, st, cyc = 0) {
     return P.spots.map((_, i) => (first + i ? (g0 + first + i) * every : inAt));
   }
   if (!P.moveOn) return null;
-  return s.hits(P.moveOn, inAt + 1e-6, 1e9).map((h) => h[1]).slice(first);
+  const hits = s.hits(P.moveOn, inAt + 1e-6, 1e9).map((h) => h[1]);
+  return P.spots.map((_, i) => (first + i ? hits[first + i - 1] ?? null : inAt));
+}
+
+// A pulse worn on the shape itself (slot "shape"): how strong its flash is
+// now, 0..1 — full right on a trigger hit, dying away over `beats`.
+function flashNow(f, B) {
+  if (!f.on) return 0;
+  let h = null;
+  for (const x of momentHits(SCORE, f.on)) if (x <= B && (h == null || x > h)) h = x;
+  const ph = h == null ? 1 : (B - h) / (f.beats || 1);
+  return ph >= 1 ? 0 : smoothstep(1 - ph) * (f.amount ?? 0.35);
 }
 
 // The follow effect: a property (height or size) set by the song's pitch or

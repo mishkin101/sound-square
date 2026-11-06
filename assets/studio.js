@@ -2465,7 +2465,7 @@ function appendFxControls(card, f, L) {
   if (f.kind === "pulse") {
     // one flare per trigger tap on a palette slot, decaying back to the palette
     card.append(menuRow(f, "on", "trigger", [["", "none — a steady cycle"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
-    card.append(menuRow(f, "slot", "slot", ["ground", "glow", "line", "ink", "light"].map((s) => [s, s]), "ground"));
+    card.append(menuRow(f, "slot", "slot", [...["ground", "glow", "line", "ink", "light"].map((s) => [s, s]), ["shape", "this shape"]], "ground"));
     const colorRow = document.createElement("label");
     colorRow.className = "param";
     colorRow.innerHTML = `<span>color</span><span></span><input type="color" class="input fx-color" title="The color the slot flares to" value="${/^#[0-9a-f]{6}$/i.test(f.to ?? "") ? f.to : "#ffffff"}">`;
@@ -2485,6 +2485,7 @@ function appendFxControls(card, f, L) {
     card.append(menuRow(f, "on", "trigger", [["", "grid"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
     if (!f.on) card.append(fxSlider(f, "every", 0.125, 4, 0.125, 1, "step (beats)"));
     card.append(boolRow(f, "loop", "repeat", "once", "loop"));
+    card.append(fxSlider(f, "fade", 0, 8, 0.25, 0, "fade in (beats)"));
     return;
   }
   if (f.kind === "follow") {
