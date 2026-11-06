@@ -2859,6 +2859,7 @@ function wireControls() {
   $("wave").addEventListener("click", (e) => { toggleWave(e.shiftKey); e.currentTarget.blur(); });
   $("wave").classList.toggle("on", WAVE_SHOW);
   button("wave-rec", toggleWaveRecord);
+  wireBand();
   button("sound", toggleSound);
   button("hide", toggleBare);
   button("copy", copyScore);
@@ -3074,10 +3075,32 @@ function toggleWaveRecord() {
     () => (source.playing && source.durationMs ? songNow() / source.durationMs : null),
     waveKey,
     () => source.durationMs,
+    pitchBand(),
   ).then(
     () => setText("tap-status", "●"),
     (e) => setText("tap-status", `can't record: ${e.message}`),
   );
+}
+
+// The pitch band (Hz) the next recording measures pitch across, set beside
+// the ● and kept in this browser.
+const BAND_KEY = "soundsquare.pitchBand";
+function pitchBand() {
+  const b = storeGet(BAND_KEY);
+  return Array.isArray(b) && b[0] >= 20 && b[1] > b[0] ? b : Waveform.BAND;
+}
+
+function wireBand() {
+  const lo = $("band-lo"), hi = $("band-hi");
+  const show = () => { [lo.value, hi.value] = pitchBand(); };
+  const apply = () => {
+    const a = Math.round(parseFloat(lo.value)), b = Math.round(parseFloat(hi.value));
+    if (a >= 20 && b <= 20000 && b > a) storeSet(BAND_KEY, [a, b]);
+    show();
+  };
+  show();
+  lo.addEventListener("change", apply);
+  hi.addEventListener("change", apply);
 }
 
 // The ● button is always there: recording is the action, its title the

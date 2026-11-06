@@ -500,5 +500,11 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
 .spot-row:hover { border-color: var(--rule); }
 .spot-row.on { border-color: var(--mid); color: var(--live); }
 
+/* the pitch band beside the record dot: low – high Hz */
+.band { display: flex; align-items: center; gap: 4px; }
+.band .input { width: 56px; height: 28px; padding: 0 6px; }
+.band input::-webkit-outer-spin-button, .band input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.band input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
 /* the waveform record dot: red while recording */
 #wave-rec.rec { color: #e14b4b; border-color: #e14b4b; }

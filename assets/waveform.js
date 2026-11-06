@@ -4,12 +4,15 @@
 // API — per-segment loudness, shaped into the same buckets. Either way the
 // result is cached in this browser per song, like a grid. A recording also
 // keeps the pitch: per bucket, how high the sound sits (its spectral centroid
-// on a log-frequency scale, 80 Hz to 6 kHz, as 0..1; 0 is not heard yet).
+// on a log-frequency scale across the pitch band, as 0..1; 0 is not heard
+// yet). The band is set beside the record button and kept with the pitch.
 
 const Waveform = {
   N: 6144,      // buckets across the whole song (~67 ms each on a 7-minute song)
   data: null,   // the current song's buckets, each 0..1
   pitch: null,  // the current song's pitch buckets, each 0..1 (0: not heard)
+  band: [80, 6000], // the pitch band (Hz) those buckets were measured across
+  BAND: [80, 6000], // the default band, and the one older saves used
   ms: null,     // the song length the buckets cover
   for: null,    // the song key the buckets belong to
   busy: false,  // an analysis fetch in flight
@@ -17,11 +20,13 @@ const Waveform = {
 
   STORE: "soundsquare.waves",
   stored() { return storeGet(this.STORE) || {}; },
-  keep(key, buckets, ms, pitch) {
+  keep(key, buckets, ms, pitch, band) {
     const top = Math.max(...buckets, 0.001);
     const v = buckets.map((b) => Math.round((b / top) * 100) / 100);
-    const p = pitch ? pitch.map((x) => Math.round(x * 1000) / 1000) : this.stored()[key]?.p;
-    storeSet(this.STORE, { ...this.stored(), [key]: { v, ms: ms ?? this.ms, ...(p ? { p } : {}) } });
+    const was = this.stored()[key];
+    const p = pitch ? pitch.map((x) => Math.round(x * 1000) / 1000) : was?.p;
+    const kept = pitch ? band ?? this.BAND : was?.band;
+    storeSet(this.STORE, { ...this.stored(), [key]: { v, ms: ms ?? this.ms, ...(p ? { p } : {}), ...(kept ? { band: kept } : {}) } });
     this.for = null;
     this.load(key);
   },
@@ -33,6 +38,7 @@ const Waveform = {
     const got = key && this.stored()[key];
     this.data = (Array.isArray(got) ? got : got?.v) || null;
     this.pitch = (!Array.isArray(got) && got?.p) || null;
+    this.band = (!Array.isArray(got) && got?.band) || this.BAND;
     this.ms = (!Array.isArray(got) && got?.ms) || null;
   },
 
@@ -100,6 +106,14 @@ const Waveform = {
     return m;
   },
 
+  // pitch values measured across one band, re-expressed on another's scale
+  // (both are positions in octaves, so the move is exact; 0 stays not heard)
+  rebandPitch(list, from, to) {
+    if (!list || (from[0] === to[0] && from[1] === to[1])) return list;
+    const a = Math.log2(from[0]), sa = Math.log2(from[1]) - a, b = Math.log2(to[0]), sb = Math.log2(to[1]) - b;
+    return list.map((p) => (p > 0 ? Math.min(1, Math.max(0.001, (a + p * sa - b) / sb)) : 0));
+  },
+
   // an older save at another resolution, stretched onto n buckets
   resample(list, n) {
     if (!list) return new Array(n).fill(0);
@@ -116,7 +130,7 @@ const Waveform = {
   // the current song, so a song change stops the recording.
   rec: null,
 
-  async record(key, deviceId, posFrac, keyNow, durMs) {
+  async record(key, deviceId, posFrac, keyNow, durMs, band = this.BAND) {
     this.stopRecording();
     const audio = (dev) => ({
       deviceId: dev ? { exact: dev } : undefined,
@@ -137,7 +151,8 @@ const Waveform = {
     await ctx.resume();
     const kept = this.stored()[key];
     const base = this.resample(Array.isArray(kept) ? kept : kept?.v, this.N);
-    const pBase = this.resample(Array.isArray(kept) ? null : kept?.p, this.N);
+    const keptP = Array.isArray(kept) ? null : this.rebandPitch(kept?.p, kept?.band ?? this.BAND, band);
+    const pBase = this.resample(keptP, this.N);
     const rec = (this.rec = {
       key, stream, ctx, base, pBase,
       raw: new Array(this.N).fill(0), top: 0.004, savedAt: 0, level: 0,
@@ -162,8 +177,9 @@ const Waveform = {
     analyser.connect(mute);
     rec.node = node;
     const spec = new Float32Array(analyser.frequencyBinCount), binHz = ctx.sampleRate / analyser.fftSize;
-    const k0 = Math.ceil(80 / binHz), k1 = Math.min(spec.length - 1, Math.floor(6000 / binHz));
-    const LO = Math.log2(80), SPAN = Math.log2(6000) - LO;
+    const k0 = Math.max(1, Math.ceil(band[0] / binHz)), k1 = Math.min(spec.length - 1, Math.floor(band[1] / binHz));
+    const LO = Math.log2(band[0]), SPAN = Math.log2(band[1]) - LO;
+    rec.band = band;
     node.onaudioprocess = (e) => {
       if (this.rec !== rec) return;
       const now = keyNow();
@@ -196,7 +212,7 @@ const Waveform = {
       this.pitch = rec.pitchMerge();
       if (performance.now() - rec.savedAt > 3000) {
         rec.savedAt = performance.now();
-        this.keep(key, rec.merge(), durMs(), rec.pitchMerge());
+        this.keep(key, rec.merge(), durMs(), rec.pitchMerge(), band);
         this.rec = rec; // keep() reloads from the store; the recording carries on
         this.data = rec.merge();
         this.pitch = rec.pitchMerge();
@@ -211,6 +227,6 @@ const Waveform = {
     r.stream.getTracks().forEach((t) => t.stop());
     r.ctx.close();
     this.rec = null;
-    if (r.top > 0.004) this.keep(r.key, r.merge(), undefined, r.pitchMerge()); // heard something: keep it
+    if (r.top > 0.004) this.keep(r.key, r.merge(), undefined, r.pitchMerge(), r.band); // heard something: keep it
   },
 };
