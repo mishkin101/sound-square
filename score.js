@@ -482,6 +482,7 @@ const SCORE = {
     { name: "snare", hits: [124.94] },
     { name: "longer key press", hits: [172.03] },
     { name: "bright keys", hits: [75.92] },
+    { name: "end", hits: [199.11] },
   ],
   // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
   // A clip: el is a coded shape from assets/elements.js; shape is a drawing,
@@ -637,16 +638,16 @@ const SCORE = {
       ],
     },
     {
-      // From the heavy kick, the black squares in their own layer: they stay
-      // and pulse by size, swelling on every beat from bar 12 and settling
-      // (breathe), with a very quick ripple off their rim on the same grid
-      // step, so each swell throws one.
+      // From the heavy kick until the end, the black squares in their own
+      // layer: they stay and pulse by size, swelling on every beat from bar 12
+      // and settling (breathe), with a very quick ripple off their rim on the
+      // same grid step, so each swell throws one.
       name: "heavy kick",
       clips: [
         {
           shape: "square",
           from: "heavy kick",
-          to: 16,
+          to: "end",
           spots: [[0.875, 0.875, 0.125], [0.125, 0.875, 0.125]],
           fx: [
             { kind: "paint", style: "solid", color: "#000000" },
