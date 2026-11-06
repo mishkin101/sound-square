@@ -2868,14 +2868,7 @@ function appendFxControls(card, f, L) {
     // on the shape itself: flash shows it only on the pulse, tint washes it
     // toward the color; a flash uses the shape's own look, so it has no color
     if (f.slot === "shape") card.append(menuRow(f, "mode", "mode", [["flash", "flash"], ["tint", "tint"]], "flash"));
-    const colorRow = document.createElement("label");
-    colorRow.className = "param";
-    colorRow.innerHTML = `<span>color</span><span></span><input type="color" class="input fx-color" title="The color the slot flares to" value="${/^#[0-9a-f]{6}$/i.test(f.to ?? "") ? f.to : "#ffffff"}">`;
-    colorRow.querySelector("input").addEventListener("change", (e) => {
-      rememberScore();
-      f.to = e.target.value;
-      buildLayerDetail();
-    });
+    const colorRow = colorSwatches(f.to ?? "#ffffff", "#ffffff", (c) => (c == null ? delete f.to : (f.to = c)));
     if (!(f.slot === "shape" && (f.mode ?? "flash") === "flash")) card.append(colorRow);
     card.append(fxSlider(f, "amount", 0, 1, 0.05, 0.35, "intensity"));
     card.append(fxSlider(f, "beats", 0.25, 8, 0.25, 3, "decay (beats)"));
@@ -3096,26 +3089,58 @@ function paintSpotsRow(f, L) {
   return row;
 }
 
-// An effect's color: a palette slot (it follows the palette), or custom.
+// An effect's color: a palette slot (it follows the palette), or any color.
 function colorPickRow(f, def) {
-  const cur = f.color ?? def, custom = cur.startsWith("#");
-  const row = document.createElement("label");
+  return colorSwatches(f.color ?? def, def, (c) => (c == null ? delete f.color : (f.color = c)));
+}
+
+// The colors picked lately, newest first, kept in this browser: every color
+// row offers them after the palette's.
+const RECENT_COLORS = "soundsquare.recentColors";
+function recentColors() {
+  const list = storeGet(RECENT_COLORS);
+  return Array.isArray(list) ? list.filter((c) => /^#[0-9a-f]{6}$/i.test(c)) : [];
+}
+
+function keepColor(hex) {
+  const c = hex.toLowerCase();
+  storeSet(RECENT_COLORS, [c, ...recentColors().filter((x) => x !== c)].slice(0, 16));
+}
+
+// A color row of swatches: the palette's slots (shown as they are at the
+// playhead), the colors picked lately, and a picker for any other. `cur` is
+// a slot's name or a hex; set(c) takes the pick, null for the default.
+function colorSwatches(cur, def, set) {
+  const row = document.createElement("div");
   row.className = "param";
-  row.innerHTML = `<span>color</span><span></span><span class="paint-pick"><select class="input"></select>` +
-    `<input type="color" class="input fx-color" title="Pick the color"${custom ? "" : " hidden"} value="${custom ? cur : "#ff8a00"}"></span>`;
-  const sel = row.querySelector("select"), pick = row.querySelector("input");
-  sel.innerHTML = [...PAINT_SLOTS, "custom"].map((v) => `<option value="${v}"${(custom ? "custom" : cur) === v ? " selected" : ""}>${v}</option>`).join("");
-  sel.addEventListener("change", () => {
-    rememberScore();
-    if (sel.value === "custom") f.color = pick.value;
-    else if (sel.value === def) delete f.color;
-    else f.color = sel.value;
-    sel.blur();
-    buildLayerDetail();
+  const col = paletteAt(SCORE, Math.max(0, msToBeats(SCORE, songNow())));
+  const hexOf = (c) => (c.startsWith("#") ? c : slotColor(c, col));
+  const same = (a, b) => a.toLowerCase() === b.toLowerCase();
+  const recent = recentColors();
+  if (cur.startsWith("#") && !recent.some((c) => same(c, cur))) recent.unshift(cur.toLowerCase());
+  const sw = (c, tip) => `<button class="swatch${same(c, cur) ? " on" : ""}" data-c="${c}" title="${tip}" style="background:${hexOf(c)}"></button>`;
+  row.innerHTML = `<span>color</span><span></span><div class="swatches fx-swatches">` +
+    PAINT_SLOTS.map((s) => sw(s, slotLabel(s))).join("") + `<span class="swatch-break"></span>` +
+    recent.map((c) => sw(c, c)).join("") +
+    `<label class="swatch pick" title="Pick a color"><input type="color" value="${hexOf(cur)}"></label></div>`;
+  for (const b of row.querySelectorAll("button.swatch")) {
+    b.addEventListener("click", () => {
+      b.blur();
+      rememberScore();
+      if (b.dataset.c.startsWith("#")) keepColor(b.dataset.c);
+      set(b.dataset.c === def ? null : b.dataset.c);
+      buildLayerDetail();
+    });
+  }
+  // the square follows the picker while it's open; letting go keeps the color
+  const pick = row.querySelector("input");
+  let begun = false;
+  pick.addEventListener("input", () => {
+    if (!begun) { rememberScore(); begun = true; }
+    set(pick.value);
   });
   pick.addEventListener("change", () => {
-    rememberScore();
-    f.color = pick.value;
+    keepColor(pick.value);
     buildLayerDetail();
   });
   return row;

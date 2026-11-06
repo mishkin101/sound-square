@@ -251,7 +251,7 @@ function colorsNow(score, B) {
       for (const x of hits) if (x >= win[0] && x <= B && (h == null || x > h)) h = x;
       const ph = h == null ? 1 : (B - h) / (cm.beats || 1);
       if (ph >= 1) continue;
-      col = { ...col, [cm.slot]: mix(base, col[cm.to] ?? cm.to, smoothstep(1 - ph) * (cm.amount ?? 1)) };
+      col = { ...col, [cm.slot]: mix(base, pulseColor(col, cm.to), smoothstep(1 - ph) * (cm.amount ?? 1)) };
       continue;
     }
     const phase = ((((B - win[0]) / (cm.beats || 4)) % 1) + 1) % 1;
@@ -259,9 +259,15 @@ function colorsNow(score, B) {
     // ways, "decay" lands bright on the beat and dies away (a drum hit)
     const wave = cm.back === "fade" ? 1 - Math.abs(2 * phase - 1) : cm.back === "decay" ? 1 - phase : phase;
     const t = smoothstep(wave);
-    col = { ...col, [cm.slot]: mix(base, col[cm.to] ?? cm.to, t * (cm.amount ?? 1)) };
+    col = { ...col, [cm.slot]: mix(base, pulseColor(col, cm.to), t * (cm.amount ?? 1)) };
   }
   return col;
+}
+
+// A pulse's color: a hex, or a palette slot's (dreamy 1–5 included).
+function pulseColor(col, c) {
+  if (c.startsWith("dreamy")) return col.dreamy?.[Number(c.slice(6)) - 1] ?? "#ffffff";
+  return typeof col[c] === "string" ? col[c] : c;
 }
 
 // An effect's window in beats from its from / until: a moment's name (its

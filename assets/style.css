@@ -393,10 +393,16 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
 }
 .fx-head:hover, .fx-head.on { color: var(--mark); }
 .fx-none { padding: 4px var(--u) 6px; border-top: var(--hair) solid var(--rule); }
-.fx-color { height: 22px; padding: 1px 2px; cursor: pointer; }
-.paint-pick { display: flex; gap: 4px; align-items: center; }
-.paint-pick select { flex: 1; min-width: 0; }
-.paint-pick .fx-color { width: 28px; flex: none; }
+/* An effect's color: palette swatches, recent picks, a picker (the rainbow one) */
+.param .swatches { grid-column: 1 / -1; }
+.fx-swatches { gap: 3px; }
+.fx-swatches button.swatch { width: 18px; height: 18px; }
+.swatches .swatch-break { flex-basis: 100%; height: 0; }
+.swatches label.swatch.pick {
+  position: relative; width: 18px; height: 18px; border: var(--hair) solid var(--rule); cursor: pointer;
+  background: conic-gradient(#ff4d4d, #ffd84d, #5ee05e, #4de1ff, #4d6bff, #ff4dff, #ff4d4d);
+}
+.swatches label.swatch.pick input[type="color"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: none; }
 .lay-row .mini.lock.on { color: var(--mark); border-color: var(--mark); }
 .len-row { display: flex; gap: 4px; align-items: center; padding: 0 var(--u); }
 .len-row .input { width: 52px; height: 20px; padding: 0 4px; }
