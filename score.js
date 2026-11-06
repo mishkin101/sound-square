@@ -611,15 +611,15 @@ const SCORE = {
       // A bar of four squares across the bottom of the square. On every hit of
       // "Bongo drums" (its tapped sequence, played twice) one of the four,
       // picked at random and never the same twice running, flashes and fades
-      // — black at the corners, the gradient in the middle. From bar 11 the
-      // whole square is the chromatic gradient, cut in at once; at the heavy
-      // kick the "heavy kick" layer takes over the black squares.
+      // — black at the corners, the gradient in the middle. From bar 11 until
+      // the end the whole square is the chromatic gradient, cut in at once; at
+      // the heavy kick the "heavy kick" layer takes over the black squares.
       name: "squares",
       clips: [
         {
           shape: "square",
           from: 11,
-          to: 16,
+          to: "end",
           spots: [[0.5, 0.5, 0.5]],
           fx: [{ kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 1.1 }],
         },
