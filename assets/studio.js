@@ -1096,6 +1096,15 @@ function restoreWork() {
 function forgetWork() {
   if (!confirm("Drop the edits kept in this browser and reload from score.js?")) return;
   try { localStorage.removeItem(WORK); } catch {}
+  // the score's grid is the truth now: the song's saved grid goes with the
+  // dropped work, so it can't re-apply an older tempo over the score's
+  try {
+    const grids = storeGet(GRIDS) || {};
+    if (SCORE.song?.spotifyId) delete grids[`spotify:${SCORE.song.spotifyId}`];
+    if (songKey()) delete grids[songKey()];
+    storeSet(GRIDS, grids);
+    gridFor = null;
+  } catch {}
   window.removeEventListener("pagehide", keepWork);
   WORK_SAVED = JSON.stringify(SCORE); // keep the interval from saving it back
   location.reload();
