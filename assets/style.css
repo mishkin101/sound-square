@@ -394,6 +394,9 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
 .fx-head:hover, .fx-head.on { color: var(--mark); }
 .fx-none { padding: 4px var(--u) 6px; border-top: var(--hair) solid var(--rule); }
 .fx-color { height: 22px; padding: 1px 2px; cursor: pointer; }
+.paint-pick { display: flex; gap: 4px; align-items: center; }
+.paint-pick select { flex: 1; min-width: 0; }
+.paint-pick .fx-color { width: 28px; flex: none; }
 .lay-row .mini.lock.on { color: var(--mark); border-color: var(--mark); }
 .len-row { display: flex; gap: 4px; align-items: center; padding: 0 var(--u); }
 .len-row .input { width: 52px; height: 20px; padding: 0 4px; }

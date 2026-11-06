@@ -48,13 +48,22 @@ ELEMENTS.shape = {
     const fol = followOf(P);
     const reach = fol ? followScales(P, s, st, sh, cyc, fol) : null;
     const byHeight = (fol?.target ?? "height") === "height";
+    const mid = fx.osc.length ? [0, 1].map((a) => P.spots.reduce((t, sp) => t + sp[a], 0) / P.spots.length) : null;
+    const paint = P.fx?.find((f) => f.kind === "paint");
     P.spots.forEach(([x, y, size, flip = 1, deg = 0, skew = 0], i) => {
       if (step && i > shown) return; // take turns: spot i waits for the i-th hit
       const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
       if (frame?.hidden) return;
       const kf = reach ? reach[i] : 1, wv = byHeight ? 1 : kf;
+      let ox = 0, oy = 0;
+      for (const o of fx.osc) {
+        const away = o.axis === "y" ? y - mid[1] : x - mid[0];
+        const dir = o.mirror ? (Math.abs(away) < 1e-6 ? 0 : Math.sign(away)) : 1;
+        if (o.axis === "y") oy += o.v * dir;
+        else ox += o.v * dir;
+      }
       push();
-      translate(x + fx.dx, y + fx.dy);
+      translate(x + fx.dx + ox, y + fx.dy + oy);
       if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
       if (skew) shearX((-skew * Math.PI) / 180);
       scale(flip * size * P.size * fx.k * wv, size * P.size * fx.k * wv);
@@ -63,7 +72,8 @@ ELEMENTS.shape = {
         scale(1, kf);
         translate(0, -reach.anchor[i]);
       }
-      drawShape(sh, s.col, drawingContext, frame);
+      if (paint) paintShape(sh, s, paint, i);
+      else drawShape(sh, s.col, drawingContext, frame);
       pop();
     });
   },
@@ -87,11 +97,14 @@ function drawKeyed(sh, P, s, st) {
 
 // What the clip's effects do to it right now: a shift, a turn, a scale. Each
 // effect runs inside its own window (from/to like a clip's, or the clip's own).
-const NO_FX = { dx: 0, dy: 0, rot: 0, k: 1 };
+const NO_FX = { dx: 0, dy: 0, rot: 0, k: 1, osc: [] };
+// an effect's amount when it doesn't set one
+const FX_AMOUNT = { spin: 1, oscillate: 0.05 };
 
 function fxNow(P, s, st) {
   if (!P.fx?.length) return NO_FX;
   let dx = 0, dy = 0, rot = 0, k = 1;
+  const osc = [];
   for (const f of P.fx) {
     let amt, from;
     if (f.keys?.length) {
@@ -104,7 +117,7 @@ function fxNow(P, s, st) {
       const to = f.to == null ? st.T?.e ?? 1e9
         : typeof f.to === "string" ? momentEnd(SCORE, f.to) ?? 1e9 : barToBeats(SCORE, f.to + 1);
       if (s.B < from || s.B >= to) continue;
-      amt = f.amount ?? (f.kind === "spin" ? 1 : 0.5);
+      amt = f.amount ?? FX_AMOUNT[f.kind] ?? 0.5;
     }
     if (amt <= 0.001) continue;
     const rate = f.rate ?? 1;
@@ -116,9 +129,18 @@ function fxNow(P, s, st) {
     } else if (f.kind === "wobble") {
       dx += 0.08 * amt * (noise(s.B * 1.5 * rate, 7) - 0.5) * 2; // rate: how fast it shivers
       dy += 0.08 * amt * (noise(s.B * 1.5 * rate, 13) - 0.5) * 2;
+    } else if (f.kind === "oscillate") {
+      // back and forth along an axis: out by `amount` right on the grid every
+      // `rate` beats, back to rest halfway between; mirror sends each copy
+      // away from the middle of the spot set, together moves them all one way
+      osc.push({
+        axis: f.axis ?? "x",
+        mirror: (f.direction ?? "mirror") === "mirror",
+        v: amt * 0.5 * (1 + Math.cos((2 * Math.PI * s.B) / rate)),
+      });
     }
   }
-  return { dx, dy, rot, k };
+  return { dx, dy, rot, k, osc };
 }
 
 // The grid line the steps count from: the first step lands on the first grid
@@ -306,6 +328,54 @@ function drawShape(sh, col, ctx = drawingContext, frame = null) {
     }
     ctx.restore();
   });
+  ctx.restore();
+}
+
+// The paint effect: the shape filled with its own color in place of the
+// palette's. solid: the color itself. gradient: a soft field around it —
+// the color pushed vivid and mid-toned underneath, then five blurred blobs with hues
+// within ±spread degrees, drifting `drift` turns per bar. Each spot (seed)
+// gets its own stable arrangement. color: a palette slot (it follows the
+// palette and its pulses) or a hex color.
+function paintShape(sh, s, f, seed, ctx = drawingContext) {
+  const c = f.color ?? "ground", base = c.startsWith("#") ? c : slotColor(c, s.col);
+  const gradient = (f.style ?? "gradient") === "gradient";
+  let under = base, blobs = [];
+  if (gradient) {
+    const [h0, s0, l0] = chroma(base).hsl(), hue = Number.isNaN(h0) ? 0 : h0;
+    // vivid and mid-toned: full color, lightness drawn toward the middle
+    const vivid = Math.max(s0, 0.75), lc = 0.55 + (l0 - 0.55) * 0.35;
+    under = chroma.hsl(hue, vivid, lc).hex();
+    const b = sh.moves.box, w = b.x1 - b.x0, h = b.y1 - b.y0, t = (s.B / s.bpb) * (f.drift ?? 0.25) * 2 * Math.PI;
+    for (let j = 0; j < 5; j++) {
+      const r = (k) => rnd01(seed * 97 + j * 13 + k);
+      blobs.push({
+        x: b.x0 + w * (0.5 + 0.38 * Math.sin(t + r(1) * 2 * Math.PI)),
+        y: b.y0 + h * (0.5 + 0.38 * Math.cos(t * 0.8 + r(2) * 2 * Math.PI)),
+        rad: Math.max(w, h) * (0.45 + 0.4 * r(6)),
+        col: chroma.hsl((hue + (f.spread ?? 20) * (2 * r(3) - 1) + 360) % 360,
+          Math.min(1, vivid + 0.2 * (r(4) - 0.5)), Math.min(0.75, Math.max(0.3, lc + 0.16 * (r(5) - 0.5)))),
+      });
+    }
+  }
+  ctx.save();
+  ctx.scale(sh.k, sh.k);
+  ctx.translate(-sh.cx, -sh.cy);
+  const b = sh.moves.box, w = b.x1 - b.x0, h = b.y1 - b.y0;
+  for (const it of sh.items) {
+    ctx.save();
+    ctx.clip(it.path, it.rule);
+    ctx.fillStyle = under;
+    ctx.fillRect(b.x0, b.y0, w, h);
+    for (const o of blobs) {
+      const g = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.rad);
+      g.addColorStop(0, o.col.alpha(0.9).css());
+      g.addColorStop(1, o.col.alpha(0).css());
+      ctx.fillStyle = g;
+      ctx.fillRect(b.x0, b.y0, w, h);
+    }
+    ctx.restore();
+  }
   ctx.restore();
 }
 

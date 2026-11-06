@@ -102,7 +102,13 @@ const SCORE = {
   // "height" | "size", mapping: "relative" (lowest hit to min, highest to max)
   // | "absolute", min, max: scales, before, after: the beats read around each
   // hit, anchor: "inner" | "center" | "top" | "bottom" (the edge a height
-  // change keeps) }. Pitch comes from waveform recordings.
+  // change keeps) }. Pitch comes from waveform recordings. An oscillate
+  // effect moves the spots back and forth: { kind: "oscillate", axis: "x" |
+  // "y", direction: "mirror" (each away from the middle) | "together",
+  // amount: the distance, rate: beats per cycle } — out on the grid, back to
+  // rest halfway. A paint effect fills the shape with its own color: { kind:
+  // "paint", style: "solid" | "gradient", color: a palette slot or a hex,
+  // spread: the gradient's hue range in degrees, drift: turns per bar }.
   layers: [
     {
       name: "background",
@@ -162,6 +168,33 @@ const SCORE = {
             { kind: "fill", every: 0.25, loop: true },
             { kind: "follow", source: "pitch", target: "height", mapping: "relative", min: 0.3, max: 1, before: 0.1, after: 0.4, anchor: "center" },
           ],
+        },
+      ],
+    },
+    {
+      // A row of four touching squares from the "Bongo drums" moment, in the
+      // same frame as the other patterns (0.1 in from the sides, centered).
+      // The outer two are solid black and pull outward and back on every beat
+      // (oscillate, mirrored); the middle two are a soft gradient in vivid
+      // tones of the background color (paint).
+      name: "squares",
+      clips: [
+        {
+          shape: "square",
+          from: "Bongo drums",
+          to: 16,
+          spots: [[0.2, 0.5, 0.1], [0.8, 0.5, 0.1]],
+          fx: [
+            { kind: "oscillate", axis: "x", direction: "mirror", amount: 0.05, rate: 1 },
+            { kind: "paint", style: "solid", color: "#000000" },
+          ],
+        },
+        {
+          shape: "square",
+          from: "Bongo drums",
+          to: 16,
+          spots: [[0.4, 0.5, 0.1], [0.6, 0.5, 0.1]],
+          fx: [{ kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 }],
         },
       ],
     },

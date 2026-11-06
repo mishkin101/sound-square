@@ -874,7 +874,7 @@ function removeSpot(i) {
 
 function setKeyAtPlayhead() {
   const L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
-  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "pulse", "fill", "follow"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (hops, pulses, fills and follows have no envelope)
+  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "pulse", "fill", "follow", "paint"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (hops, pulses, fills, follows and paints have no envelope)
   if (!L?.shape) return;
   rememberScore();
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
@@ -2370,7 +2370,7 @@ function setFxKey(f, amount) {
 
 function fxAmountNow(f) {
   const B = Math.max(0, msToBeats(SCORE, songNow()));
-  return f.keys?.length ? keyedValue(SCORE, f.keys, B, "amount", 0) : f.amount ?? (f.kind === "spin" ? 1 : 0.5);
+  return f.keys?.length ? keyedValue(SCORE, f.keys, B, "amount", 0) : f.amount ?? FX_AMOUNT[f.kind] ?? 0.5;
 }
 
 function fxKeyThrough(f, amount) {
@@ -2406,10 +2406,11 @@ function buildFxPanel(R, L) {
     const meta = f.kind === "hop" || f.kind === "pulse" ? (f.on ?? "pick a moment")
       : f.kind === "fill" ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}`
       : f.kind === "follow" ? `${f.source ?? "pitch"} → ${f.target ?? "height"}`
+      : f.kind === "paint" ? `${f.style ?? "gradient"} · ${f.color ?? "ground"}`
       : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`;
     const metaTitle = f.kind === "hop" || f.kind === "pulse" ? "its trigger"
-      : f.kind === "fill" ? "its step" : f.kind === "follow" ? "source → property"
-      : `intensity now${f.keys?.length ? " (keyed)" : ""}`;
+      : f.kind === "fill" ? "its step" : f.kind === "follow" ? "source → property" : f.kind === "paint" ? "style · color"
+      : `${f.kind === "oscillate" ? "distance" : "intensity"} now${f.keys?.length ? " (keyed)" : ""}`;
     head.innerHTML = `<span class="caret dimmed">${open ? "▾" : "▸"}</span><span class="kind">${f.kind}</span>` +
       `<span class="data dimmed" title="${metaTitle}">${meta}</span>` +
       `<button class="mini" data-x title="Remove the effect">×</button>`;
@@ -2455,7 +2456,7 @@ function buildFxPanel(R, L) {
 // What a clip can wear: drawn shapes move and turn; the background (and other
 // coded elements) pulse their color.
 function fxKinds(L) {
-  return L.shape ? ["spin", "breathe", "wobble", "hop", "fill", "follow", "pulse"] : ["pulse"];
+  return L.shape ? ["spin", "breathe", "wobble", "oscillate", "hop", "fill", "follow", "paint", "pulse"] : ["pulse"];
 }
 
 // The open effect's controls, under its header row.
@@ -2513,11 +2514,49 @@ function appendFxControls(card, f, L) {
       "Only hits within this many beats of the previous hit move it (0: every hit)";
     return;
   }
-  card.append(fxAmountSlider(f));
+  if (f.kind === "paint") {
+    // the shape's own color in place of the palette's: solid, or a soft
+    // gradient around it (spread: the hue range; drift: turns per bar)
+    card.append(menuRow(f, "style", "style", [["gradient", "gradient"], ["solid", "solid"]], "gradient"));
+    const cur = f.color ?? "ground", custom = cur.startsWith("#");
+    const colorRow = document.createElement("label");
+    colorRow.className = "param";
+    colorRow.innerHTML = `<span>color</span><span></span><span class="paint-pick"><select class="input"></select>` +
+      `<input type="color" class="input fx-color" title="Pick the color"${custom ? "" : " hidden"} value="${custom ? cur : "#ff8a00"}"></span>`;
+    const sel = colorRow.querySelector("select"), pick = colorRow.querySelector("input");
+    sel.innerHTML = [...PAINT_SLOTS, "custom"].map((v) => `<option value="${v}"${(custom ? "custom" : cur) === v ? " selected" : ""}>${v}</option>`).join("");
+    sel.addEventListener("change", () => {
+      rememberScore();
+      if (sel.value === "custom") f.color = pick.value;
+      else if (sel.value === "ground") delete f.color;
+      else f.color = sel.value;
+      sel.blur();
+      buildLayerDetail();
+    });
+    pick.addEventListener("change", () => {
+      rememberScore();
+      f.color = pick.value;
+      buildLayerDetail();
+    });
+    card.append(colorRow);
+    if ((f.style ?? "gradient") === "gradient") {
+      card.append(fxSlider(f, "spread", 0, 90, 1, 20, "spread (degrees)"));
+      card.append(fxSlider(f, "drift", 0, 2, 0.05, 0.25, "drift (turns per bar)"));
+    }
+    return;
+  }
+  if (f.kind === "oscillate") {
+    // back and forth on the grid: out by the distance every period, back
+    // to rest halfway; mirror sends each copy away from the middle
+    card.append(menuRow(f, "axis", "axis", [["x", "horizontal"], ["y", "vertical"]], "x"));
+    card.append(menuRow(f, "direction", "direction", [["mirror", "mirror"], ["together", "together"]], "mirror"));
+  }
+  card.append(f.kind === "oscillate" ? fxAmountSlider(f, "distance", 0.3, 0.005) : fxAmountSlider(f));
   const rates = {
     spin: ["bars per turn", 0.25, 8, 0.25],
     breathe: ["beats per breath", 0.25, 8, 0.25],
     wobble: ["speed", 0.25, 4, 0.25],
+    oscillate: ["period (beats)", 0.25, 8, 0.25],
   };
   const [label, mn, mx, st] = rates[f.kind] ?? ["rate", 0.25, 8, 0.25];
   card.append(fxSlider(f, "rate", mn, mx, st, 1, label));
@@ -2573,13 +2612,13 @@ function appendFxControls(card, f, L) {
 
 // The amount slider follows the one keying rule: with keys on the effect it
 // writes the key under the playhead (or adds one there); without, the plain value.
-function fxAmountSlider(f) {
+function fxAmountSlider(f, label = "intensity", max = 1, step = 0.05) {
   const keyed = !!f.keys?.length;
-  const val = round2(fxAmountNow(f));
+  const val = Math.round(fxAmountNow(f) * 1000) / 1000;
   const row = document.createElement("label");
   row.className = "param";
-  row.innerHTML = `<span>${keyed ? "intensity (the key's)" : "intensity"}</span><span class="val">${val}</span>` +
-    `<input type="range" min="0" max="1" step="0.05" value="${val}">`;
+  row.innerHTML = `<span>${keyed ? `${label} (the key's)` : label}</span><span class="val">${val}</span>` +
+    `<input type="range" min="0" max="${max}" step="${step}" value="${val}">`;
   const out = row.querySelector(".val"), slider = row.querySelector("input");
   slider.addEventListener("input", (e) => {
     if (!SLIDING) { rememberScore(); SLIDING = true; }
