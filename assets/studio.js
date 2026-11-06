@@ -59,6 +59,7 @@ function setup() {
   wireSong(signingIn ? "spotify" : "standIn");
   wireListen();
   wireMomentClose();
+  wireTlBar();
   setInterval(followSong, 1000);
   setInterval(keepWork, 2000);
   window.addEventListener("pagehide", keepWork);
@@ -116,6 +117,84 @@ function layerSpan(R) {
   return [Math.min(...T.map((t) => t.inAt)), Math.max(...T.map((t) => t.outAt + t.outLen))];
 }
 
+// The timeline's controls: a bar of buttons in its top left corner, each with
+// its key. Transport on top (to the start, back a bar, play, forward a bar),
+// the view below (loop, zoom out, zoom in, the whole song).
+const TL_BAR = [
+  ["start", "To the start · Home", () => run(() => source.seek(0))],
+  ["back", "Back a bar · ←", () => seekBar(barNow() - 1)],
+  ["play", "Play · Space", () => togglePlay()],
+  ["fwd", "Forward a bar · →", () => seekBar(barNow() + 1)],
+  ["loop", "Loop playback · L", () => toggleLoop()],
+  ["out", "Zoom out · −", () => zoomTimeline(0.5)],
+  ["in", "Zoom in · +", () => zoomTimeline(2)],
+  ["fit", "The whole song · \\", () => fitTimeline()],
+];
+const TL_ICONS = {
+  start: `<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><rect x="3" y="3" width="1.6" height="10"/><path d="M13 3v10L5.5 8z"/></svg>`,
+  back: `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>`,
+  play: `<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><path d="M4.5 3v10l8.5-5z"/></svg>`,
+  pause: `<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><rect x="4" y="3" width="2.6" height="10"/><rect x="9.4" y="3" width="2.6" height="10"/></svg>`,
+  fwd: `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 10.5 8 6 12.5"/></svg>`,
+  loop: `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5V5h9.5M10.5 3l2 2-2 2M13 7.5V11H3.5M5.5 13l-2-2 2-2"/></svg>`,
+  out: `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.5 8h9"/></svg>`,
+  in: `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.5 8h9M8 3.5v9"/></svg>`,
+  fit: `<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3v10M13.5 3v10M5 8h6M7 6 5 8l2 2M9 6l2 2-2 2"/></svg>`,
+};
+
+function wireTlBar() {
+  const bar = $("tl-bar");
+  for (const [act, title, fn] of TL_BAR) {
+    const b = document.createElement("button");
+    b.className = "mini";
+    b.dataset.tl = act;
+    b.title = title;
+    b.innerHTML = TL_ICONS[act];
+    b.addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      fn();
+    });
+    bar.append(b);
+  }
+}
+
+// The bar follows the timeline's top, and shows whether the song plays and
+// whether the loop is on; the page only changes when one of those does.
+let TL_BAR_SEEN = "";
+function syncTlBar() {
+  const tl = timelineHeight(), seen = `${tl && height - tl}|${source.playing}|${!!LOOP}`;
+  if (seen === TL_BAR_SEEN) return;
+  TL_BAR_SEEN = seen;
+  const bar = $("tl-bar"), play = bar.querySelector('[data-tl="play"]'), loop = bar.querySelector('[data-tl="loop"]');
+  bar.hidden = !tl;
+  bar.style.top = `${height - tl + 5}px`;
+  play.innerHTML = TL_ICONS[source.playing ? "pause" : "play"];
+  play.title = source.playing ? "Pause · Space" : "Play · Space";
+  loop.classList.toggle("on", !!LOOP);
+  loop.title = LOOP ? "Stop the loop · L" : "Loop playback · L";
+}
+
+// The bar the playhead is in.
+function barNow() {
+  return Math.floor(Math.max(0, msToBeats(SCORE, songNow())) / SCORE.beatsPerBar) + 1;
+}
+
+// Zooming from the bar or the keys: toward the playhead when it's in view
+// (it keeps its place on the screen), else toward the middle.
+function zoomTimeline(f) {
+  const span = tlSpanMs(), now = songNow();
+  const at = now >= TL_VIEW.startMs && now <= TL_VIEW.startMs + span ? now : TL_VIEW.startMs + span / 2;
+  const frac = (at - TL_VIEW.startMs) / span;
+  TL_VIEW.zoom = constrain(TL_VIEW.zoom * f, 1, 64);
+  TL_VIEW.startMs = at - frac * tlSpanMs();
+  clampTlView();
+}
+
+function fitTimeline() {
+  TL_VIEW.zoom = 1;
+  TL_VIEW.startMs = 0;
+}
+
 // While the song plays, the end of the loop jumps back to its start.
 function keepLooping() {
   if (!LOOP || !source.playing || scrubMs != null || millis() - LOOP_JUMPED < 1000) return;
@@ -138,6 +217,7 @@ function draw() {
   if (source.durationMs) coverSong(source.durationMs);
   else if (source.loops && source.now() >= songMs(SCORE)) source.seek(0); // the stand-in loops
   keepLooping();
+  syncTlBar();
   const B = msToBeats(SCORE, songNow());
   const tl = timelineHeight();
   background(0);
@@ -337,8 +417,6 @@ function drawTimeline(B, top) {
   }
   stroke(38); strokeWeight(1);
   line(0, top + 0.5, width, top + 0.5);
-  const overLoop = overLoopButton();
-  drawLoopButton(overLoop);
   textSize(10); textAlign(LEFT, TOP);
 
   // everything on the time axis stays out of the left gutter: names live
@@ -367,7 +445,7 @@ function drawTimeline(B, top) {
 
   // moments: a marker per hit, named at the first; hidden ones stay off the ruler
   y += 22;
-  let hover = overLoop ? (LOOP ? "Stop the loop" : "Loop playback") : null;
+  let hover = null;
   // Shift makes any grab take the whole moment; the blue box says which one
   const shiftAll = !MOMENT_DRAG && keyIsDown(SHIFT) ? momentMarkerAt() : null;
   if (!HIDE_MOMENTS) (SCORE.moments || []).forEach((m, mi) => {
@@ -547,43 +625,14 @@ function drawTimeline(B, top) {
     const want = CLIP_DRAG ? (CLIP_DRAG.zone === "body" ? "grabbing" : "ew-resize")
       : KEY_DRAG ? "grabbing"
       : LOOP_DRAG || loopEndAt() != null ? "ew-resize"
-      : overLoopButton() ? "pointer"
+      : MOVING ? "grabbing"
+      : MOVE_FROM != null && MOVE_FROM === MO_OPEN && overSq ? "grab"
       : MOMENT_MODE && overSq ? "crosshair"
       : inTimeline() && gutterRowAt() ? "pointer"
       : MOMENT_DRAG || (inTimeline() && (momentMarkerAt() || keyAt())) ? "grab"
       : c ? (c.zone === "body" ? "grab" : "ew-resize") : "default";
     if (canvasCursor !== want) cursor(canvasCursor = want);
   }
-}
-
-// The loop button's box: top left of the timeline, beside the ruler.
-function loopButtonBox() {
-  return { x: 6, y: height - timelineHeight() + 8, w: 22, h: 18 };
-}
-
-function overLoopButton() {
-  const b = loopButtonBox();
-  return inTimeline() && mouseX >= b.x && mouseX <= b.x + b.w && mouseY >= b.y && mouseY <= b.y + b.h;
-}
-
-// The button: the repeat sign (an arrow along the top, one back along the
-// bottom), green while the loop is on.
-function drawLoopButton(over) {
-  const b = loopButtonBox(), c = LOOP ? [85, 209, 135] : over ? [230] : [140];
-  noFill(); strokeWeight(1);
-  stroke(...(LOOP ? c : over ? [120] : [60]));
-  rect(b.x + 0.5, b.y + 0.5, b.w, b.h);
-  const x = b.x + b.w / 2 + 0.5, y = b.y + b.h / 2 + 0.5;
-  stroke(...c); strokeWeight(1.3); strokeCap(ROUND); strokeJoin(ROUND);
-  for (const k of [1, -1]) { // top, then the bottom turned half round
-    beginShape();
-    vertex(x - 5 * k, y + 1 * k); vertex(x - 5 * k, y - 3 * k); vertex(x + 5 * k, y - 3 * k);
-    endShape();
-    beginShape();
-    vertex(x + 3 * k, y - 5 * k); vertex(x + 5 * k, y - 3 * k); vertex(x + 3 * k, y - 1 * k);
-    endShape();
-  }
-  strokeCap(SQUARE); strokeJoin(MITER);
 }
 
 // The loop's end under the mouse on the ruler: 0 its start, 1 its end.
@@ -709,7 +758,6 @@ let CLIP_DRAG = null;
 
 function mousePressed(e) {
   if (inTimeline()) {
-    if (overLoopButton()) return toggleLoop();
     const end = loopEndAt();
     if (end != null) { LOOP_DRAG = { end }; return; }
     const gut = gutterRowAt();
@@ -746,6 +794,7 @@ function mousePressed(e) {
   }
   if (onSquare(e) && MOMENT_MODE) return pressMark();
   if (onSquare(e) && ERASE_FROM != null && SCORE.moments?.[ERASE_FROM]?.path?.length) return pressErase();
+  if (onSquare(e) && MOVE_FROM != null && SCORE.moments?.[MOVE_FROM]?.path?.length) return pressMove();
   if (onSquare(e) && DRAW_INTO != null && SCORE.moments?.[DRAW_INTO]) {
     pressMark();
     SQ_MARK.into = DRAW_INTO;
@@ -766,6 +815,7 @@ function mousePressed(e) {
 function mouseDragged() {
   if (SQ_MARK) dragMark();
   else if (ERASING) dragErase();
+  else if (MOVING) dragMove();
   else if (PATH_DRAG) dragPath();
   else if (MOMENT_DRAG) dragMoment();
   else if (KEY_DRAG) dragKey();
@@ -777,6 +827,7 @@ function mouseDragged() {
 function mouseReleased() {
   if (SQ_MARK) { releaseMark(); return; }
   if (ERASING) { releaseErase(); return; }
+  if (MOVING) { releaseMove(); return; }
   if (PATH_DRAG) { releasePath(); return; }
   if (MOMENT_DRAG) { MOMENT_DRAG = null; momentsChanged(); return; }
   if (KEY_DRAG) {
@@ -805,8 +856,7 @@ function doubleClicked(e) {
       run(() => source.seek(beatsToMs(SCORE, beat)));
       return;
     }
-    TL_VIEW.zoom = 1;
-    TL_VIEW.startMs = 0;
+    fitTimeline();
     return;
   }
   if (editing() && hasSpots(editLayer()) && !layerLocked() && onSquare(e) && !liveNow() && !spotAt(...squareMouse())) addSpot(...squareMouse());
@@ -1316,8 +1366,9 @@ function markHold(fromMs, toMs, path) {
 let SQ_MARK = null;
 
 function pressMark() {
-  SQ_MARK = { atMs: songNow(), t: performance.now(), path: [] };
-  const [x, y] = squareMouse();
+  const [x, y] = squareMouse(), atMs = songNow();
+  // the press is where the stroke begins (a Shift line runs from here)
+  SQ_MARK = { atMs, t: performance.now(), path: [[round4(clamp01(x)), round4(clamp01(y)), round2(msToBeats(SCORE, atMs))]] };
   MARK_FX = { x: clamp01(x), y: clamp01(y), t0: millis(), released: null, r: 0.02 };
 }
 
@@ -1337,13 +1388,14 @@ function dragMark() {
 
 function releaseMark() {
   const endMs = markMs();
-  const { atMs, t, path, into } = SQ_MARK;
+  const { atMs, t, into } = SQ_MARK, raw = SQ_MARK.path;
+  const path = keyIsDown(SHIFT) && raw.length >= 2 ? straightened(raw) : raw;
   SQ_MARK = null;
   if (MARK_FX) MARK_FX.released = millis();
   if (into != null) return drawInto(into, atMs, endMs, path);
   const span = Math.abs(msToBeats(SCORE, endMs) - msToBeats(SCORE, atMs));
   // a quick tap, or a hold with no song time under it (paused), is a hit
-  if ((performance.now() - t < 350 && path.length <= 2) || span < 0.1) return markHit(atMs);
+  if ((performance.now() - t < 350 && raw.length <= 3) || span < 0.1) return markHit(atMs);
   markHold(atMs, endMs, tidyPath(path));
 }
 
@@ -1423,7 +1475,18 @@ function penSize() { return Math.max(3, SQ / 110); }
 // The stroke so far, while the mouse draws it.
 function drawMarkPath() {
   if (!SQ_MARK || SQ_MARK.path.length < 2) return;
-  penStroke(drawingContext, SQ_MARK.path.map(([x, y]) => [SQ_X + x * SQ, SQ_Y + y * SQ]), penSize());
+  const path = keyIsDown(SHIFT) ? straightened(SQ_MARK.path) : SQ_MARK.path;
+  penStroke(drawingContext, path.map(([x, y]) => [SQ_X + x * SQ, SQ_Y + y * SQ]), penSize());
+}
+
+// Shift held while drawing: the stroke goes straight from where it began to
+// where the pointer is, its time spread evenly along it.
+function straightened(path) {
+  const a = path[0], b = path[path.length - 1], n = Math.max(3, Math.min(64, path.length));
+  return Array.from({ length: n }, (_, i) => {
+    const t = i / (n - 1);
+    return [round4(a[0] + (b[0] - a[0]) * t), round4(a[1] + (b[1] - a[1]) * t), round2(a[2] + (b[2] - a[2]) * t)];
+  });
 }
 
 // The marking pulse, ripple style: a center dot under the press, rings
@@ -1531,6 +1594,7 @@ function renderMoments() {
   if (MO_OPEN != null && MO_OPEN >= list.length) MO_OPEN = null;
   if (DRAW_INTO != null && (DRAW_INTO >= list.length || DRAW_INTO !== MO_OPEN)) DRAW_INTO = null;
   if (ERASE_FROM != null && (ERASE_FROM >= list.length || ERASE_FROM !== MO_OPEN)) ERASE_FROM = null;
+  if (MOVE_FROM != null && (MOVE_FROM >= list.length || MOVE_FROM !== MO_OPEN)) MOVE_FROM = null;
   const order = list.map((m, mi) => ({ m, mi }))
     .sort((a, b) => (momentStart(SCORE, a.m.name) ?? 0) - (momentStart(SCORE, b.m.name) ?? 0));
   const title = document.createElement("span");
@@ -1566,6 +1630,7 @@ function closeMomentCard() {
   MO_OPEN = null;
   DRAW_INTO = null;
   ERASE_FROM = null;
+  MOVE_FROM = null;
   PATH_PLAY = null;
   renderMoments();
 }
@@ -1574,7 +1639,7 @@ function wireMomentClose() {
   document.addEventListener("pointerdown", (e) => {
     if (MO_OPEN == null || e.target.closest(".mo-chip")) return;
     if (e.target.tagName === "CANVAS") {
-      if (DRAW_INTO != null || ERASE_FROM != null || MOMENT_MODE) return;
+      if (DRAW_INTO != null || ERASE_FROM != null || MOVE_FROM != null || MOMENT_MODE) return;
       const tl = timelineHeight();
       if (tl > 0 && e.offsetY >= height - tl) return;
     }
@@ -1609,6 +1674,7 @@ function moChip(m, mi) {
     MO_OPEN = MO_OPEN === mi ? null : mi;
     DRAW_INTO = null;
     ERASE_FROM = null;
+    MOVE_FROM = null;
     PATH_PLAY = null;
     if (MO_OPEN === mi) zoomToMoment(m);
     renderMoments();
@@ -1664,12 +1730,22 @@ function moCard(m, mi) {
     anim.append(pathPreview(m));
     anim.insertAdjacentHTML("beforeend",
       `<div class="fx"><button class="mini play" title="Run the drawing once on the square">▶</button>${penBtn}` +
-      `<button class="mini erase${ERASE_FROM === mi ? " on" : ""}" title="Erase from the drawing">${ERASER}</button></div>`);
+      `<button class="mini erase${ERASE_FROM === mi ? " on" : ""}" title="Erase from the drawing">${ERASER}</button>` +
+      `<button class="mini move${MOVE_FROM === mi ? " on" : ""}" title="Move the drawing">${MOVE}</button></div>`);
     anim.querySelector(".erase").addEventListener("click", (e) => {
       e.currentTarget.blur();
       ERASE_FROM = ERASE_FROM === mi ? null : mi;
       if (ERASE_FROM != null) {
-        DRAW_INTO = null;
+        DRAW_INTO = MOVE_FROM = null;
+        if (MOMENT_MODE) setMomentMode(false);
+      }
+      renderMoments();
+    });
+    anim.querySelector(".move").addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      MOVE_FROM = MOVE_FROM === mi ? null : mi;
+      if (MOVE_FROM != null) {
+        DRAW_INTO = ERASE_FROM = null;
         if (MOMENT_MODE) setMomentMode(false);
       }
       renderMoments();
@@ -1683,7 +1759,7 @@ function moCard(m, mi) {
   card.querySelector(".pen").addEventListener("click", (e) => {
     e.currentTarget.blur();
     DRAW_INTO = DRAW_INTO === mi ? null : mi;
-    if (DRAW_INTO != null) ERASE_FROM = null;
+    if (DRAW_INTO != null) ERASE_FROM = MOVE_FROM = null;
     if (DRAW_INTO != null && MOMENT_MODE) setMomentMode(false);
     renderMoments();
   });
@@ -1927,6 +2003,38 @@ function circleCut(a, b, x, y, r) {
 
 function lerpPoint(a, b, t) {
   return [round4(a[0] + (b[0] - a[0]) * t), round4(a[1] + (b[1] - a[1]) * t), round2(a[2] + (b[2] - a[2]) * t)];
+}
+
+// Moving: with it on, a drag on the square carries the whole open drawing
+// along (it stays on the square); shapes following it re-follow on release.
+let MOVE_FROM = null; // the moment whose drawing the square moves
+let MOVING = null; // { x, y, orig, lo, hi }: the press, and the drawing then
+
+function pressMove() {
+  rememberScore();
+  const orig = JSON.parse(JSON.stringify(strokesOf(SCORE.moments[MOVE_FROM]))), pts = orig.flat();
+  const [x, y] = squareMouse();
+  MOVING = {
+    x, y, orig,
+    lo: [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1]))],
+    hi: [Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1]))],
+  };
+}
+
+function dragMove() {
+  const m = SCORE.moments?.[MOVE_FROM];
+  if (!m) return;
+  const [x, y] = squareMouse(), { lo, hi } = MOVING;
+  const dx = constrain(x - MOVING.x, -lo[0], 1 - hi[0]), dy = constrain(y - MOVING.y, -lo[1], 1 - hi[1]);
+  m.path = MOVING.orig.map((s) => s.map((p) => [round4(p[0] + dx), round4(p[1] + dy), p[2]]));
+}
+
+function releaseMove() {
+  MOVING = null;
+  const m = SCORE.moments?.[MOVE_FROM];
+  if (!m) return;
+  for (const R of SCORE.layers) for (const L of R.clips) if (L.keysFrom === m.name) L.keys = pathKeys(m, L.keys?.[0]?.size ?? 0.12);
+  momentsChanged();
 }
 
 // The eraser's reach around the pointer, on the square.
@@ -3354,11 +3462,14 @@ function wireControls() {
     if (e.metaKey || e.ctrlKey || e.altKey || e.target.matches('input[type="text"], input[type="number"], textarea')) return;
     if (e.key === " ") { e.preventDefault(); togglePlay(); return; }
     if (e.key.startsWith("Arrow") && e.target.matches("input, select")) return; // sliders keep their arrow keys
-    const bar = Math.floor(Math.max(0, msToBeats(SCORE, songNow())) / SCORE.beatsPerBar) + 1;
     const section = SCORE.sections[Number(e.key) - 1];
-    if (e.key === "ArrowLeft") seekBar(bar - 1);
-    else if (e.key === "ArrowRight") seekBar(bar + 1);
+    if (e.key === "ArrowLeft") seekBar(barNow() - 1);
+    else if (e.key === "ArrowRight") seekBar(barNow() + 1);
     else if (e.key === "0" || e.key === "Home") run(() => source.seek(0)); // back to the start
+    else if (e.key === "l" || e.key === "L") toggleLoop();
+    else if (e.key === "=" || e.key === "+") zoomTimeline(2);
+    else if (e.key === "-" || e.key === "_") zoomTimeline(0.5);
+    else if (e.key === "\\") fitTimeline();
     else if (/^[1-9]$/.test(e.key) && section) seekBar(section.from);
     else if (e.key === "t" || e.key === "T") { if (!e.repeat) tapDownbeat(e); }
     else if (e.key === "[") nudgeGrid(-10);
