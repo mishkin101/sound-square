@@ -73,7 +73,7 @@ const SCORE = {
     // "eye panning" keeps her full tapped record (all ten taps, the felt beats
     // too), off the timeline but there to retap or mine later.
     { name: "eye moves", hits: [9.25, 13.28] },
-    { name: "eye panning", hits: [6.31, 6.99, 7.71, 8.81, 9.25, 10.31, 11.04, 11.76, 12.83, 13.28], hide: true, note: "the full tapped record; the quick pairs became eye moves" },
+    { name: "eye panning", hits: [6.31, 6.99, 7.71, 8.81, 9.25, 10.31, 11.04, 11.76, 12.83, 13.28], hide: true },
     { name: "Bongo drum Start", hits: [14.28] },
     // Moved to the song's start, its tapped spacing kept; it triggers the
     // background's pulse effect.
