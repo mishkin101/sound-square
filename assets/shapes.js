@@ -56,11 +56,17 @@ ELEMENTS.shape = {
     // a pulse on the shape itself: flash shows the shape only on the pulse
     // (its own look, fading out over the decay); tint keeps it showing and
     // washes it toward the pulse color on each hit
-    const found = P.fx?.find((f) => f.kind === "pulse" && f.slot === "shape");
-    const pw = found ? flashNow(found, s.B) : null;
-    const selfPulse = pw == null ? null : found; // outside its window it does nothing
+    // (a clip can wear several, each in its own window; the one in its window acts)
+    let selfPulse = null, pw = 0;
+    for (const f of P.fx ?? []) {
+      if (f.kind !== "pulse" || f.slot !== "shape") continue;
+      const w = flashNow(f, s.B);
+      if (w != null) { selfPulse = f; pw = w; break; }
+    }
     const flashing = !!selfPulse && (selfPulse.mode ?? "flash") === "flash";
-    if (flashing && pw <= 0.001) return;
+    const shapeAlpha = flashing ? pw : 1;
+    const rings = P.fx?.filter((f) => f.kind === "ripple").flatMap((f) => ripplesNow(f, s.B)) ?? [];
+    if (shapeAlpha <= 0.001 && !rings.length) return;
     P.spots.forEach(([x, y, size, flip = 1, deg = 0, skew = 0], i) => {
       if (step && i > shown) return; // take turns: spot i waits for the i-th hit
       const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
@@ -76,7 +82,7 @@ ELEMENTS.shape = {
         else ox += o.v * dir;
       }
       push();
-      drawingContext.globalAlpha *= fadeIn * (flashing ? pw : 1);
+      drawingContext.globalAlpha *= fadeIn;
       translate(x + fx.dx + ox, y + fx.dy + oy);
       if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
       if (skew) shearX((-skew * Math.PI) / 180);
@@ -86,12 +92,18 @@ ELEMENTS.shape = {
         scale(1, kf);
         translate(0, -reach.anchor[i]);
       }
-      if (paint) paintShape(sh, s, paint, i);
-      else drawShape(sh, s.col, drawingContext, frame);
-      if (selfPulse && !flashing && pw > 0.001) {
-        drawingContext.globalAlpha *= pw;
-        paintShape(sh, s, { style: "solid", color: selfPulse.to ?? "#ffffff" }, i);
+      const a0 = drawingContext.globalAlpha;
+      if (shapeAlpha > 0.001) {
+        drawingContext.globalAlpha = a0 * shapeAlpha;
+        if (paint) paintShape(sh, s, paint, i);
+        else drawShape(sh, s.col, drawingContext, frame);
+        if (selfPulse && !flashing && pw > 0.001) {
+          drawingContext.globalAlpha *= pw;
+          paintShape(sh, s, { style: "solid", color: selfPulse.to ?? "#ffffff" }, i);
+        }
       }
+      drawingContext.globalAlpha = a0;
+      for (const r of rings) drawRing(sh, s, r, size * P.size * fx.k * wv);
       pop();
     });
   },
@@ -192,6 +204,40 @@ function flashNow(f, B) {
   for (const x of momentHits(SCORE, f.on)) if (x >= win[0] && x <= B && (h == null || x > h)) h = x;
   const ph = h == null ? 1 : (B - h) / (f.beats || 1);
   return ph >= 1 ? 0 : smoothstep(1 - ph) * (f.amount ?? 0.35);
+}
+
+// The ripple effect: on each hit of its trigger a ring leaves the shape's rim
+// and travels `distance` out (square units) over `beats`, fading as it goes;
+// width is the ring's thickness, color a palette slot or a hex. Rings from
+// hits close together overlap. Only inside its window (from / until).
+function ripplesNow(f, B) {
+  const win = fxWindow(SCORE, f.from, f.until), life = f.beats || 1;
+  if (!win || !f.on || B < win[0] || B >= win[1]) return [];
+  const out = [];
+  for (const h of momentHits(SCORE, f.on)) {
+    if (h < win[0] || h > B || B - h >= life) continue;
+    out.push({ t: (B - h) / life, f });
+  }
+  return out;
+}
+
+// One ring, drawn in the spot's own frame (scale: the spot's size, so the
+// distance and width stay in square units). It eases out as it travels.
+function drawRing(sh, s, r, scale, ctx = drawingContext) {
+  const f = r.f, b = sh.moves.box, half = (Math.max(b.x1 - b.x0, b.y1 - b.y0) / 2) * sh.k;
+  const ease = 1 - (1 - r.t) * (1 - r.t);
+  const grow = 1 + ((f.distance ?? 0.12) * ease) / (scale * half);
+  const c = f.color ?? "#000000", col = c.startsWith("#") ? c : slotColor(c, s.col);
+  ctx.save();
+  ctx.globalAlpha *= (1 - r.t) * (f.amount ?? 1);
+  ctx.scale(grow, grow);
+  ctx.scale(sh.k, sh.k);
+  ctx.translate(-sh.cx, -sh.cy);
+  ctx.strokeStyle = col;
+  ctx.lineWidth = (f.width ?? 0.012) / (scale * grow * sh.k);
+  ctx.lineJoin = "miter";
+  for (const it of sh.items) ctx.stroke(it.path);
+  ctx.restore();
 }
 
 // The follow effect: a property (height or size) set by the song's pitch or

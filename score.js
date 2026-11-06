@@ -72,6 +72,7 @@ const SCORE = {
       hits: [12.38, 12.92, 13.49, 14.04, 15.21, 15.76, 16.32, 16.88, 17.43, 17.98],
     },
     { name: "tick", hits: [36.03] },
+    { name: "heavy kick", hits: [43.89] },
   ],
   // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
   // A clip: el is a coded shape from assets/elements.js; shape is a drawing,
@@ -101,6 +102,11 @@ const SCORE = {
   // it only on each hit (its own look, fading out over `beats`), "tint" keeps
   // it showing and washes it toward the pulse color on each hit. A pulse runs
   // between from and until (a bar, included, or a moment); outside, nothing.
+  // A clip can wear several, in separate windows. A ripple effect sends a
+  // ring out from the shape's rim on each hit: { kind: "ripple", on: a
+  // moment, color: a palette slot or a hex, distance: how far it travels,
+  // width: its thickness (both in square units), beats: how long it lives,
+  // amount: its opacity }, between from and until.
   // A follow effect sets a property
   // from the song: { kind: "follow", source: "pitch" | "loudness", target:
   // "height" | "size", mapping: "relative" (lowest hit to min, highest to max)
@@ -181,9 +187,11 @@ const SCORE = {
       // piece pulses with the background: a flash on each "Pulse" hit, fading
       // out over 3 beats. The black squares: the right from "Bongo drums", the
       // left from the next pulse (bar 9), in step with it. The middle two
-      // flash the gradient on the pulse after (bar 10). On bar 11 everything
-      // appears at once and stays: the black squares, the middle two, and the
-      // whole square as the chromatic gradient — no more white pulses.
+      // flash the gradient on the pulse after (bar 10). On bar 11 the black
+      // squares and the whole square as the chromatic gradient appear at once
+      // and hold — no more white pulses. From the heavy kick's bar (12) the
+      // black squares flash on every pulse again, a ring leaving their rims
+      // each time, and the middle two come back flashing with them.
       name: "squares",
       clips: [
         {
@@ -191,7 +199,7 @@ const SCORE = {
           from: 11,
           to: 16,
           spots: [[0.5, 0.5, 0.5]],
-          fx: [{ kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 }],
+          fx: [{ kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 1.1 }],
         },
         {
           shape: "square",
@@ -202,16 +210,28 @@ const SCORE = {
             { kind: "fill", on: "Pulse" },
             { kind: "paint", style: "solid", color: "#000000" },
             { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3, until: 10 },
+            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3, from: 12 },
+            { kind: "ripple", on: "Pulse", from: 12, color: "#000000", distance: 0.12, width: 0.012, beats: 3, amount: 1 },
           ],
         },
         {
           shape: "square",
           from: 10,
+          to: 10,
+          spots: [[0.375, 0.875, 0.125], [0.625, 0.875, 0.125]],
+          fx: [
+            { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 1.25 },
+            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3, until: 10 },
+          ],
+        },
+        {
+          shape: "square",
+          from: 12,
           to: 16,
           spots: [[0.375, 0.875, 0.125], [0.625, 0.875, 0.125]],
           fx: [
-            { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 },
-            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3, until: 10 },
+            { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 1.25 },
+            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3 },
           ],
         },
       ],

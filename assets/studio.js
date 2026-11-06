@@ -875,7 +875,7 @@ function removeSpot(i) {
 
 function setKeyAtPlayhead() {
   const L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
-  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "pulse", "fill", "follow", "paint"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (hops, pulses, fills, follows and paints have no envelope)
+  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "pulse", "fill", "follow", "paint", "ripple"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (these have no envelope)
   if (!L?.shape) return;
   rememberScore();
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
@@ -2398,12 +2398,12 @@ function buildFxPanel(R, L) {
     const open = FX_OPEN === fi;
     const head = document.createElement("div");
     head.className = "fx-head" + (open ? " on" : "");
-    const meta = f.kind === "hop" || f.kind === "pulse" ? (f.on ?? "pick a moment")
+    const meta = f.kind === "hop" || f.kind === "pulse" || f.kind === "ripple" ? (f.on ?? "pick a moment")
       : f.kind === "fill" ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}`
       : f.kind === "follow" ? `${f.source ?? "pitch"} → ${f.target ?? "height"}`
       : f.kind === "paint" ? `${f.style ?? "gradient"} · ${f.color ?? "ground"}`
       : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`;
-    const metaTitle = f.kind === "hop" || f.kind === "pulse" ? "its trigger"
+    const metaTitle = f.kind === "hop" || f.kind === "pulse" || f.kind === "ripple" ? "its trigger"
       : f.kind === "fill" ? "its step" : f.kind === "follow" ? "source → property" : f.kind === "paint" ? "style · color"
       : `${f.kind === "oscillate" ? "distance" : "intensity"} now${f.keys?.length ? " (keyed)" : ""}`;
     head.innerHTML = `<span class="caret dimmed">${open ? "▾" : "▸"}</span><span class="kind">${f.kind}</span>` +
@@ -2451,7 +2451,7 @@ function buildFxPanel(R, L) {
 // What a clip can wear: drawn shapes move and turn; the background (and other
 // coded elements) pulse their color.
 function fxKinds(L) {
-  return L.shape ? ["spin", "breathe", "wobble", "oscillate", "hop", "fill", "follow", "paint", "pulse"] : ["pulse"];
+  return L.shape ? ["spin", "breathe", "wobble", "oscillate", "hop", "fill", "follow", "paint", "pulse", "ripple"] : ["pulse"];
 }
 
 // The open effect's controls, under its header row.
@@ -2519,31 +2519,22 @@ function appendFxControls(card, f, L) {
     // the shape's own color in place of the palette's: solid, or a soft
     // gradient around it (spread: the hue range; drift: turns per bar)
     card.append(menuRow(f, "style", "style", [["gradient", "gradient"], ["solid", "solid"]], "gradient"));
-    const cur = f.color ?? "ground", custom = cur.startsWith("#");
-    const colorRow = document.createElement("label");
-    colorRow.className = "param";
-    colorRow.innerHTML = `<span>color</span><span></span><span class="paint-pick"><select class="input"></select>` +
-      `<input type="color" class="input fx-color" title="Pick the color"${custom ? "" : " hidden"} value="${custom ? cur : "#ff8a00"}"></span>`;
-    const sel = colorRow.querySelector("select"), pick = colorRow.querySelector("input");
-    sel.innerHTML = [...PAINT_SLOTS, "custom"].map((v) => `<option value="${v}"${(custom ? "custom" : cur) === v ? " selected" : ""}>${v}</option>`).join("");
-    sel.addEventListener("change", () => {
-      rememberScore();
-      if (sel.value === "custom") f.color = pick.value;
-      else if (sel.value === "ground") delete f.color;
-      else f.color = sel.value;
-      sel.blur();
-      buildLayerDetail();
-    });
-    pick.addEventListener("change", () => {
-      rememberScore();
-      f.color = pick.value;
-      buildLayerDetail();
-    });
-    card.append(colorRow);
+    card.append(colorPickRow(f, "ground"));
     if ((f.style ?? "gradient") === "gradient") {
       card.append(fxSlider(f, "spread", 0, 90, 1, 20, "spread (degrees)"));
       card.append(fxSlider(f, "drift", 0, 2, 0.05, 0.25, "drift (turns per bar)"));
     }
+    return;
+  }
+  if (f.kind === "ripple") {
+    // a ring out from the rim on each trigger hit, fading as it travels
+    card.append(menuRow(f, "on", "trigger", [["", "pick a moment"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
+    card.append(colorPickRow(f, "#000000"));
+    card.append(fxSlider(f, "distance", 0.01, 0.5, 0.01, 0.12, "distance"));
+    card.append(fxSlider(f, "width", 0.002, 0.05, 0.002, 0.012, "width"));
+    card.append(fxSlider(f, "beats", 0.25, 8, 0.25, 1, "decay (beats)"));
+    card.append(fxSlider(f, "amount", 0, 1, 0.05, 1, "intensity"));
+    card.append(whenRow(f, "from", "from", "until"), whenRow(f, "until", "until", "until"));
     return;
   }
   if (f.kind === "oscillate") {
@@ -2631,6 +2622,31 @@ function fxAmountSlider(f, label = "intensity", max = 1, step = 0.05) {
   slider.addEventListener("change", () => {
     SLIDING = false;
     if (f.keys?.length) buildLayerDetail();
+  });
+  return row;
+}
+
+// An effect's color: a palette slot (it follows the palette), or custom.
+function colorPickRow(f, def) {
+  const cur = f.color ?? def, custom = cur.startsWith("#");
+  const row = document.createElement("label");
+  row.className = "param";
+  row.innerHTML = `<span>color</span><span></span><span class="paint-pick"><select class="input"></select>` +
+    `<input type="color" class="input fx-color" title="Pick the color"${custom ? "" : " hidden"} value="${custom ? cur : "#ff8a00"}"></span>`;
+  const sel = row.querySelector("select"), pick = row.querySelector("input");
+  sel.innerHTML = [...PAINT_SLOTS, "custom"].map((v) => `<option value="${v}"${(custom ? "custom" : cur) === v ? " selected" : ""}>${v}</option>`).join("");
+  sel.addEventListener("change", () => {
+    rememberScore();
+    if (sel.value === "custom") f.color = pick.value;
+    else if (sel.value === def) delete f.color;
+    else f.color = sel.value;
+    sel.blur();
+    buildLayerDetail();
+  });
+  pick.addEventListener("change", () => {
+    rememberScore();
+    f.color = pick.value;
+    buildLayerDetail();
   });
   return row;
 }
