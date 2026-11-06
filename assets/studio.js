@@ -1616,7 +1616,10 @@ function moRhythm(m) {
   const lo = from - 0.25, hi = to + 0.25;
   const W = 236, H = 34, X = (B) => round2(((B - lo) / (hi - lo)) * W);
   let s = "";
-  for (let g = from; g <= to; g += wide ? bpb : 0.5) {
+  // the strip's gridlines follow the quantize division: the grid you snap to
+  // is the grid you see, as fine as needed, independent of the tempo
+  const div = Math.max(0.125, storeGet("soundsquare.quant") ?? 0.25);
+  for (let g = round2(from); g <= to; g = round2(g + (wide ? bpb : div))) {
     const onBeat = Number.isInteger(g), down = onBeat && g % bpb === 0;
     if (!onBeat) { s += `<line x1="${X(g)}" y1="14" x2="${X(g)}" y2="19" stroke="var(--rule)" stroke-width="0.75"/>`; continue; }
     s += `<line x1="${X(g)}" y1="${down ? 7 : 10}" x2="${X(g)}" y2="23" stroke="var(--${down ? "mid" : "rule"})"/>`;

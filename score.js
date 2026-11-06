@@ -1,5 +1,5 @@
 // sound-square score: what the square does, bar by bar.
-// Bar 1 is the first downbeat. Inside a bar, beats count from 0 (the downbeat) to 7.
+// Bar 1 is the first downbeat. Inside a bar, beats count from 0 (the downbeat) to 3.
 // Edit by hand, or tune with the studio's sliders and use "Copy score.js".
 
 const SCORE = {
@@ -10,8 +10,8 @@ const SCORE = {
     spotifyId: "0KJKIGebZqDyMoxI2NMpL0",
   },
   // Timing grid: a placeholder until we tap along to the real song.
-  bpm: 252,
-  beatsPerBar: 8,
+  bpm: 126,
+  beatsPerBar: 4,
   firstDownbeatMs: 1615,
   bars: 216,
   // Energy from 0 to 1 at chosen bars; bars in between blend smoothly.
@@ -19,9 +19,9 @@ const SCORE = {
   // What happens in the music. A pattern lists beats inside one bar and repeats
   // for every bar in `bars`. Holds are [bar, beat, length in beats].
   tracks: {
-    claps: { bars: [9, 40], pattern: [2, 6] },
-    bongos: { bars: [9, 40], pattern: [1, 1.5, 3, 4.5, 5, 7, 7.5] },
-    keys: { holds: [[41, 0, 12], [42, 6, 4], [43, 4, 14], [45, 4, 6], [46, 4, 12], [48, 0, 6]] },
+    claps: { bars: [9, 40], pattern: [1, 3] },
+    bongos: { bars: [9, 40], pattern: [0.5, 0.75, 1.5, 2.25, 2.5, 3.5, 3.75] },
+    keys: { holds: [[41, 0, 6], [42, 3, 2], [43, 2, 7], [45, 2, 3], [46, 2, 6], [48, 0, 3]] },
   },
   // Palettes share the same slots, so any two can blend.
   palettes: {
@@ -64,14 +64,14 @@ const SCORE = {
   moments: [
     {
       name: "eye panning",
-      hits: [8.3, 10.12, 11.56, 13.76, 14.64, 16.76, 18.22, 19.66, 21.8, 22.7],
-      repeat: { every: 16, times: 3 },
+      hits: [4.15, 5.06, 5.78, 6.88, 7.32, 8.38, 9.11, 9.83, 10.9, 11.35],
+      repeat: { every: 8, times: 3 },
     },
-    { name: "Pulse", hits: [0.1], repeat: { every: 8, times: 610 } },
-    { name: "Bongo drums", hits: [56.22] },
+    { name: "Pulse", hits: [0.05], repeat: { every: 4, times: 610 } },
+    { name: "Bongo drums", hits: [28.11] },
     {
       name: "bongo drum start",
-      hits: [24.76, 25.84, 26.98, 28.08, 30.42, 31.52, 32.64, 33.76, 34.86, 35.96],
+      hits: [12.38, 12.92, 13.49, 14.04, 15.21, 15.76, 16.32, 16.88, 17.43, 17.98],
     },
   ],
   // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
@@ -104,7 +104,7 @@ const SCORE = {
           from: 1,
           to: 216,
           spots: [[0.5, 0.5, 0.5]],
-          fx: [{ kind: "pulse", on: "Pulse", to: "#ffffff", amount: 0.9, beats: 6 }],
+          fx: [{ kind: "pulse", on: "Pulse", to: "#ffffff", amount: 0.9, beats: 3 }],
         },
       ],
     },
@@ -139,7 +139,7 @@ const SCORE = {
           from: 1,
           to: 8,
           out: "fade",
-          outBeats: 4,
+          outBeats: 2,
           spots: [[0.11, 0.11, 0.055], [0.89, 0.11, 0.055, -1]],
           fx: [{ kind: "hop", on: "eye panning" }],
         },
