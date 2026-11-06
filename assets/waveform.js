@@ -77,10 +77,11 @@ const Waveform = {
 
   async record(key, deviceId, posFrac, keyNow, durMs) {
     this.stopRecording();
-    let stream = await navigator.mediaDevices.getUserMedia({
-      audio: deviceId ? { deviceId: { exact: deviceId } } : true,
-      video: false,
+    const audio = (dev) => ({
+      deviceId: dev ? { exact: dev } : undefined,
+      echoCancellation: false, noiseSuppression: false, autoGainControl: false,
     });
+    let stream = await navigator.mediaDevices.getUserMedia({ audio: audio(deviceId) });
     // no device asked for: prefer BlackHole (the song's loopback) over the mic
     if (!deviceId) {
       const inputs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
@@ -88,15 +89,11 @@ const Waveform = {
       const current = stream.getAudioTracks()[0]?.getSettings().deviceId;
       if (hole && hole.deviceId !== current) {
         stream.getTracks().forEach((t) => t.stop());
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: hole.deviceId } }, video: false });
+        stream = await navigator.mediaDevices.getUserMedia({ audio: audio(hole.deviceId) });
       }
     }
     const ctx = new AudioContext();
     await ctx.resume();
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 2048;
-    ctx.createMediaStreamSource(stream).connect(analyser);
-    const buf = new Float32Array(analyser.fftSize);
     const kept = this.stored()[key];
     const base = (Array.isArray(kept) ? kept : kept?.v) ?? new Array(this.N).fill(0);
     const rec = (this.rec = {
@@ -105,14 +102,23 @@ const Waveform = {
       device: stream.getAudioTracks()[0]?.label || "default input",
     });
     rec.merge = () => rec.base.map((b, i) => Math.max(b, rec.raw[i] / rec.top));
-    rec.timer = setInterval(() => {
+    // The capture rides the audio clock, not a timer: a background tab's
+    // timers crawl, but audio blocks keep coming, so the whole song records.
+    const node = ctx.createScriptProcessor(2048, 1, 1);
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    ctx.createMediaStreamSource(stream).connect(node);
+    node.connect(mute).connect(ctx.destination); // keeps the audio thread pulling, silently
+    rec.node = node;
+    node.onaudioprocess = (e) => {
+      if (this.rec !== rec) return;
       const now = keyNow();
       if (now && now !== key) return this.stopRecording(); // a different song took over
       const frac = posFrac();
       if (frac == null) return;
-      analyser.getFloatTimeDomainData(buf);
+      const ch = e.inputBuffer.getChannelData(0);
       let sum = 0, n = 0;
-      for (let s = 0; s < buf.length; s += 4) { sum += buf[s] * buf[s]; n++; }
+      for (let s = 0; s < ch.length; s += 4) { sum += ch[s] * ch[s]; n++; }
       const v = Math.sqrt(sum / n);
       rec.level = v;
       rec.top = Math.max(rec.top, v);
@@ -121,18 +127,17 @@ const Waveform = {
       this.data = rec.merge(); // drawn as it fills
       if (performance.now() - rec.savedAt > 3000) {
         rec.savedAt = performance.now();
-        const { rec: r } = this;
         this.keep(key, rec.merge(), durMs());
-        this.rec = r; // keep() reloads from the store; the recording carries on
+        this.rec = rec; // keep() reloads from the store; the recording carries on
         this.data = rec.merge();
       }
-    }, 100);
+    };
   },
 
   stopRecording() {
     const r = this.rec;
     if (!r) return;
-    clearInterval(r.timer);
+    if (r.node) { r.node.onaudioprocess = null; r.node.disconnect(); }
     r.stream.getTracks().forEach((t) => t.stop());
     r.ctx.close();
     this.rec = null;
