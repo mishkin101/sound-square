@@ -182,15 +182,12 @@ const SCORE = {
       ],
     },
     {
-      // A bar of four squares across the bottom of the square, built one step
-      // per background pulse (the pulses fall on the bars). Until bar 11 every
-      // piece pulses with the background: a flash on each "Pulse" hit, fading
-      // out over 3 beats. The black squares: the right from "Bongo drums", the
-      // left from the next pulse (bar 9), in step with it. The middle two
-      // flash the gradient on the pulse after (bar 10). On bar 11 the black
-      // squares and the whole square as the chromatic gradient appear at once
-      // and hold — no more white pulses — until the heavy kick, where the
-      // "heavy kick" layer takes over the bar.
+      // A bar of four squares across the bottom of the square, built on the
+      // background's pulses (they fall on the bars). The black squares flash
+      // on each "Pulse" hit from bar 8 through bar 11, fading out over 3 beats;
+      // the middle two flash the gradient on bar 10. From bar 11 the whole
+      // square is the chromatic gradient; at the heavy kick the "heavy kick"
+      // layer takes over the black squares.
       name: "squares",
       clips: [
         {
@@ -202,13 +199,13 @@ const SCORE = {
         },
         {
           shape: "square",
-          from: "Bongo drums",
-          to: "heavy kick",
+          from: 8,
+          to: 11,
           spots: [[0.875, 0.875, 0.125], [0.125, 0.875, 0.125]],
           fx: [
             { kind: "fill", on: "Pulse" },
             { kind: "paint", style: "solid", color: "#000000" },
-            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3, until: 10 },
+            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3 },
           ],
         },
         {
@@ -224,10 +221,9 @@ const SCORE = {
       ],
     },
     {
-      // From the heavy kick, the same bar in its own layer: the black squares
-      // stay and pulse by size, swelling on every pulse from bar 12 and
-      // settling (breathe), each swell throwing a very quick ripple off their
-      // rim; the middle two flash the gradient on every pulse.
+      // From the heavy kick, the black squares in their own layer: they stay
+      // and pulse by size, swelling on every pulse from bar 12 and settling
+      // (breathe), each swell throwing a very quick ripple off their rim.
       name: "heavy kick",
       clips: [
         {
@@ -237,18 +233,8 @@ const SCORE = {
           spots: [[0.875, 0.875, 0.125], [0.125, 0.875, 0.125]],
           fx: [
             { kind: "paint", style: "solid", color: "#000000" },
-            { kind: "breathe", amount: 0.5, rate: 4, from: 12 },
+            { kind: "breathe", amount: 1, rate: 4, from: 12 },
             { kind: "ripple", on: "Pulse", from: 12, color: "#000000", distance: 0.04, width: 0.02, beats: 0.5, amount: 1 },
-          ],
-        },
-        {
-          shape: "square",
-          from: 12,
-          to: 16,
-          spots: [[0.375, 0.875, 0.125], [0.625, 0.875, 0.125]],
-          fx: [
-            { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 1.25 },
-            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3 },
           ],
         },
       ],

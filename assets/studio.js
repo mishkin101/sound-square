@@ -2249,31 +2249,15 @@ function buildLayerDetail() {
         `${k.fade != null && k.fade !== 1 ? ` · fade ${round2(k.fade)} (0 is invisible)` : ""}` +
         `${k.flip === -1 ? " · mirrored" : ""}${k.deg ? ` · turned ${k.deg}°` : ""}`;
       row.innerHTML = `<span class="dimmed">${i + 1}</span>` +
-        `<select class="input at" title="When this key lands: a moment (it re-syncs with it), or its bar"></select>` +
         `<span class="dimmed" title="${full}">${Math.round(k.x * 100)}, ${Math.round(k.y * 100)}</span>` +
         `<button class="mini" data-a="go" title="Play from this key">→</button>` +
         `<button class="mini" data-a="del" title="Remove">×</button>`;
-      // the key's when: a moment attaches it (shown in the moment's color)
-      const at = row.querySelector(".at"), mi = typeof k.at === "string" ? momentIndex(k.at) : -1;
-      at.innerHTML = `<option value="#bar"${mi < 0 ? " selected" : ""}>${mi < 0 ? k.at : "its bar"}</option>` +
-        (SCORE.moments || []).map((m) => `<option${k.at === m.name ? " selected" : ""}>${m.name}</option>`).join("");
-      if (mi >= 0) {
-        at.style.borderColor = momentColor(mi);
-        at.style.color = momentColor(mi);
-      }
-      at.addEventListener("change", () => {
-        rememberScore();
-        if (at.value === "#bar") {
-          const B = keyBeat(SCORE, k.at), bar = Math.floor(B / SCORE.beatsPerBar) + 1;
-          k.at = `${bar}:${round2(B - (bar - 1) * SCORE.beatsPerBar + 1)}`;
-        } else k.at = at.value;
-        L.keys.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at));
-        at.blur();
-        buildLayers();
-      });
+      // the key's when: a moment attaches it (shown in the moment's color), or any bar:beat
+      const pick = keyAtPick(k, L.keys, buildLayers);
+      row.children[0].after(pick);
       row.addEventListener("click", (e) => {
         const a = e.target.dataset.a;
-        if (e.target === at) return;
+        if (pick.contains(e.target)) return;
         e.target.blur?.();
         if (a === "go") run(() => source.seek(beatsToMs(SCORE, keyBeat(SCORE, k.at))));
         else if (a === "del") {
@@ -2560,27 +2544,14 @@ function appendFxControls(card, f, L) {
       const row = document.createElement("div");
       row.className = "key-row";
       row.innerHTML = `<span class="dimmed">${ki + 1}</span>` +
-        `<select class="input at" title="When: a moment (it re-syncs with it), or its bar"></select>` +
         `<span class="dimmed" title="amount ${k.amount ?? 0} (0 is off)">${round2(k.amount ?? 0)}</span>` +
         `<button class="mini" data-a="go" title="Play from this key">→</button>` +
         `<button class="mini" data-a="del" title="Remove">×</button>`;
-      const at = row.querySelector(".at"), kmi = typeof k.at === "string" ? momentIndex(k.at) : -1;
-      at.innerHTML = `<option value="#bar"${kmi < 0 ? " selected" : ""}>${kmi < 0 ? k.at : "its bar"}</option>` +
-        (SCORE.moments || []).map((m) => `<option${k.at === m.name ? " selected" : ""}>${m.name}</option>`).join("");
-      if (kmi >= 0) { at.style.borderColor = momentColor(kmi); at.style.color = momentColor(kmi); }
-      at.addEventListener("change", () => {
-        rememberScore();
-        if (at.value === "#bar") {
-          const B = keyBeat(SCORE, k.at), bar = Math.floor(B / SCORE.beatsPerBar) + 1;
-          k.at = `${bar}:${round2(B - (bar - 1) * SCORE.beatsPerBar + 1)}`;
-        } else k.at = at.value;
-        f.keys.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at));
-        at.blur();
-        buildLayerDetail();
-      });
+      const pick = keyAtPick(k, f.keys, buildLayerDetail);
+      row.children[0].after(pick);
       row.addEventListener("click", (e) => {
         const a = e.target.dataset.a;
-        if (e.target === at) return;
+        if (pick.contains(e.target)) return;
         e.target.blur?.();
         if (a === "go") run(() => source.seek(beatsToMs(SCORE, keyBeat(SCORE, k.at))));
         else if (a === "del") {
@@ -2624,6 +2595,41 @@ function fxAmountSlider(f, label = "intensity", max = 1, step = 0.05) {
     if (f.keys?.length) buildLayerDetail();
   });
   return row;
+}
+
+// A key's when: a moment (it re-syncs with it) or any bar:beat, typed —
+// "5" is bar 5's downbeat, "5:2.5" halfway through its second beat.
+function keyAtPick(k, list, rebuild) {
+  const wrap = document.createElement("span");
+  wrap.className = "when-pick";
+  const mi = typeof k.at === "string" ? momentIndex(k.at) : -1;
+  const onBar = mi < 0;
+  const barText = () => {
+    const B = keyBeat(SCORE, k.at), bar = Math.floor(B / SCORE.beatsPerBar) + 1;
+    return `${bar}:${round2(B - (bar - 1) * SCORE.beatsPerBar + 1)}`;
+  };
+  wrap.innerHTML = `<select class="input at" title="When: a moment, or a bar"></select>` +
+    `<input type="text" class="input key-bar" spellcheck="false" title="bar:beat"${onBar ? "" : " hidden"} value="${onBar ? barText() : ""}">`;
+  const at = wrap.querySelector("select"), txt = wrap.querySelector("input");
+  at.innerHTML = `<option value="#bar"${onBar ? " selected" : ""}>bar</option>` +
+    (SCORE.moments || []).map((m) => `<option${k.at === m.name ? " selected" : ""}>${m.name}</option>`).join("");
+  if (!onBar) { at.style.borderColor = momentColor(mi); at.style.color = momentColor(mi); }
+  const settle = () => { list.sort((a, b) => keyBeat(SCORE, a.at) - keyBeat(SCORE, b.at)); rebuild(); };
+  at.addEventListener("change", () => {
+    rememberScore();
+    k.at = at.value === "#bar" ? barText() : at.value;
+    at.blur();
+    settle();
+  });
+  txt.addEventListener("change", () => {
+    const m = /^\s*(\d+)(?::(\d+(?:\.\d+)?))?\s*$/.exec(txt.value);
+    const bar = m && Number(m[1]), beat = m && (m[2] == null ? 1 : Number(m[2]));
+    if (!m || bar < 1 || bar > SCORE.bars || beat < 1 || beat >= SCORE.beatsPerBar + 1) return rebuild();
+    rememberScore();
+    k.at = `${bar}:${round2(beat)}`;
+    settle();
+  });
+  return wrap;
 }
 
 // An effect's color: a palette slot (it follows the palette), or custom.
@@ -2763,11 +2769,11 @@ function momentRow(L) {
 function whenRow(L, key, label, endKey = "to") {
   const row = document.createElement("label");
   row.className = "param";
-  row.innerHTML = `<span>${label}</span><span></span><select class="input"></select>`;
-  const sel = row.querySelector("select");
-  const bar = typeof L[key] === "number"
-    ? L[key]
-    : Math.max(1, Math.floor((momentStart(SCORE, L[key]) ?? 0) / SCORE.beatsPerBar) + 1);
+  row.innerHTML = `<span>${label}</span><span></span><span class="when-pick"><select class="input"></select>` +
+    `<input type="number" class="input when-bar" min="1" max="${SCORE.bars}" step="1" title="Bar"></span>`;
+  const sel = row.querySelector("select"), num = row.querySelector("input");
+  const onBar = typeof L[key] === "number";
+  const bar = onBar ? L[key] : Math.max(1, Math.floor((momentStart(SCORE, L[key]) ?? 0) / SCORE.beatsPerBar) + 1);
   // "during <hold>" on the from row anchors both ends to the hold at once
   const duringSel = (m) => key === "from" && m.hold && L.from === m.name && L[endKey] === m.name;
   const during = key === "from"
@@ -2775,15 +2781,25 @@ function whenRow(L, key, label, endKey = "to") {
         .map((m) => `<option value="d:${m.name}"${duringSel(m) ? " selected" : ""}>during ${m.name}</option>`).join("")
     : "";
   sel.innerHTML = `<option value="#none"${L[key] == null ? " selected" : ""}>${key === "from" ? "the start" : "the end"}</option>` +
-    `<option value="#bar"${typeof L[key] === "number" ? " selected" : ""}>bar ${bar}</option>` +
+    `<option value="#bar"${onBar ? " selected" : ""}>bar</option>` +
     (SCORE.moments || []).map((m) => `<option value="m:${m.name}"${L[key] === m.name && !duringSel(m) ? " selected" : ""}>${m.name}</option>`).join("") +
     during;
+  num.value = bar;
+  num.hidden = !onBar;
   sel.addEventListener("change", () => {
     rememberScore();
     if (sel.value === "#none") delete L[key];
     else if (sel.value.startsWith("d:")) L.from = L[endKey] = sel.value.slice(2);
     else L[key] = sel.value === "#bar" ? bar : sel.value.slice(2);
     sel.blur();
+    buildLayers();
+  });
+  // any bar of the song, typed
+  num.addEventListener("change", () => {
+    const v = Math.round(parseFloat(num.value));
+    if (!(v >= 1 && v <= SCORE.bars)) return buildLayers();
+    rememberScore();
+    L[key] = v;
     buildLayers();
   });
   return row;

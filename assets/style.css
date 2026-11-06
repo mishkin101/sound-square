@@ -488,6 +488,13 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
   font: var(--t-data); color: var(--bright); white-space: nowrap;
 }
 .key-row .at { height: 22px; padding: 0 2px; min-width: 0; }
+/* a when: its menu, with the bar (or bar:beat) typed beside it */
+.when-pick { display: flex; gap: 4px; align-items: center; min-width: 0; }
+.when-pick select { flex: 1; min-width: 0; }
+.when-pick .when-bar { width: 52px; flex: none; }
+.when-pick .key-bar { width: 64px; flex: none; height: 22px; padding: 0 4px; }
+.when-pick input[type="number"]::-webkit-outer-spin-button, .when-pick input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.when-pick input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .key-row > span { overflow: hidden; text-overflow: ellipsis; }
 .mini-sel {
   width: 26px; height: 20px; padding: 0; text-align: center;
