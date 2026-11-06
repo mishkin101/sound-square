@@ -51,6 +51,7 @@ function setup() {
   wireControls();
   wireSong(signingIn ? "spotify" : "standIn");
   wireListen();
+  wireMomentClose();
   setInterval(followSong, 1000);
   setInterval(keepWork, 2000);
   window.addEventListener("pagehide", keepWork);
@@ -1380,6 +1381,28 @@ function momentMeta(m) {
     : `${m.hits.length} hit${m.hits.length === 1 ? "" : "s"} · ${atWords(m.hits[0] ?? 0)}${rep}`;
 }
 
+// The card's × closes it, as does a click anywhere outside — except on the
+// timeline or while the pen or moment mode is on, since those edit with the
+// card open. Deleting a moment is the Delete key over its marker or name.
+function closeMomentCard() {
+  MO_OPEN = null;
+  DRAW_INTO = null;
+  PATH_PLAY = null;
+  renderMoments();
+}
+
+function wireMomentClose() {
+  document.addEventListener("pointerdown", (e) => {
+    if (MO_OPEN == null || e.target.closest(".mo-chip")) return;
+    if (e.target.tagName === "CANVAS") {
+      if (DRAW_INTO != null || MOMENT_MODE) return;
+      const tl = timelineHeight();
+      if (tl > 0 && e.offsetY >= height - tl) return;
+    }
+    closeMomentCard();
+  });
+}
+
 // Opening a moment brings the timeline to it: the view zooms to frame its
 // hits (repeats included) or its hold, with two bars of air on each side.
 function zoomToMoment(m) {
@@ -1423,7 +1446,7 @@ function moCard(m, mi) {
     `<div class="moment-row"><input class="input name" type="text" spellcheck="false" autocomplete="off">` +
     (m.path ? "" : penBtn) +
     `<button class="mini eye" title="${m.hide ? "Show its marker on the timeline" : "Hide its marker (it still anchors and triggers)"}">${m.hide ? EYE_OFF : EYE}</button>` +
-    `<button class="mini" data-del title="Remove the moment (what used it falls back to bars)">×</button></div>` +
+    `<button class="mini" data-close title="Close the card (delete the moment with the Delete key over its marker or name)">×</button></div>` +
     `<span class="data dimmed">${momentMeta(m)}</span>` +
     moRhythm(m) +
     `<input class="input note" type="text" spellcheck="false" autocomplete="off" placeholder="a note about what you heard">`;
@@ -1444,7 +1467,7 @@ function moCard(m, mi) {
     else m.hide = true;
     renderMoments();
   });
-  card.querySelector("[data-del]").addEventListener("click", () => deleteMoment(mi));
+  card.querySelector("[data-close]").addEventListener("click", closeMomentCard);
   if (!m.hold) card.append(moQuantizeRow(m), moRepeatRow(m));
   if (m.path) {
     // the ▶ and ✎ live inside the animation, top right
