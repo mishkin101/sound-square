@@ -81,7 +81,9 @@ const SCORE = {
   // "fade" or "clap". spotsMode: all (every spot), turns (one per hit of moveOn),
   // one (a single copy moves between spots, switching by jump, blink or slide;
   // moveBars caps the moving). A spot is [x, y, size]; add -1 to mirror it there,
-  // then degrees to turn it. hidden: true keeps a whole layer off the square.
+  // then degrees to turn it, then degrees to skew it (a parallelogram lean,
+  // + leans the top right, top and bottom kept level). hidden: true keeps a
+  // whole layer off the square.
   // keys: [{ at, x, y, size, deg, fade, flip }] ease the clip's place over time
   // (K in the studio); at is "bar:beat" or a moment's name; flip: -1 mirrors
   // from that key on; ease: "line" keeps the approach linear. Keys replace the
@@ -107,10 +109,11 @@ const SCORE = {
       ],
     },
     {
-      // Tilted strokes across the bottom third: one appears per hit of
-      // "bongo drum start" (left to right, in spot order), each sized by the
-      // wave's loudness at that hit. Tap the full drum pattern into the
-      // moment and every tap lands a line.
+      // Hollow bars in a 3x5 grid: one appears per hit of "bongo drum start",
+      // filling the top row rightward, the middle row back leftward, the
+      // bottom row rightward (the spot order IS the fill order). The lean is
+      // a skew, so tilted bars are parallelograms; each is sized by the
+      // wave's loudness at its hit.
       name: "bongos",
       clips: [
         {
@@ -121,9 +124,9 @@ const SCORE = {
           moveOn: "bongo drum start",
           sizeFrom: "wave",
           spots: [
-            [0.12, 0.82, 0.05, 1, -30], [0.2, 0.82, 0.05, 1, -30], [0.28, 0.82, 0.05, 1, -30],
-            [0.36, 0.82, 0.05, 1, -15], [0.44, 0.82, 0.05], [0.52, 0.82, 0.05], [0.6, 0.82, 0.05],
-            [0.68, 0.82, 0.05, 1, 15], [0.76, 0.82, 0.05, 1, 30], [0.84, 0.82, 0.05, 1, 30],
+            [0.15, 0.2, 0.07, 1, 0, -24], [0.325, 0.2, 0.07, 1, 0, -12], [0.5, 0.2, 0.07], [0.675, 0.2, 0.07, 1, 0, 12], [0.85, 0.2, 0.07, 1, 0, 24],
+            [0.85, 0.5, 0.07, 1, 0, 24], [0.675, 0.5, 0.07, 1, 0, 12], [0.5, 0.5, 0.07], [0.325, 0.5, 0.07, 1, 0, -12], [0.15, 0.5, 0.07, 1, 0, -24],
+            [0.15, 0.8, 0.07, 1, 0, -24], [0.325, 0.8, 0.07, 1, 0, -12], [0.5, 0.8, 0.07], [0.675, 0.8, 0.07, 1, 0, 12], [0.85, 0.8, 0.07, 1, 0, 24],
           ],
         },
       ],

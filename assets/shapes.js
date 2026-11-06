@@ -16,7 +16,9 @@
 // hit), or move one copy between spots on each hit (spotsMode, set in the
 // layer's box; the hits come from `moveOn`: a moment, beats, bars, claps or
 // bongos; `moveBars` caps the moving to the first few bars). A spot's fourth
-// value of -1 mirrors the drawing there; a fifth turns it that many degrees.
+// value of -1 mirrors the drawing there; a fifth turns it that many degrees;
+// a sixth skews it that many degrees (a parallelogram lean, + leans the top
+// to the right) with the top and bottom kept level.
 
 const SHAPES = {}; // name -> { status, error, items, parts, motions, moves, cx, cy, k, text }
 
@@ -41,7 +43,7 @@ ELEMENTS.shape = {
     if (mode === "one") return drawOneSpot(sh, P, s, st, step);
     const fx = fxNow(P, s, st);
     const waveBeats = P.sizeFrom === "wave" && step ? spotHitBeats(P, s, st) : null;
-    P.spots.forEach(([x, y, size, flip = 1, deg = 0], i) => {
+    P.spots.forEach(([x, y, size, flip = 1, deg = 0, skew = 0], i) => {
       if (step && i > step.n) return; // take turns: spot i waits for the i-th hit
       const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
       if (frame?.hidden) return;
@@ -49,6 +51,7 @@ ELEMENTS.shape = {
       push();
       translate(x + fx.dx, y + fx.dy);
       if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
+      if (skew) shearX((-skew * Math.PI) / 180);
       scale(flip * size * P.size * fx.k * wv, size * P.size * fx.k * wv);
       drawShape(sh, s.col, drawingContext, frame);
       pop();
@@ -182,7 +185,7 @@ function rnd01(k) { const x = Math.sin(k * 12.9898) * 43758.5453; return x - Mat
 function drawOneSpot(sh, P, s, st, step) {
   const spots = P.spots, i = spotIndex(P, spots.length, step.n), last = spotIndex(P, spots.length, step.n - 1);
   const how = P.switchBy ?? "jump", len = 0.35, since = s.B - step.at;
-  let [x, y, size, flip = 1, deg = 0] = spots[i], squash = 1;
+  let [x, y, size, flip = 1, deg = 0, skew = 0] = spots[i], squash = 1;
   if (step.n > 0 && since < len && how !== "jump") {
     const t = clamp01(since / len);
     if (how === "slide") {
@@ -191,7 +194,7 @@ function drawOneSpot(sh, P, s, st, step) {
       y = py + (y - py) * k;
       size = ps + (size - ps) * k;
     } else if (t < 0.5) { // blink: shut at the old spot...
-      [x, y, size, flip = 1, deg = 0] = spots[last];
+      [x, y, size, flip = 1, deg = 0, skew = 0] = spots[last];
       squash = Math.max(0.03, 1 - 2 * t);
     } else { // ...open at the new one
       squash = Math.max(0.03, 2 * t - 1);
@@ -203,6 +206,7 @@ function drawOneSpot(sh, P, s, st, step) {
   push();
   translate(x + fx.dx, y + fx.dy);
   if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
+  if (skew) shearX((-skew * Math.PI) / 180);
   scale(flip * size * P.size * fx.k, size * P.size * fx.k);
   if (squash !== 1) scale(1, squash);
   drawShape(sh, s.col, drawingContext, frame);
