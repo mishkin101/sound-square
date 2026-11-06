@@ -2383,7 +2383,8 @@ function buildFxPanel(R, L) {
     const open = FX_OPEN === fi;
     const head = document.createElement("div");
     head.className = "fx-head" + (open ? " on" : "");
-    const meta = f.kind === "hop" || f.kind === "pulse" || f.kind === "ripple" ? (f.on ?? "pick a moment")
+    const meta = f.kind === "ripple" && f.with === "breathe" ? "the breath"
+      : f.kind === "hop" || f.kind === "pulse" || f.kind === "ripple" ? (f.on ?? "pick a moment")
       : f.kind === "fill" ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}`
       : f.kind === "follow" ? `${f.source ?? "pitch"} → ${f.target ?? "height"}`
       : f.kind === "paint" ? `${f.style ?? "gradient"} · ${f.color ?? "ground"}`
@@ -2514,7 +2515,7 @@ function appendFxControls(card, f, L) {
   }
   if (f.kind === "ripple") {
     // a ring out from the rim on each trigger hit, fading as it travels
-    card.append(menuRow(f, "on", "trigger", [["", "pick a moment"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
+    card.append(rippleTriggerRow(f, L));
     card.append(colorPickRow(f, "#000000"));
     card.append(fxSlider(f, "distance", 0.01, 0.5, 0.01, 0.12, "distance"));
     card.append(fxSlider(f, "width", 0.002, 0.05, 0.002, 0.012, "width"));
@@ -2649,6 +2650,28 @@ function paintSpotsRow(f, L) {
     if (list.length) f.spots = list.sort((a, b) => a - b);
     else delete f.spots;
     buildLayerDetail();
+  });
+  return row;
+}
+
+// A ripple's trigger: every swell of the clip's breathe, or a moment's hits.
+function rippleTriggerRow(f, L) {
+  const row = document.createElement("label");
+  row.className = "param";
+  const breath = L.fx?.some((x) => x.kind === "breathe");
+  const cur = f.with === "breathe" ? "#breathe" : f.on ?? "";
+  row.innerHTML = `<span>trigger</span><span></span><select class="input"></select>`;
+  const sel = row.querySelector("select");
+  sel.innerHTML = [["", "pick one"], ...(breath || f.with ? [["#breathe", "the breath"]] : []), ...(SCORE.moments || []).map((m) => [m.name, m.name])]
+    .map(([v, t]) => `<option value="${v}"${v === cur ? " selected" : ""}>${t}</option>`).join("");
+  sel.addEventListener("change", () => {
+    rememberScore();
+    delete f.on;
+    delete f.with;
+    if (sel.value === "#breathe") f.with = "breathe";
+    else if (sel.value) f.on = sel.value;
+    sel.blur();
+    buildLayers();
   });
   return row;
 }

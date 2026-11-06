@@ -109,7 +109,8 @@ const SCORE = {
   // between from and until (a bar, included, or a moment); outside, nothing.
   // A clip can wear several, in separate windows. A ripple effect sends a
   // ring out from the shape's rim on each hit: { kind: "ripple", on: a
-  // moment, color: a palette slot or a hex, distance: how far it travels,
+  // moment, or with: "breathe" (every swell of the clip's breathe), color: a
+  // palette slot or a hex, distance: how far it travels,
   // width: its thickness (both in square units), beats: how long it lives,
   // amount: its opacity }, between from and until.
   // A follow effect sets a property
@@ -192,8 +193,8 @@ const SCORE = {
       // "Bongo drums" (its tapped sequence, played twice) one of the four,
       // picked at random and never the same twice running, flashes and fades
       // — black at the corners, the gradient in the middle. From bar 11 the
-      // whole square fades into the chromatic gradient over 8 beats; at the
-      // heavy kick the "heavy kick" layer takes over the black squares.
+      // whole square is the chromatic gradient, cut in at once; at the heavy
+      // kick the "heavy kick" layer takes over the black squares.
       name: "squares",
       clips: [
         {
@@ -201,10 +202,7 @@ const SCORE = {
           from: 11,
           to: 16,
           spots: [[0.5, 0.5, 0.5]],
-          fx: [
-            { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 1.1 },
-            { kind: "fill", fade: 8 },
-          ],
+          fx: [{ kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 1.1 }],
         },
         {
           shape: "square",
@@ -223,7 +221,8 @@ const SCORE = {
     {
       // From the heavy kick, the black squares in their own layer: they stay
       // and pulse by size, swelling on every pulse from bar 12 and settling
-      // (breathe), each swell throwing a very quick ripple off their rim.
+      // (breathe), each swell throwing a very quick ripple off their rim, in
+      // time with the breath.
       name: "heavy kick",
       clips: [
         {
@@ -234,7 +233,7 @@ const SCORE = {
           fx: [
             { kind: "paint", style: "solid", color: "#000000" },
             { kind: "breathe", amount: 1, rate: 1, from: 12 },
-            { kind: "ripple", on: "Pulse", from: 12, color: "#000000", distance: 0.04, width: 0.02, beats: 0.5, amount: 1 },
+            { kind: "ripple", with: "breathe", from: 12, color: "#000000", distance: 0.04, width: 0.02, beats: 0.5, amount: 1 },
           ],
         },
       ],
