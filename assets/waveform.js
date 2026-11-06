@@ -77,27 +77,44 @@ const Waveform = {
 
   async record(key, deviceId, posFrac, keyNow, durMs) {
     this.stopRecording();
-    const stream = await navigator.mediaDevices.getUserMedia({
+    let stream = await navigator.mediaDevices.getUserMedia({
       audio: deviceId ? { deviceId: { exact: deviceId } } : true,
       video: false,
     });
+    // no device asked for: prefer BlackHole (the song's loopback) over the mic
+    if (!deviceId) {
+      const inputs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+      const hole = inputs.find((d) => /blackhole/i.test(d.label));
+      const current = stream.getAudioTracks()[0]?.getSettings().deviceId;
+      if (hole && hole.deviceId !== current) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: hole.deviceId } }, video: false });
+      }
+    }
     const ctx = new AudioContext();
+    await ctx.resume();
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
     ctx.createMediaStreamSource(stream).connect(analyser);
     const buf = new Float32Array(analyser.fftSize);
     const kept = this.stored()[key];
     const base = (Array.isArray(kept) ? kept : kept?.v) ?? new Array(this.N).fill(0);
-    const rec = (this.rec = { key, stream, ctx, base, raw: new Array(this.N).fill(0), top: 0.004, savedAt: 0 });
+    const rec = (this.rec = {
+      key, stream, ctx, base,
+      raw: new Array(this.N).fill(0), top: 0.004, savedAt: 0, level: 0,
+      device: stream.getAudioTracks()[0]?.label || "default input",
+    });
     rec.merge = () => rec.base.map((b, i) => Math.max(b, rec.raw[i] / rec.top));
     rec.timer = setInterval(() => {
-      if (keyNow() !== key) return this.stopRecording();
+      const now = keyNow();
+      if (now && now !== key) return this.stopRecording(); // a different song took over
       const frac = posFrac();
       if (frac == null) return;
       analyser.getFloatTimeDomainData(buf);
       let sum = 0, n = 0;
       for (let s = 0; s < buf.length; s += 4) { sum += buf[s] * buf[s]; n++; }
       const v = Math.sqrt(sum / n);
+      rec.level = v;
       rec.top = Math.max(rec.top, v);
       const i = Math.max(0, Math.min(this.N - 1, Math.floor(frac * this.N)));
       rec.raw[i] = Math.max(rec.raw[i], v);

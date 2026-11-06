@@ -2972,8 +2972,9 @@ function toggleWave(shift) {
 // song plays — the way out when Spotify refuses its analysis. Explicit only.
 function toggleWaveRecord() {
   if (Waveform.rec) {
+    const heard = Waveform.rec.top > 0.004;
     Waveform.stopRecording();
-    setText("tap-status", "waveform kept");
+    setText("tap-status", heard ? "waveform kept" : "nothing heard — wrong input?");
     return;
   }
   const key = waveKey();
@@ -2986,15 +2987,22 @@ function toggleWaveRecord() {
     waveKey,
     () => source.durationMs,
   ).then(
-    () => setText("tap-status", "● recording"),
+    () => setText("tap-status", "●"),
     (e) => setText("tap-status", `can't record: ${e.message}`),
   );
 }
 
 // The ● button is always there: recording is the action, its title the
-// explanation. It burns red while recording.
+// explanation. It burns red while recording; its hover names the input, and
+// the status line meters what it hears — silence there means a wrong input.
+const METER = "▁▂▃▄▅▆▇";
 function updateWaveRec() {
-  $("wave-rec").classList.toggle("rec", !!Waveform.rec);
+  const b = $("wave-rec"), rec = Waveform.rec;
+  b.classList.toggle("rec", !!rec);
+  if (!rec) return;
+  b.title = `recording from ${rec.device} — click to stop`;
+  const bar = METER[Math.max(0, Math.min(6, Math.round((rec.level / rec.top) * 6)))];
+  setText("tap-status", `● ${bar}`);
 }
 
 function waveKey() { return songKey() ?? (SCORE.song?.spotifyId ? `spotify:${SCORE.song.spotifyId}` : null); }
