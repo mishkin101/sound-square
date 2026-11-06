@@ -222,7 +222,8 @@ function drawClapLines(B, s) {
 function timelineHeight() {
   if (document.body.classList.contains("bare")) return 0;
   const sec = SCORE.sections?.length ? 16 : 0; // the sections row, when there are any
-  return showLayerRows() ? 72 + sec + SCORE.layers.reduce((n, R) => n + layerRows(R), 0) * 13 : 68 + sec;
+  const base = showLayerRows() ? 72 + sec + SCORE.layers.reduce((n, R) => n + layerRows(R), 0) * 13 : 68 + sec;
+  return base + waveH(); // the wave strip is a fixed band; layers never squeeze it
 }
 
 // The timeline shows a layer as one strip (layer view), or opened: a header
@@ -322,6 +323,13 @@ function drawTimeline(B, top) {
       const picked = MOMENT_DRAG && MOMENT_DRAG.mi === mi;
       noStroke(); fill(picked ? "#ffffff" : momentColor(mi));
       rect(a, y + 7, Math.max(2, b - a), 7); // the name sits clear above the band
+      if (waveH()) { // the hold's span, washed over the wave strip
+        const c = color(momentColor(mi));
+        c.setAlpha(36);
+        fill(c);
+        rect(a, waveStripY(y - 34) + 1, Math.max(2, b - a), WAVE_H - 2);
+        fill(picked ? "#ffffff" : momentColor(mi));
+      }
       fill(140); text(m.name, a + 3, y - 4);
       if (mouseX >= a - 5 && mouseX <= b + 5 && mouseY >= y && mouseY <= y + 16) {
         hover = `${m.name} · ${round2(m.hold[1] - m.hold[0])} beats${m.note ? ` · ${m.note}` : ""}`;
@@ -332,6 +340,13 @@ function drawTimeline(B, top) {
       const x = X(h), picked = MOMENT_DRAG && MOMENT_DRAG.mi === mi && (MOMENT_DRAG.hi === hi || MOMENT_DRAG.all);
       noStroke(); fill(picked ? "#ffffff" : momentColor(mi));
       triangle(x - 4, y + 7, x + 4, y + 7, x, y + 14);
+      if (waveH()) { // the tail: the hit's line through the wave, for alignment
+        const c = color(picked ? "#ffffff" : momentColor(mi));
+        c.setAlpha(170);
+        stroke(c); strokeWeight(1);
+        line(x + 0.5, y + 14, x + 0.5, waveStripY(y - 34) + WAVE_H - 1);
+        noStroke();
+      }
       if (hi === 0) {
         fill(140); text(m.name, x + 6, y - 4);
         if (mouseY >= y - 14 && mouseY <= y - 2 && mouseX >= x + 4 && mouseX <= x + 10 + 6.2 * m.name.length) {
@@ -351,6 +366,8 @@ function drawTimeline(B, top) {
   if (!hover && !HIDE_MOMENTS && keyIsDown(ALT) && MO_OPEN != null && overMarkerLane() && SCORE.moments?.[MO_OPEN] && !SCORE.moments[MO_OPEN].hold) {
     hover = `⌥ click: add a hit to ${SCORE.moments[MO_OPEN].name} at beat ${round2(msToBeats(SCORE, mouseMs()))}`;
   }
+
+  y += waveH(); // past the wave strip
 
   // sections
   if (SCORE.sections?.length) {
@@ -3023,16 +3040,30 @@ function ensureWave() {
   }
 }
 
+// The wave strip: a fixed band under the moment lane, framed, the waveform
+// mirrored around its centerline. Moment tails drop through it, so a tap on a
+// peak reads at a glance.
+const WAVE_H = 40;
+function waveH() { return WAVE_SHOW ? WAVE_H : 0; }
+function waveStripY(top) { return top + 52; }
+
 function drawWave(top) {
   ensureWave();
+  const y0 = waveStripY(top), mid = y0 + WAVE_H / 2;
+  stroke(38); strokeWeight(1);
+  line(TL_GUT, y0 + 0.5, width - TL_PAD, y0 + 0.5);
+  line(TL_GUT, y0 + WAVE_H - 0.5, width - TL_PAD, y0 + WAVE_H - 0.5);
+  noStroke();
   const dur = source.durationMs ?? Waveform.ms;
   if (!Waveform.data || !dur) return;
-  const w = width - TL_GUT - TL_PAD, bottom = height - 2, band = height - top - 6;
-  noStroke();
-  fill(255, 26);
+  const w = width - TL_GUT - TL_PAD;
+  fill(255, 52);
   for (let px = 0; px < w; px += 2) {
     const v = Waveform.at((TL_VIEW.startMs + (px / w) * tlSpanMs()) / dur);
-    if (v) rect(TL_GUT + px, bottom - v * band, 2, v * band);
+    if (v) {
+      const h = Math.max(1, v * (WAVE_H - 6));
+      rect(TL_GUT + px, mid - h / 2, 2, h);
+    }
   }
 }
 
