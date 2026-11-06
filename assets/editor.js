@@ -775,13 +775,26 @@ function renderMotions() {
   }).join("") || `<span class="data dimmed">No motions yet: the shape sits still.</span>`;
 }
 
-function edPalette() { return paletteAt(SCORE, msToBeats(SCORE, songNow())); }
+// The editor's colors: the song's opening palette, fixed. The preview never
+// rides the playhead, palette changes or pulse effects — those belong to the square.
+function edPalette() { return paletteAt(SCORE, 0); }
+
+// The blank canvas under the shape: a checker, so a shape painted any palette
+// color (the background wash included) still reads against it.
+function drawBlankCanvas(ctx) {
+  const cell = DOC_UNITS / 10;
+  ctx.fillStyle = "#efede8";
+  ctx.fillRect(0, 0, DOC_UNITS, DOC_UNITS);
+  ctx.fillStyle = "#e3e1db";
+  for (let r = 0; r < 10; r++)
+    for (let c = r % 2; c < 10; c += 2) ctx.fillRect(c * cell, r * cell, cell, cell);
+}
 
 function drawEditor() {
   const cv = $("ed-canvas");
   if (!ED.doc || !document.body.classList.contains("shapes")) return;
   const moving = ED.mode === "motion", s = moving ? frameState(SCORE, WORLD, previewBeats()) : null;
-  const v = ED.view, dpr = cv.width / cv.clientWidth, col = moving ? s.col : edPalette(), one = 1 / v.scale; // one screen pixel
+  const v = ED.view, dpr = cv.width / cv.clientWidth, col = edPalette(), one = 1 / v.scale; // one screen pixel
   const ctx = cv.getContext("2d");
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
@@ -789,8 +802,7 @@ function drawEditor() {
   ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.setTransform(dpr * v.scale, 0, 0, dpr * v.scale, dpr * v.ox, dpr * v.oy);
   $("ed-zoom-fit").textContent = `${Math.round((v.scale / fitScale()) * 100)}%`;
-  ctx.fillStyle = col.ground;
-  ctx.fillRect(0, 0, DOC_UNITS, DOC_UNITS);
+  drawBlankCanvas(ctx);
   if (!moving) drawPhoto(ctx);
   // the guide: one spot's circle and its center
   ctx.save();
