@@ -334,7 +334,11 @@ function drawTimeline(B, top) {
         }
       }
       if (Math.abs(mouseX - x) <= 5 && mouseY >= y && mouseY <= y + 16) {
-        hover = `${m.name}${m.note ? ` · ${m.note}` : ""} · beat ${h} — ⌥ click removes this hit`;
+        if (keyIsDown(ALT)) { // ⌥ over a hit: a red box says the click removes it
+          noFill(); stroke("#e14b4b"); strokeWeight(1);
+          rect(x - 6, y + 2, 12, 15);
+          noStroke();
+        } else hover = `${m.name}${m.note ? ` · ${m.note}` : ""} · beat ${h}`;
       }
     });
   });
