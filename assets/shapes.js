@@ -53,10 +53,13 @@ ELEMENTS.shape = {
     // a fill's fade: each spot fades in over that many beats from its turn
     const fade = step ? P.fx?.find((f) => f.kind === "fill")?.fade ?? 0 : 0;
     const turnAt = fade > 0 ? spotHitBeats(P, s, st, cyc) : null;
-    // a pulse on the shape itself: the shape shows only as its flash
-    const flashFx = P.fx?.find((f) => f.kind === "pulse" && f.slot === "shape");
-    const flash = flashFx ? flashNow(flashFx, s.B) : 1;
-    if (flashFx && flash <= 0.001) return;
+    // a pulse on the shape itself: flash shows the shape only on the pulse
+    // (its own look, fading out over the decay); tint keeps it showing and
+    // washes it toward the pulse color on each hit
+    const selfPulse = P.fx?.find((f) => f.kind === "pulse" && f.slot === "shape");
+    const flashing = !!selfPulse && (selfPulse.mode ?? "flash") === "flash";
+    const pw = selfPulse ? flashNow(selfPulse, s.B) : 0;
+    if (flashing && pw <= 0.001) return;
     P.spots.forEach(([x, y, size, flip = 1, deg = 0, skew = 0], i) => {
       if (step && i > shown) return; // take turns: spot i waits for the i-th hit
       const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
@@ -72,7 +75,7 @@ ELEMENTS.shape = {
         else ox += o.v * dir;
       }
       push();
-      drawingContext.globalAlpha *= fadeIn * flash;
+      drawingContext.globalAlpha *= fadeIn * (flashing ? pw : 1);
       translate(x + fx.dx + ox, y + fx.dy + oy);
       if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
       if (skew) shearX((-skew * Math.PI) / 180);
@@ -82,9 +85,12 @@ ELEMENTS.shape = {
         scale(1, kf);
         translate(0, -reach.anchor[i]);
       }
-      if (flashFx) paintShape(sh, s, { style: "solid", color: flashFx.to ?? "#ffffff" }, i);
-      else if (paint) paintShape(sh, s, paint, i);
+      if (paint) paintShape(sh, s, paint, i);
       else drawShape(sh, s.col, drawingContext, frame);
+      if (selfPulse && !flashing && pw > 0.001) {
+        drawingContext.globalAlpha *= pw;
+        paintShape(sh, s, { style: "solid", color: selfPulse.to ?? "#ffffff" }, i);
+      }
       pop();
     });
   },
@@ -174,8 +180,8 @@ function spotHitBeats(P, s, st, cyc = 0) {
   return P.spots.map((_, i) => (first + i ? hits[first + i - 1] ?? null : inAt));
 }
 
-// A pulse worn on the shape itself (slot "shape"): how strong its flash is
-// now, 0..1 — full right on a trigger hit, dying away over `beats`.
+// A pulse worn on the shape itself (slot "shape"): how strong it is now,
+// 0..1 — full right on a trigger hit, dying away over `beats`.
 function flashNow(f, B) {
   if (!f.on) return 0;
   let h = null;

@@ -53,8 +53,6 @@ const SCORE = {
   // Which palette starts at which bar. Changes blend over colorFadeBars.
   colors: [[1, "salmon"], [33, "dream"], [41, "deep"]],
   colorFadeBars: 2,
-  // Color pulses: a palette slot breathing toward a color between two moments.
-  colorMoves: [],
   // Names for the timeline. Number keys 1-6 jump to them.
   sections: [],
   // Things you hear, marked on the song (M in the studio while it plays; held
@@ -99,8 +97,9 @@ const SCORE = {
   // list order: { kind: "fill", on: a moment (a spot per hit), or every: the
   // grid step in beats; loop: true starts over once all have shown; fade:
   // beats each spot takes to fade in }. A pulse effect on a shape flares a
-  // palette slot, or with slot: "shape" the shape itself, which then shows
-  // only as its flash: the pulse color on each hit, fading out over `beats`.
+  // palette slot, or with slot: "shape" the shape itself: mode "flash" shows
+  // it only on each hit (its own look, fading out over `beats`), "tint" keeps
+  // it showing and washes it toward the pulse color on each hit.
   // A follow effect sets a property
   // from the song: { kind: "follow", source: "pitch" | "loudness", target:
   // "height" | "size", mapping: "relative" (lowest hit to min, highest to max)
@@ -176,42 +175,46 @@ const SCORE = {
       ],
     },
     {
-      // A bar of four squares across the bottom of the square from the "Bongo
-      // drums" moment. The outer two pulse black with the background's tempo
-      // (a flash on every "Pulse" hit, fading over 3 beats), fading in one at a
-      // time: the right one first, the left one on the next pulse. Only then,
-      // on the pulse after ("tick"), the middle two come in: a soft gradient
-      // in vivid tones of the background color. On the next pulse (bar 11) the
-      // whole square becomes the gradient, beneath the bar.
+      // A bar of four squares across the bottom of the square, built one step
+      // per background pulse (the pulses fall on the bars). Every piece pulses
+      // with the background: a flash on each "Pulse" hit, fading out over 3
+      // beats. The black squares: the right from "Bongo drums", the left from
+      // the next pulse (bar 9), in step with it. The middle two flash the
+      // gradient on the pulse after (bar 10). From bar 11 the whole square is
+      // the chromatic gradient and stays, washing toward white with the
+      // background on every pulse.
       name: "squares",
       clips: [
         {
           shape: "square",
           from: 11,
           to: 16,
-          in: "fade",
-          inBeats: 2,
           spots: [[0.5, 0.5, 0.5]],
-          fx: [{ kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 }],
-        },
-        {
-          shape: "square",
-          from: "Bongo drums",
-          to: 16,
-          spots: [[0.875, 0.875, 0.125], [0.125, 0.875, 0.125]],
           fx: [
-            { kind: "fill", on: "Pulse", fade: 1 },
-            { kind: "pulse", on: "Pulse", slot: "shape", to: "#000000", amount: 1, beats: 3 },
+            { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 },
+            { kind: "pulse", on: "Pulse", slot: "shape", mode: "tint", to: "#ffffff", amount: 0.9, beats: 3 },
           ],
         },
         {
           shape: "square",
-          from: "tick",
-          to: 16,
-          in: "fade",
-          inBeats: 1,
+          from: "Bongo drums",
+          to: 10,
+          spots: [[0.875, 0.875, 0.125], [0.125, 0.875, 0.125]],
+          fx: [
+            { kind: "fill", on: "Pulse" },
+            { kind: "paint", style: "solid", color: "#000000" },
+            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3 },
+          ],
+        },
+        {
+          shape: "square",
+          from: 10,
+          to: 10,
           spots: [[0.375, 0.875, 0.125], [0.625, 0.875, 0.125]],
-          fx: [{ kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 }],
+          fx: [
+            { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 },
+            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3 },
+          ],
         },
       ],
     },

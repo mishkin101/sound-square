@@ -222,16 +222,16 @@ function paletteAt(score, B) {
   return out;
 }
 
-// The palette right now, with the score's color pulses applied: a slot breathing
-// toward a color between two moments (the opening's ground fading to white every
-// four beats until the bongos come in). `back`: "snap" rises and starts over,
-// "fade" comes back down too. `to` is a hex color or another slot's name.
+// The palette right now, with the clips' pulse effects applied: a slot flaring
+// toward a color on each hit of a moment, or breathing toward it between two
+// moments. `back`: "snap" rises and starts over, "fade" comes back down too,
+// "decay" lands bright and dies away. `to` is a hex color or another slot's name.
 function colorsNow(score, B) {
   let col = paletteAt(score, B);
-  // clip-worn pulse effects join the score's own color moves: same engine.
-  // A pulse flares one palette slot (its `slot`, the ground by default), so
-  // every shape drawn with that slot follows.
-  const moves = [...(score.colorMoves || [])];
+  // clip-worn pulse effects: each flares one palette slot (its `slot`, the
+  // ground by default), so every shape drawn with that slot follows. A pulse
+  // on a shape itself (slot "shape") is drawn with the shape instead.
+  const moves = [];
   for (const R of score.layers || []) for (const L of R.clips || []) {
     for (const f of L.fx || []) if (f.kind === "pulse") {
       moves.push({ slot: f.slot ?? "ground", to: f.to ?? "#ffffff", amount: f.amount ?? 0.35, beats: f.beats ?? 3, back: f.back ?? "decay", on: f.on, from: f.from, until: f.until });

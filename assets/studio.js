@@ -39,6 +39,7 @@ function setup() {
   // the topbar off-screen); over the timeline it zooms the view instead
   document.addEventListener("wheel", (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
   restoreWork(); // edits made in the studio survive a reload
+  delete SCORE.colorMoves; // the song-wide color pulses are gone: pulses are effects now
   // a note Claude once wrote into saved work; it goes wherever it's still kept
   for (const m of SCORE.moments || []) {
     if (m.note === "the full tapped record; the quick pairs became eye moves") delete m.note;
@@ -1159,7 +1160,6 @@ function restoreScore(json) {
   EDIT.drag = null;
   renderMoments();
   buildLayers();
-  renderPulses();
   buildPalettes();
   loadShapes();
 }
@@ -1366,7 +1366,6 @@ function momentsChanged() {
   WORLD = prepare(SCORE);
   renderMoments();
   buildLayers();
-  renderPulses();
 }
 
 // The moments rail: a colored chip per moment on the square's left, in song
@@ -1855,9 +1854,6 @@ function renameMoment(m, name) {
   for (const R of SCORE.layers) {
     for (const L of R.clips) for (const k of ["from", "to", "moveOn", "keysFrom"]) if (L[k] === old) L[k] = name;
   }
-  for (const cm of SCORE.colorMoves || []) {
-    for (const k of ["from", "until"]) if (cm[k] === old) cm[k] = name;
-  }
   momentsChanged();
 }
 
@@ -1929,7 +1925,6 @@ function setText(id, text) {
 function buildPanel() {
   renderMoments();
   buildLayers();
-  renderPulses();
   buildPalettes();
 }
 
@@ -2466,6 +2461,9 @@ function appendFxControls(card, f, L) {
     // one flare per trigger tap on a palette slot, decaying back to the palette
     card.append(menuRow(f, "on", "trigger", [["", "none — a steady cycle"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
     card.append(menuRow(f, "slot", "slot", [...["ground", "glow", "line", "ink", "light"].map((s) => [s, s]), ["shape", "this shape"]], "ground"));
+    // on the shape itself: flash shows it only on the pulse, tint washes it
+    // toward the color; a flash uses the shape's own look, so it has no color
+    if (f.slot === "shape") card.append(menuRow(f, "mode", "mode", [["flash", "flash"], ["tint", "tint"]], "flash"));
     const colorRow = document.createElement("label");
     colorRow.className = "param";
     colorRow.innerHTML = `<span>color</span><span></span><input type="color" class="input fx-color" title="The color the slot flares to" value="${/^#[0-9a-f]{6}$/i.test(f.to ?? "") ? f.to : "#ffffff"}">`;
@@ -2474,7 +2472,7 @@ function appendFxControls(card, f, L) {
       f.to = e.target.value;
       buildLayerDetail();
     });
-    card.append(colorRow);
+    if (!(f.slot === "shape" && (f.mode ?? "flash") === "flash")) card.append(colorRow);
     card.append(fxSlider(f, "amount", 0, 1, 0.05, 0.35, "intensity"));
     card.append(fxSlider(f, "beats", 0.25, 8, 0.25, 3, "decay (beats)"));
     return;
@@ -2849,48 +2847,6 @@ function addShapeInto(ri, name) {
   return { ri, ci: EDIT.clip };
 }
 
-// ---- Color pulses --------------------------------------------------------------
-// One card per pulse: which color breathes toward what, how long one breath is,
-// the way back, and the two moments it runs between.
-
-function renderPulses() {
-  const list = SCORE.colorMoves ?? (SCORE.colorMoves = []);
-  const momentOpts = (v, edge) => `<option value="">${edge}</option>` +
-    (SCORE.moments || []).map((m) => `<option${m.name === v ? " selected" : ""}>${m.name}</option>`).join("");
-  $("pulses").replaceChildren(...list.map((cm, i) => {
-    const row = document.createElement("div");
-    row.className = "pulse";
-    row.innerHTML =
-      `<div class="pulse-row"><select class="input" data-k="slot" title="Which color">` +
-      ["ground", "glow", "line", "ink", "light"].map((x) => `<option${x === cm.slot ? " selected" : ""}>${x}</option>`).join("") +
-      `</select><span class="data dimmed">to</span>` +
-      `<input type="color" data-k="to" value="${/^#[0-9a-f]{6}$/i.test(cm.to) ? cm.to : "#ffffff"}" title="What it breathes toward">` +
-      `<select class="input" data-k="beats" title="One breath">` +
-      [1, 2, 4, 8, 16].map((b) => `<option value="${b}"${b === (cm.beats || 4) ? " selected" : ""}>${b} beats</option>`).join("") +
-      `</select><button class="mini" data-k="del" title="Remove">×</button></div>` +
-      `<div class="pulse-row"><select class="input" data-k="back" title="The way back">` +
-      `<option value="snap"${cm.back !== "fade" ? " selected" : ""}>snaps back</option>` +
-      `<option value="fade"${cm.back === "fade" ? " selected" : ""}>fades back</option></select>` +
-      `<select class="input" data-k="from" title="From">${momentOpts(cm.from, "the start")}</select>` +
-      `<select class="input" data-k="until" title="Until">${momentOpts(cm.until, "the end")}</select></div>`;
-    row.addEventListener("change", (e) => {
-      const k = e.target.dataset.k;
-      if (!k) return;
-      rememberScore();
-      if (k === "beats") cm.beats = Number(e.target.value);
-      else if (k === "from" || k === "until") { if (e.target.value) cm[k] = e.target.value; else delete cm[k]; }
-      else cm[k] = e.target.value;
-      e.target.blur?.();
-    });
-    row.querySelector('[data-k="del"]').addEventListener("click", () => {
-      rememberScore();
-      list.splice(i, 1);
-      renderPulses();
-    });
-    return row;
-  }));
-}
-
 function updatePanel(B) {
   if (document.body.classList.contains("bare")) return;
   const b = Math.max(0, B), bar = Math.floor(b / SCORE.beatsPerBar) + 1;
@@ -3042,11 +2998,6 @@ function wireControls() {
     clearDropMarks();
     loadShape(name);
     addShapeInto(null, name);
-  });
-  button("add-pulse", () => {
-    rememberScore();
-    (SCORE.colorMoves ??= []).push({ slot: "ground", to: "#ffffff", beats: 4, back: "snap" });
-    renderPulses();
   });
   for (const b of document.querySelectorAll("[data-view]")) {
     b.addEventListener("click", (e) => { setView(b.dataset.view); e.currentTarget.blur(); });
@@ -3526,7 +3477,6 @@ const SCORE_NOTES = {
     "Layers come in and leave on them, spots move on their hits, pulses run between them.",
     "Each can carry a note; hide: true keeps its marker off the timeline.",
   ],
-  colorMoves: ["Color pulses: a palette slot breathing toward a color between two moments."],
   layers: [
     "Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.",
     "A clip: el is a coded shape from assets/elements.js; shape is a drawing,",
