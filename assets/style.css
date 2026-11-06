@@ -426,6 +426,9 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
 .mini.pen.on { background: var(--mark); border-color: var(--mark); color: #000; }
 .moment-row .input, .moment-card .note { height: 24px; padding: 0 4px; }
 .mo-quantize { display: flex; gap: 4px; align-items: center; }
+.mo-quantize .input { width: 44px; height: 20px; padding: 0 4px; }
+.mo-quantize input::-webkit-outer-spin-button, .mo-quantize input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.mo-quantize input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .mo-repeat { display: flex; gap: 4px; align-items: center; }
 .mo-repeat .input { width: 44px; height: 20px; padding: 0 4px; }
 .mo-repeat input::-webkit-outer-spin-button, .mo-repeat input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }

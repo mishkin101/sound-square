@@ -1541,18 +1541,24 @@ function moCard(m, mi) {
 }
 
 // Tapped hits land a touch late (reaction time), so they sit just past the
-// lines they mean. Quantize moves every hit to its nearest grid line — whole,
-// half or quarter beat. Anchors, hops and pulses riding the moment follow.
+// lines they mean. Quantize moves every hit to its nearest multiple of the
+// division (in beats, any value). Anchors, hops and pulses follow.
+let QUANT = 0.25; // the division lives across cards and reloads
 function moQuantizeRow(m) {
   const row = document.createElement("div");
   row.className = "mo-quantize";
+  QUANT = storeGet("soundsquare.quant") ?? QUANT;
   row.innerHTML = `<span class="data dimmed">quantize</span>` +
-    [["1", "1", "beat"], ["0.5", "½", "half-beat"], ["0.25", "¼", "quarter-beat"]].map(([v, t, say]) =>
-      `<button class="mini" data-q="${v}" title="Move every hit to its nearest ${say} line">${t}</button>`).join("");
-  for (const b of row.querySelectorAll("[data-q]")) b.addEventListener("click", (e) => {
+    `<input type="number" class="input" min="0.05" max="8" step="0.05" value="${QUANT}" title="The division, in beats">` +
+    `<span class="data dimmed">beats</span>` +
+    `<button class="mini" title="Move every hit to its nearest line">snap</button>`;
+  row.querySelector("button").addEventListener("click", (e) => {
     e.currentTarget.blur();
+    const q = parseFloat(row.querySelector("input").value);
+    if (!(q > 0)) return;
+    QUANT = q;
+    storeSet("soundsquare.quant", q);
     rememberScore();
-    const q = parseFloat(b.dataset.q);
     m.hits = [...new Set(m.hits.map((h) => round2(Math.round(h / q) * q)))].sort((x, y) => x - y);
     WORLD = prepare(SCORE);
     renderMoments();
