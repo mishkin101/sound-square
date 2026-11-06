@@ -9,7 +9,7 @@
     // Spotify only accepts 127.0.0.1 for a local sign-in, so the studio always runs there.
     if (location.hostname === "localhost") location.replace(location.href.replace("//localhost", "//127.0.0.1"));
   </script>
-  <link rel="stylesheet" href="assets/style.css?v=117">
+  <link rel="stylesheet" href="assets/style.css?v=118">
 </head>
 <body>
   <header class="topbar">
@@ -22,7 +22,7 @@
     <span class="data" id="pos">bar 1 · beat 1</span>
     <span class="data dimmed" id="time">0:00.0</span>
     <span class="spacer"></span>
-    <button class="btn" id="wave" title="W: the song's waveform on the timeline">Wave</button>
+    <button class="btn" id="wave" title="W: the song's waveform on the timeline · ⇧W: record it through the audio input">Wave</button>
     <button class="btn" id="edit" title="E: drag the eyes on the square">Edit</button>
     <button class="btn" id="sound" title="S">Sound off</button>
     <button class="btn" id="hide" title="H">Hide UI</button>
@@ -283,22 +283,22 @@
     window.getStroke = getStroke;
   </script>
   <!-- ?v=N: bump it when files change, so browsers load the new ones instead of old copies -->
-  <script src="score.js?v=117"></script>
-  <script src="assets/engine.js?v=117"></script>
-  <script src="assets/elements.js?v=117"></script>
-  <script src="assets/geom.js?v=117"></script>
-  <script src="assets/motions.js?v=117"></script>
-  <script src="assets/shapes.js?v=117"></script>
-  <script src="assets/shapedoc.js?v=117"></script>
-  <script src="assets/tools.js?v=117"></script>
-  <script src="assets/trace.js?v=117"></script>
-  <script src="assets/editor.js?v=117"></script>
-  <script src="assets/sound.js?v=117"></script>
-  <script src="assets/sources.js?v=117"></script>
-  <script src="assets/spotify.js?v=117"></script>
-  <script src="assets/tempo.js?v=117"></script>
-  <script src="assets/listen.js?v=117"></script>
-  <script src="assets/waveform.js?v=117"></script>
-  <script src="assets/studio.js?v=117"></script>
+  <script src="score.js?v=118"></script>
+  <script src="assets/engine.js?v=118"></script>
+  <script src="assets/elements.js?v=118"></script>
+  <script src="assets/geom.js?v=118"></script>
+  <script src="assets/motions.js?v=118"></script>
+  <script src="assets/shapes.js?v=118"></script>
+  <script src="assets/shapedoc.js?v=118"></script>
+  <script src="assets/tools.js?v=118"></script>
+  <script src="assets/trace.js?v=118"></script>
+  <script src="assets/editor.js?v=118"></script>
+  <script src="assets/sound.js?v=118"></script>
+  <script src="assets/sources.js?v=118"></script>
+  <script src="assets/spotify.js?v=118"></script>
+  <script src="assets/tempo.js?v=118"></script>
+  <script src="assets/listen.js?v=118"></script>
+  <script src="assets/waveform.js?v=118"></script>
+  <script src="assets/studio.js?v=118"></script>
 </body>
 </html>

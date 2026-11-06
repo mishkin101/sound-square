@@ -2741,7 +2741,7 @@ function decimals(step) {
 function wireControls() {
   const button = (id, fn) => $(id).addEventListener("click", (e) => { fn(); e.currentTarget.blur(); });
   button("play", togglePlay);
-  button("wave", toggleWave);
+  $("wave").addEventListener("click", (e) => { toggleWave(e.shiftKey); e.currentTarget.blur(); });
   $("wave").classList.toggle("on", WAVE_SHOW);
   button("sound", toggleSound);
   button("hide", toggleBare);
@@ -2907,7 +2907,7 @@ function wireControls() {
     else if (e.key === "Escape") undoTaps();
     else if (e.key === "m" || e.key === "M") { if (!e.repeat) setMomentMode(!MOMENT_MODE); }
     else if (e.key === "v" || e.key === "V") flipTimelineView();
-    else if (e.key === "w" || e.key === "W") toggleWave();
+    else if (e.key === "w" || e.key === "W") toggleWave(e.shiftKey);
     else if (e.key === "s" || e.key === "S") toggleSound();
     else if (e.key === "h" || e.key === "H") toggleBare();
     else if (e.key === "f" || e.key === "F") toggleFullscreen();
@@ -2932,10 +2932,46 @@ function togglePlay() {
 // shows and hides it; both the choice and each song's waveform are kept.
 let WAVE_SHOW = storeGet("soundsquare.waveShow") ?? true;
 
-function toggleWave() {
+function toggleWave(shift) {
+  if (shift) return toggleWaveRecord();
   WAVE_SHOW = !WAVE_SHOW;
   storeSet("soundsquare.waveShow", WAVE_SHOW);
   $("wave").classList.toggle("on", WAVE_SHOW);
+  if (!WAVE_SHOW) Waveform.stopRecording();
+}
+
+// ⇧W / shift-click Wave: record the waveform through the audio input while the
+// song plays — the way out when Spotify refuses its analysis. Explicit only.
+function toggleWaveRecord() {
+  if (Waveform.rec) {
+    Waveform.stopRecording();
+    setText("tap-status", "waveform recording stopped and kept");
+    return;
+  }
+  const key = songKey();
+  if (!key) return setText("tap-status", "Wave: no song to record");
+  if (!WAVE_SHOW) toggleWave();
+  Waveform.record(
+    key,
+    storeGet(LISTEN_DEVICE),
+    () => (source.playing && source.durationMs ? songNow() / source.durationMs : null),
+    songKey,
+  ).then(
+    () => setText("tap-status", "recording the waveform while the song plays — ⇧W stops it"),
+    (e) => setText("tap-status", `Can't record: ${e.message}`),
+  );
+}
+
+// Why there's no waveform yet, said once per reason on the status line.
+let WAVE_HINTED = "";
+function waveHint() {
+  const key = songKey();
+  const msg = Waveform.rec ? ""
+    : !key ? "Wave: play a song and its waveform draws here"
+    : Waveform.busy ? "Wave: fetching the song's analysis…"
+    : Waveform.failed === key ? "Wave: Spotify refused its analysis — ⇧W records it while the song plays, or load the song's file"
+    : "";
+  if (msg && msg !== WAVE_HINTED) { WAVE_HINTED = msg; setText("tap-status", msg); }
 }
 
 function ensureWave() {
@@ -2956,7 +2992,7 @@ function ensureWave() {
 
 function drawWave(top) {
   ensureWave();
-  if (!Waveform.data || !source.durationMs) return;
+  if (!Waveform.data || !source.durationMs) return waveHint();
   const w = width - TL_GUT - TL_PAD, bottom = height - 2, band = height - top - 6;
   noStroke();
   fill(255, 26);
