@@ -2976,30 +2976,31 @@ function toggleWaveRecord() {
     setText("tap-status", "waveform kept");
     return;
   }
-  const key = songKey();
+  const key = waveKey();
   if (!key) return;
   if (!WAVE_SHOW) toggleWave();
   Waveform.record(
     key,
     storeGet(LISTEN_DEVICE),
     () => (source.playing && source.durationMs ? songNow() / source.durationMs : null),
-    songKey,
+    waveKey,
+    () => source.durationMs,
   ).then(
     () => setText("tap-status", "● recording"),
     (e) => setText("tap-status", `can't record: ${e.message}`),
   );
 }
 
-// The ● button appears when Wave is on with nothing to draw: recording is the
-// action, its title the explanation. It burns red while recording.
+// The ● button is always there: recording is the action, its title the
+// explanation. It burns red while recording.
 function updateWaveRec() {
-  const b = $("wave-rec"), rec = !!Waveform.rec;
-  b.hidden = !(rec || (WAVE_SHOW && !!songKey() && !Waveform.data && !Waveform.busy));
-  b.classList.toggle("rec", rec);
+  $("wave-rec").classList.toggle("rec", !!Waveform.rec);
 }
 
+function waveKey() { return songKey() ?? (SCORE.song?.spotifyId ? `spotify:${SCORE.song.spotifyId}` : null); }
+
 function ensureWave() {
-  const key = songKey();
+  const key = waveKey();
   Waveform.load(key);
   if (!key || Waveform.data || Waveform.busy || Waveform.failed === key) return;
   if (source === FileSource && FileSource.buffer) return Waveform.fromBuffer(key, FileSource.buffer);
@@ -3016,12 +3017,13 @@ function ensureWave() {
 
 function drawWave(top) {
   ensureWave();
-  if (!Waveform.data || !source.durationMs) return;
+  const dur = source.durationMs ?? Waveform.ms;
+  if (!Waveform.data || !dur) return;
   const w = width - TL_GUT - TL_PAD, bottom = height - 2, band = height - top - 6;
   noStroke();
   fill(255, 26);
   for (let px = 0; px < w; px += 2) {
-    const v = Waveform.at((TL_VIEW.startMs + (px / w) * tlSpanMs()) / source.durationMs);
+    const v = Waveform.at((TL_VIEW.startMs + (px / w) * tlSpanMs()) / dur);
     if (v) rect(TL_GUT + px, bottom - v * band, 2, v * band);
   }
 }

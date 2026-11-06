@@ -7,24 +7,28 @@
 const Waveform = {
   N: 1536,      // buckets across the whole song
   data: null,   // the current song's buckets, each 0..1
+  ms: null,     // the song length the buckets cover
   for: null,    // the song key the buckets belong to
   busy: false,  // an analysis fetch in flight
   failed: null, // the song key whose fetch failed, so it isn't retried forever
 
   STORE: "soundsquare.waves",
   stored() { return storeGet(this.STORE) || {}; },
-  keep(key, buckets) {
+  keep(key, buckets, ms) {
     const top = Math.max(...buckets, 0.001);
-    storeSet(this.STORE, { ...this.stored(), [key]: buckets.map((v) => Math.round((v / top) * 100) / 100) });
+    const v = buckets.map((b) => Math.round((b / top) * 100) / 100);
+    storeSet(this.STORE, { ...this.stored(), [key]: { v, ms: ms ?? this.ms } });
     this.for = null;
     this.load(key);
   },
 
-  // the cached waveform for a song, if any
+  // the cached waveform for a song, if any (older saves were a bare list)
   load(key) {
     if (this.for === key) return;
     this.for = key;
-    this.data = (key && this.stored()[key]) || null;
+    const got = key && this.stored()[key];
+    this.data = (Array.isArray(got) ? got : got?.v) || null;
+    this.ms = (!Array.isArray(got) && got?.ms) || null;
   },
 
   // A decoded file: RMS level per bucket, over every channel.
@@ -37,7 +41,7 @@ const Waveform = {
       for (let s = i * per; s < (i + 1) * per; s += step) for (const ch of chs) { sum += ch[s] * ch[s]; n++; }
       out[i] = Math.sqrt(sum / Math.max(1, n));
     }
-    this.keep(key, out);
+    this.keep(key, out, buffer.duration * 1000);
   },
 
   // Spotify's audio analysis: each segment's peak loudness (dB), as a level.
@@ -53,7 +57,7 @@ const Waveform = {
       const to = Math.min(N - 1, Math.floor(((s.start + s.duration) / total) * N));
       for (let i = from; i <= to; i++) out[i] = Math.max(out[i], v);
     }
-    this.keep(key, out);
+    this.keep(key, out, total * 1000);
   },
 
   // the level at a song position, 0..1 (null without a waveform)
@@ -71,7 +75,7 @@ const Waveform = {
   // the current song, so a song change stops the recording.
   rec: null,
 
-  async record(key, deviceId, posFrac, keyNow) {
+  async record(key, deviceId, posFrac, keyNow, durMs) {
     this.stopRecording();
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: deviceId ? { deviceId: { exact: deviceId } } : true,
@@ -82,7 +86,8 @@ const Waveform = {
     analyser.fftSize = 2048;
     ctx.createMediaStreamSource(stream).connect(analyser);
     const buf = new Float32Array(analyser.fftSize);
-    const base = this.stored()[key] ?? new Array(this.N).fill(0);
+    const kept = this.stored()[key];
+    const base = (Array.isArray(kept) ? kept : kept?.v) ?? new Array(this.N).fill(0);
     const rec = (this.rec = { key, stream, ctx, base, raw: new Array(this.N).fill(0), top: 0.004, savedAt: 0 });
     rec.merge = () => rec.base.map((b, i) => Math.max(b, rec.raw[i] / rec.top));
     rec.timer = setInterval(() => {
@@ -100,7 +105,7 @@ const Waveform = {
       if (performance.now() - rec.savedAt > 3000) {
         rec.savedAt = performance.now();
         const { rec: r } = this;
-        this.keep(key, rec.merge());
+        this.keep(key, rec.merge(), durMs());
         this.rec = r; // keep() reloads from the store; the recording carries on
         this.data = rec.merge();
       }
@@ -114,6 +119,6 @@ const Waveform = {
     r.stream.getTracks().forEach((t) => t.stop());
     r.ctx.close();
     this.rec = null;
-    if (r.top > 0.004) this.keep(r.key, r.merge()); // heard something: keep it
+    if (r.top > 0.004) this.keep(r.key, r.merge()); // heard something: keep it (ms already saved along the way)
   },
 };
