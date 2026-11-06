@@ -2187,6 +2187,7 @@ function buildLayerDetail() {
   // says which moment it rides. Effects go on any clip, the background too.
   if (L.shape) wrap.append(momentRow(L));
   wrap.append(lengthRow(L));
+  wrap.append(transitionRow(L, "in"), transitionRow(L, "out"));
   wrap.append(cropRow(L));
   wrap.append(fxRow(L));
   // spot-motion menus (spots mode, moves on, …) are gone from the pane:
@@ -2706,6 +2707,35 @@ function fxSlider(f, key, min, max, step, def, label) {
     out.textContent = f[key];
   });
   slider.addEventListener("change", () => { SLIDING = false; });
+  return row;
+}
+
+// How a clip comes in or leaves: a cut, a fade over some beats, or a clap
+// (a line sweeping down the square on the first clap at or after the change).
+function transitionRow(L, side) {
+  const beatsKey = `${side}Beats`, type = L[side] ?? "cut";
+  const row = document.createElement("div");
+  row.className = "len-row";
+  row.innerHTML = `<span class="data dimmed">${side}</span>` +
+    `<select class="input trans" title="${side === "in" ? "Comes in" : "Leaves"}">` +
+    ["cut", "fade", "clap"].map((t) => `<option${t === type ? " selected" : ""}>${t}</option>`).join("") + `</select>` +
+    `<input type="number" class="input" min="0.25" max="64" step="0.25" title="Beats"${type === "cut" ? " hidden" : ""} value="${L[beatsKey] ?? TRANSITION_BEATS[type]}">` +
+    `<span class="data dimmed"${type === "cut" ? " hidden" : ""}>beats</span>`;
+  const sel = row.querySelector("select"), num = row.querySelector("input");
+  sel.addEventListener("change", () => {
+    rememberScore();
+    if (sel.value === "cut") { delete L[side]; delete L[beatsKey]; }
+    else L[side] = sel.value;
+    sel.blur();
+    buildLayers();
+  });
+  num.addEventListener("change", () => {
+    const v = parseFloat(num.value);
+    if (!(v > 0)) return buildLayerDetail();
+    rememberScore();
+    L[beatsKey] = round2(v);
+    buildLayers();
+  });
   return row;
 }
 

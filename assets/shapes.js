@@ -38,7 +38,10 @@ ELEMENTS.shape = {
     if (!sh?.items) return;
     // keys drive the place over time; while editing the spots show instead
     if (P.keys?.length && !P.editing) return drawKeyed(sh, P, s, st);
-    const mode = P.spots.length > 1 ? P.spotsMode ?? "all" : "all";
+    // a lone spot takes no turns — except under a fill, whose fade then
+    // fades it in from the clip's start
+    const lone = P.spots.length < 2 && !P.fx?.some((f) => f.kind === "fill");
+    const mode = lone ? "all" : P.spotsMode ?? "all";
     const step = mode === "all" ? null : spotStep(P, s, st);
     if (mode === "one") return drawOneSpot(sh, P, s, st, step);
     const fx = fxNow(P, s, st);

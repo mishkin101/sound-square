@@ -68,7 +68,7 @@ const SCORE = {
     { name: "Pulse", hits: [0.05], repeat: { every: 4, times: 610 } },
     {
       name: "Bongo drums",
-      hits: [28.11, 29.25, 30.35, 30.95, 31.53, 32.61, 33.19, 33.76, 34.85],
+      hits: [28.11, 29.25, 29.4, 29.82, 30.92, 31.2, 31.5, 32.06, 33.19, 33.76, 33.88, 34.31, 34.85],
       repeat: { every: 8, times: 1 },
     },
     {
@@ -101,7 +101,8 @@ const SCORE = {
   // from/to as the envelope. A fill effect shows the spots one at a time in
   // list order: { kind: "fill", on: a moment (a spot per hit), or every: the
   // grid step in beats; loop: true starts over once all have shown; fade:
-  // beats each spot takes to fade in }. A pulse effect on a shape flares a
+  // beats each spot takes to fade in — a lone spot fades in from the clip's
+  // start }. A pulse effect on a shape flares a
   // palette slot, or with slot: "shape" the shape itself: mode "flash" shows
   // it only on each hit (its own look, fading out over `beats`), "tint" keeps
   // it showing and washes it toward the pulse color on each hit. A pulse runs
@@ -191,8 +192,8 @@ const SCORE = {
       // "Bongo drums" (its tapped sequence, played twice) one of the four,
       // picked at random and never the same twice running, flashes and fades
       // — black at the corners, the gradient in the middle. From bar 11 the
-      // whole square is the chromatic gradient; at the heavy kick the "heavy
-      // kick" layer takes over the black squares.
+      // whole square fades into the chromatic gradient over 8 beats; at the
+      // heavy kick the "heavy kick" layer takes over the black squares.
       name: "squares",
       clips: [
         {
@@ -200,7 +201,10 @@ const SCORE = {
           from: 11,
           to: 16,
           spots: [[0.5, 0.5, 0.5]],
-          fx: [{ kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 1.1 }],
+          fx: [
+            { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 1.1 },
+            { kind: "fill", fade: 8 },
+          ],
         },
         {
           shape: "square",
