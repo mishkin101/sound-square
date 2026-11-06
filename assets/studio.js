@@ -10,7 +10,7 @@ let ACTIVE = {};      // which clips are on this frame: row index -> set of clip
 let LAYER_BOXES = []; // their boxes in the side panel
 // Edit mode (E): drag a layer's spots on the square. `layer` is the layer being
 // edited, `spot` the selected spot, `drag` what the mouse is doing to it.
-const EDIT = { on: false, layer: null, clip: null, spot: null, drag: null };
+const EDIT = { on: false, layer: null, clip: null, spot: null, sel: [], drag: null };
 let SQ_X = 0, SQ_Y = 0; // the square's top-left corner on the canvas
 let scrubbing = false;
 const MARGIN = 24;    // space around the square
@@ -800,7 +800,7 @@ function mousePressed(e) {
     SQ_MARK.into = DRAW_INTO;
     return;
   }
-  if (editing() && hasSpots(editLayer()) && onSquare(e) && !liveNow()) return pressSpot();
+  if (editing() && hasSpots(editLayer()) && onSquare(e) && !liveNow()) return pressSpot(e);
   if (onSquare(e)) {
     const [x, y] = squareMouse();
     const onPath = pathPointAt(x, y);
@@ -841,8 +841,7 @@ function mouseReleased() {
   if (LOOP_DRAG) { LOOP_DRAG = null; return; }
   if (scrubbing) { const ms = scrubMs; run(() => source.seek(ms)); scrubMs = null; }
   scrubbing = false;
-  if (EDIT.drag?.kept) buildLayerDetail(); // a moved spot shows its new place in the list
-  EDIT.drag = null;
+  if (EDIT.drag) releaseSpot();
 }
 function doubleClicked(e) {
   if (inTimeline()) {
@@ -870,6 +869,20 @@ function doubleClicked(e) {
 
 function editing() { return EDIT.on && EDIT.layer != null && !document.body.classList.contains("bare"); }
 function editLayer() { return SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip]; }
+
+// The picked spots: EDIT.spot is the one picked last (the size slider and K
+// follow it); EDIT.sel holds every spot picked along with it, by Shift-click
+// or a box. No EDIT.spot, no pick.
+function pickedSpots() {
+  const L = editLayer(), n = (L?.spots ?? elementOf(L ?? {})?.spots ?? []).length;
+  return EDIT.spot == null ? [] : [...new Set([...EDIT.sel, EDIT.spot])].filter((i) => i < n);
+}
+
+// Picks one spot alone (or none).
+function pickSpot(i) {
+  EDIT.spot = i ?? null;
+  EDIT.sel = i == null ? [] : [i];
+}
 
 // The layer's own spots, copied from the element's the first time they change.
 function spotsOf(L) {
@@ -899,6 +912,18 @@ function spotAt(x, y) {
   return null;
 }
 
+// What a press at (x, y) takes: inside a picked spot, the pick moves (an
+// overlapping spot's edge under it doesn't turn it into a resize); else the
+// spot there (Shift always asks the spot there, to pick it or let it go).
+function spotUnder(x, y, shift = false) {
+  if (!shift && !layerLocked()) {
+    const L = editLayer(), all = spotsOf(L), scale = paramsFor(elementOf(L), L).size;
+    const i = pickedSpots().findLast((j) => Math.hypot(x - all[j][0], y - all[j][1]) < all[j][2] * scale - 6 / SQ);
+    if (i != null) return { i, mode: "move" };
+  }
+  return spotAt(x, y);
+}
+
 // Where each spot's number badge sits on the canvas, in pixels.
 function badgeOf([x, y, size], scale) {
   const r = size * scale * SQ;
@@ -923,36 +948,77 @@ function orderSpot(i) {
   if (millis() - ORDER.at > 4000) ORDER.next = 0;
   const [sp] = spots.splice(i, 1);
   spots.splice(ORDER.next, 0, sp);
-  EDIT.spot = ORDER.next;
+  pickSpot(ORDER.next);
   ORDER.next = (ORDER.next + 1) % spots.length;
   ORDER.at = millis();
   buildLayerDetail();
 }
 
-function pressSpot() {
+// A press on a spot picks it (Shift: in or out of the pick) and drags the
+// whole pick; on empty square it draws a box that picks the spots inside it
+// (Shift: added to the pick).
+function pressSpot(e) {
   if (layerLocked()) return;
   const badge = badgeAt();
   if (badge >= 0) return orderSpot(badge);
-  const [x, y] = squareMouse(), hit = spotAt(x, y);
-  EDIT.spot = hit ? hit.i : null;
-  if (hit) {
-    const [sx, sy] = spotsOf(editLayer())[hit.i];
-    EDIT.drag = { mode: hit.mode, dx: sx - x, dy: sy - y };
+  const [x, y] = squareMouse(), shift = !!e?.shiftKey, hit = spotUnder(x, y, shift);
+  if (!hit) {
+    if (!shift) pickSpot(null);
+    EDIT.drag = { mode: "box", x0: x, y0: y, x1: x, y1: y, base: pickedSpots() };
+    return;
   }
+  const picked = pickedSpots(), was = picked.includes(hit.i);
+  if (shift && was) { // Shift-click on a picked spot lets it go
+    EDIT.sel = picked.filter((i) => i !== hit.i);
+    EDIT.spot = EDIT.sel.length ? EDIT.sel[EDIT.sel.length - 1] : null;
+    return;
+  }
+  if (shift) EDIT.sel = [...picked, hit.i];
+  else if (!was) EDIT.sel = [hit.i];
+  EDIT.spot = hit.i;
+  const spots = spotsOf(editLayer()), [sx, sy] = spots[hit.i];
+  EDIT.drag = {
+    mode: hit.mode, dx: sx - x, dy: sy - y, shift, was,
+    from: pickedSpots().map((i) => [i, spots[i][0], spots[i][1], spots[i][2]]),
+  };
 }
 
+// Dragging: the grabbed spot follows the pointer and the rest of the pick
+// moves (or scales, from an edge) along with it; a box picks as it grows.
 function dragSpot() {
-  const L = editLayer(), sp = spotsOf(L)[EDIT.spot], [x, y] = squareMouse();
-  if (!sp) return;
-  if (!EDIT.drag.kept) { rememberScore(); EDIT.drag.kept = true; }
-  if (EDIT.drag.mode === "move") {
-    sp[0] = round4(clamp01(x + EDIT.drag.dx));
-    sp[1] = round4(clamp01(y + EDIT.drag.dy));
+  const d = EDIT.drag, [x, y] = squareMouse();
+  if (d.mode === "box") {
+    [d.x1, d.y1] = [x, y];
+    const [x0, x1] = [Math.min(d.x0, x), Math.max(d.x0, x)], [y0, y1] = [Math.min(d.y0, y), Math.max(d.y0, y)];
+    const inside = spotsOf(editLayer()).flatMap((sp, i) => (sp[0] >= x0 && sp[0] <= x1 && sp[1] >= y0 && sp[1] <= y1 ? [i] : []));
+    EDIT.sel = [...new Set([...d.base, ...inside])];
+    EDIT.spot = EDIT.sel.length ? EDIT.sel[EDIT.sel.length - 1] : null;
+    return;
+  }
+  const L = editLayer(), spots = spotsOf(L), sp = spots[EDIT.spot], grab = d.from.find(([i]) => i === EDIT.spot);
+  if (!sp || !grab) return;
+  if (!d.kept) { rememberScore(); d.kept = true; }
+  if (d.mode === "move") {
+    const mx = clamp01(x + d.dx) - grab[1], my = clamp01(y + d.dy) - grab[2];
+    for (const [i, fx, fy] of d.from) {
+      spots[i][0] = round4(clamp01(fx + mx));
+      spots[i][1] = round4(clamp01(fy + my));
+    }
   } else {
     const scale = paramsFor(elementOf(L), L).size ?? 1;
-    sp[2] = round4(constrain(Math.hypot(x - sp[0], y - sp[1]) / scale, 0.01, 0.4));
+    const k = constrain(Math.hypot(x - sp[0], y - sp[1]) / scale, 0.01, 0.4) / grab[3];
+    for (const [i, , , fs] of d.from) spots[i][2] = round4(constrain(fs * k, 0.01, 0.4));
   }
   keyThrough(L, sp);
+}
+
+// Letting go: a plain click (no drag) on a spot of a bigger pick picks it
+// alone; the pane's list shows the pick and any new places.
+function releaseSpot() {
+  const d = EDIT.drag;
+  EDIT.drag = null;
+  if (d.mode !== "box" && !d.kept && !d.shift && d.was && pickedSpots().length > 1) pickSpot(EDIT.spot);
+  buildLayerDetail();
 }
 
 function round4(v) { return Math.round(v * 10000) / 10000; }
@@ -962,28 +1028,32 @@ function addSpot(x, y) {
   rememberScore();
   const spots = spotsOf(editLayer()), like = spots[EDIT.spot] ?? spots[spots.length - 1];
   spots.push([round4(clamp01(x)), round4(clamp01(y)), like ? like[2] : 0.1]);
-  EDIT.spot = spots.length - 1;
+  pickSpot(spots.length - 1);
   buildLayerDetail();
 }
 
-// X: the drawing at this spot looks the other way.
-function flipSpot(i) {
+// X: the drawing at these spots (one, or a list) looks the other way.
+function flipSpot(list) {
   rememberScore();
-  const sp = spotsOf(editLayer())[i];
-  sp[3] = sp[3] === -1 ? 1 : -1;
-  tidySpot(sp);
-  keyThrough(editLayer(), sp);
+  for (const i of [].concat(list)) {
+    const sp = spotsOf(editLayer())[i];
+    sp[3] = sp[3] === -1 ? 1 : -1;
+    tidySpot(sp);
+    keyThrough(editLayer(), sp);
+  }
   buildLayerDetail();
 }
 
-// R turns the spot's drawing 15°; Shift turns it back.
-function rotateSpot(i, deg) {
+// R turns the spots' drawing 15°; Shift turns it back.
+function rotateSpot(list, deg) {
   rememberScore();
-  const sp = spotsOf(editLayer())[i];
-  sp[3] ??= 1;
-  sp[4] = ((((sp[4] ?? 0) + deg) % 360) + 360) % 360;
-  tidySpot(sp);
-  keyThrough(editLayer(), sp);
+  for (const i of [].concat(list)) {
+    const sp = spotsOf(editLayer())[i];
+    sp[3] ??= 1;
+    sp[4] = ((((sp[4] ?? 0) + deg) % 360) + 360) % 360;
+    tidySpot(sp);
+    keyThrough(editLayer(), sp);
+  }
   buildLayerDetail();
 }
 
@@ -994,7 +1064,7 @@ function duplicateSpot(i) {
   copy[0] = round4(clamp01(copy[0] + 0.04));
   copy[1] = round4(clamp01(copy[1] + 0.04));
   spots.splice(i + 1, 0, copy);
-  EDIT.spot = i + 1;
+  pickSpot(i + 1);
   buildLayerDetail();
 }
 
@@ -1025,10 +1095,11 @@ function tidySpot(sp) {
   if (sp.length === 4 && sp[3] === 1) sp.length = 3;
 }
 
-function removeSpot(i) {
+function removeSpot(list) {
   rememberScore();
-  spotsOf(editLayer()).splice(i, 1);
-  EDIT.spot = null;
+  const spots = spotsOf(editLayer());
+  for (const i of [].concat(list).sort((a, b) => b - a)) spots.splice(i, 1);
+  pickSpot(null);
   buildLayerDetail();
 }
 
@@ -1179,7 +1250,7 @@ function setEdit(on, layer = EDIT.layer, clip = EDIT.clip) {
   }
   EDIT.layer = layer;
   EDIT.clip = clip;
-  if (!on) { EDIT.spot = null; EDIT.drag = null; if (canvasCursor) cursor(canvasCursor = "default"); }
+  if (!on) { pickSpot(null); EDIT.drag = null; if (canvasCursor) cursor(canvasCursor = "default"); }
   $("sq-toolbar").hidden = !editing() || !hasSpots(editLayer());
   $("edit").classList.toggle("on", on);
   LAYER_BOXES.forEach((row, li) => row.classList.toggle("editing", on && li === EDIT.layer));
@@ -1192,8 +1263,9 @@ function drawEditOverlay() {
   noFill(); stroke(255, 90); strokeWeight(1);
   rect(SQ_X - 0.5, SQ_Y - 0.5, SQ + 1, SQ + 1);
   textSize(10); textAlign(CENTER, CENTER);
+  const picked = pickedSpots();
   P.spots.forEach((spot, i) => {
-    const [x, y, size] = spot, cx = SQ_X + x * SQ, cy = SQ_Y + y * SQ, r = size * P.size * SQ, sel = i === EDIT.spot;
+    const [x, y, size] = spot, cx = SQ_X + x * SQ, cy = SQ_Y + y * SQ, r = size * P.size * SQ, sel = picked.includes(i);
     noFill(); stroke(255, sel ? 255 : 170); strokeWeight(sel ? 1.5 : 1);
     drawingContext.setLineDash(sel ? [] : [4, 3]);
     circle(cx, cy, 2 * r);
@@ -1211,6 +1283,13 @@ function drawEditOverlay() {
       textAlign(CENTER, CENTER);
     }
   });
+  if (EDIT.drag?.mode === "box") { // the box being drawn
+    const d = EDIT.drag;
+    noFill(); stroke(255); strokeWeight(1);
+    drawingContext.setLineDash([4, 3]);
+    rect(SQ_X + Math.min(d.x0, d.x1) * SQ, SQ_Y + Math.min(d.y0, d.y1) * SQ, Math.abs(d.x1 - d.x0) * SQ, Math.abs(d.y1 - d.y0) * SQ);
+    drawingContext.setLineDash([]);
+  }
   // the toolbar above the square: what a press would act on, and a short hint
   const ordering = millis() - ORDER.at <= 4000;
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
@@ -1221,7 +1300,7 @@ function drawEditOverlay() {
     : onKey >= 0 ? `on key ${onKey + 1} — dragging the ${label} writes into it`
     : L.keys?.length ? `dragging the ${label} adds a key at the playhead`
     : `drag: move · edge: resize · double-click: add ${label}`);
-  for (const id of ["sq-flip", "sq-turn", "sq-del"]) $(id).disabled = EDIT.spot == null;
+  for (const id of ["sq-flip", "sq-turn", "sq-del"]) $(id).disabled = !pickedSpots().length;
   $("sq-dup").disabled = false;
   $("sq-order").disabled = P.spots.length < 2;
   $("sq-key").disabled = !L.shape;
@@ -1233,8 +1312,8 @@ function drawEditOverlay() {
     $("sq-size").value = Math.min(3, Math.max(0.25, sz / 0.1));
   }
   // the cursor says what a press would do
-  const [mx, my] = squareMouse(), hit = mx >= 0 && mx <= 1 && my >= 0 && my <= 1 ? spotAt(mx, my) : null;
-  const want = EDIT.drag ? (EDIT.drag.mode === "move" ? "grabbing" : "nwse-resize")
+  const [mx, my] = squareMouse(), hit = mx >= 0 && mx <= 1 && my >= 0 && my <= 1 ? spotUnder(mx, my, keyIsDown(SHIFT)) : null;
+  const want = EDIT.drag ? (EDIT.drag.mode === "move" ? "grabbing" : EDIT.drag.mode === "box" ? "crosshair" : "nwse-resize")
     : badgeAt() >= 0 ? "pointer" : hit ? (hit.mode === "move" ? "grab" : "nwse-resize") : "crosshair";
   if (canvasCursor !== want) cursor(canvasCursor = want);
 }
@@ -1296,6 +1375,7 @@ function forgetWork() {
 
 const UNDO = { past: [], future: [] };
 let SLIDING = false; // one undo step per slider drag
+let SIZE_FROM = null; // the pick's sizes when the toolbar's size slide began
 
 function rememberScore() {
   UNDO.past.push(JSON.stringify(SCORE));
@@ -1320,7 +1400,7 @@ function restoreScore(json) {
   for (const k of Object.keys(SCORE)) delete SCORE[k];
   Object.assign(SCORE, saved);
   WORLD = prepare(SCORE);
-  EDIT.spot = null;
+  pickSpot(null);
   EDIT.drag = null;
   renderMoments();
   buildLayers();
@@ -2291,7 +2371,7 @@ function buildPalettes() {
 // quietly. Only clicking the shape on the square itself, its clip on the
 // timeline, or pressing Edit jumps the panel to the pane (reveal).
 function selectLayer(ri, ci, reveal = false) {
-  EDIT.spot = null;
+  pickSpot(null);
   EDIT.layer = ri;
   EDIT.clip = ci ?? null;
   if (ci != null) FOLDED.delete(SCORE.layers[ri]?.name); // the pane nests under its row
@@ -2531,7 +2611,7 @@ function buildLayerDetail() {
     (L.spots ?? el.spots).forEach((sp, i) => {
       const [x, y, size, flip = 1, deg = 0] = sp;
       const row = document.createElement("div");
-      row.className = "spot-row" + (EDIT.spot === i ? " on" : "");
+      row.className = "spot-row" + (pickedSpots().includes(i) ? " on" : "");
       const pinMenu = L.shape && (SCORE.moments || []).length
         ? `<select class="mini-sel" data-a="pin" title="Pin to a moment: a keyframe there with this spot's place"><option value="">◆</option>` +
           (SCORE.moments || []).map((m) => `<option>${m.name}</option>`).join("") + `</select>`
@@ -2555,7 +2635,13 @@ function buildLayerDetail() {
         const a = e.target.dataset.a;
         if (a === "pin") return;
         e.target.blur?.();
-        EDIT.spot = i;
+        if (!a && e.shiftKey) { // in or out of the pick
+          const picked = pickedSpots();
+          EDIT.sel = picked.includes(i) ? picked.filter((j) => j !== i) : [...picked, i];
+          EDIT.spot = EDIT.sel.includes(i) ? i : EDIT.sel[EDIT.sel.length - 1] ?? null;
+          return buildLayerDetail();
+        }
+        pickSpot(i);
         if (a === "flip") flipSpot(i);
         else if (a === "turn") rotateSpot(i, e.altKey ? -15 : 15);
         else if (a === "dup") duplicateSpot(i);
@@ -3355,17 +3441,20 @@ function wireControls() {
     } else {
       const arr = L.spots ?? (L.spots = (elementOf(L)?.spots ?? []).map((s) => [...s]));
       const si = Math.min(EDIT.spot ?? 0, arr.length - 1);
-      if (arr[si]) arr[si][2] = round4(0.1 * v);
+      // the picked spot takes the size; the rest of the pick scale with it
+      SIZE_FROM ??= (pickedSpots().length ? pickedSpots() : [si]).map((i) => [i, arr[i][2]]);
+      const base = SIZE_FROM.find(([i]) => i === si)?.[1] ?? arr[si]?.[2];
+      for (const [i, s0] of SIZE_FROM) if (arr[i]) arr[i][2] = round4(i === si || !base ? 0.1 * v : s0 * (0.1 * v) / base);
     }
   });
-  $("sq-size").addEventListener("change", (e) => { SLIDING = false; e.target.blur(); buildLayerDetail(); });
-  button("sq-flip", () => { if (EDIT.spot != null) flipSpot(EDIT.spot); });
+  $("sq-size").addEventListener("change", (e) => { SLIDING = false; SIZE_FROM = null; e.target.blur(); buildLayerDetail(); });
+  button("sq-flip", () => { if (pickedSpots().length) flipSpot(pickedSpots()); });
   $("sq-turn").addEventListener("click", (e) => {
-    if (EDIT.spot != null) rotateSpot(EDIT.spot, e.altKey ? -15 : 15);
+    if (pickedSpots().length) rotateSpot(pickedSpots(), e.altKey ? -15 : 15);
     e.currentTarget.blur();
   });
   button("sq-order", () => { ORDER.next = 0; ORDER.at = millis(); });
-  button("sq-del", () => { if (EDIT.spot != null) removeSpot(EDIT.spot); });
+  button("sq-del", () => { if (pickedSpots().length) removeSpot(pickedSpots()); });
   button("sq-key", setKeyAtPlayhead);
   button("add-layer", () => {
     rememberScore();
@@ -3478,22 +3567,22 @@ function wireControls() {
     else if ((e.key === "Delete" || e.key === "Backspace") && (MO_HOVER != null || (inTimeline() && momentMarkerAt()))) {
       deleteMoment(MO_HOVER ?? momentMarkerAt().mi); // the moment under the pointer
     }
-    else if ((e.key === "Delete" || e.key === "Backspace") && editing() && EDIT.spot != null) removeSpot(EDIT.spot);
+    else if ((e.key === "Delete" || e.key === "Backspace") && editing() && EDIT.spot != null) removeSpot(pickedSpots());
     else if ((e.key === "Delete" || e.key === "Backspace") && !editing() && EDIT.layer != null) {
       const R = SCORE.layers[EDIT.layer];
       rememberScore();
       if (EDIT.clip != null && R?.clips[EDIT.clip]) { R.clips.splice(EDIT.clip, 1); EDIT.clip = null; }
       else SCORE.layers.splice(EDIT.layer, 1);
       buildLayers();
-    } else if ((e.key === "x" || e.key === "X") && editing() && EDIT.spot != null) flipSpot(EDIT.spot);
+    } else if ((e.key === "x" || e.key === "X") && editing() && EDIT.spot != null) flipSpot(pickedSpots());
     else if ((e.key === "d" || e.key === "D") && editing() && EDIT.clip != null) duplicateClip();
-    else if ((e.key === "r" || e.key === "R") && editing() && EDIT.spot != null) rotateSpot(EDIT.spot, e.shiftKey ? -15 : 15);
+    else if ((e.key === "r" || e.key === "R") && editing() && EDIT.spot != null) rotateSpot(pickedSpots(), e.shiftKey ? -15 : 15);
     else if (e.key === "k" || e.key === "K") setKeyAtPlayhead();
     else if ((e.key === "p" || e.key === "P") && SCORE.moments?.[MO_OPEN]?.path) {
       PATH_PLAY = PATH_PLAY ? null : { mi: MO_OPEN, t0: millis() }; // preview the open drawing, or stop it
     }
     else if (e.key === "Escape" && MOMENT_MODE) setMomentMode(false);
-    else if (e.key === "Escape" && editing() && EDIT.spot != null) EDIT.spot = null;
+    else if (e.key === "Escape" && editing() && EDIT.spot != null) pickSpot(null);
     else if (e.key === "Escape") undoTaps();
     else if (e.key === "m" || e.key === "M") { if (!e.repeat) setMomentMode(!MOMENT_MODE); }
     else if (e.key === "v" || e.key === "V") flipTimelineView();
