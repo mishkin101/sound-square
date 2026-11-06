@@ -416,8 +416,6 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
 .mo-path { width: 100%; aspect-ratio: 1; border: var(--hair) solid var(--rule); display: block; }
 .mo-rhythm { width: 100%; display: block; }
 .mo-anim { position: relative; }
-.mo-anim .fx { position: absolute; top: 4px; right: 4px; display: flex; gap: 3px; }
-.mo-anim .fx .mini { background: rgba(0, 0, 0, 0.7); }
 .mo-shapes { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .mo-shapes .input { flex: 1; min-width: 90px; height: 24px; padding: 0 4px; }
 .mo-shape {
@@ -437,8 +435,6 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
 .moment-card { display: grid; gap: 4px; padding: var(--u); border: var(--hair) solid var(--rule); }
 .moment-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 4px; align-items: center; font: var(--t-data); color: var(--dim); }
 .mini.pen.on { background: var(--mark); border-color: var(--mark); color: #000; }
-.mini.erase.on { background: #ff5a5a; border-color: #ff5a5a; color: #000; }
-.mini.move.on { background: var(--live); border-color: var(--live); color: #000; }
 /* The timeline's controls: two rows of mini buttons in its left gutter, over the canvas */
 .tl-bar { position: absolute; left: 6px; z-index: 3; display: grid; grid-template-columns: repeat(4, 22px); gap: 3px; }
 .tl-bar .mini { display: grid; place-items: center; }

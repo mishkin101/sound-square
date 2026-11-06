@@ -9,7 +9,7 @@
     // Spotify only accepts 127.0.0.1 for a local sign-in, so the studio always runs there.
     if (location.hostname === "localhost") location.replace(location.href.replace("//localhost", "//127.0.0.1"));
   </script>
-  <link rel="stylesheet" href="assets/style.css?v=178">
+  <link rel="stylesheet" href="assets/style.css?v=179">
 </head>
 <body>
   <header class="topbar">
@@ -48,6 +48,15 @@
       <input type="range" id="sq-size" min="0.25" max="3" step="0.05" title="The picked spot's size; parked on a key, it writes into the key">
       <span class="tb-gap"></span>
       <span class="data dimmed" id="sq-edit-hint"></span>
+    </div>
+    <!-- Drawing a moment's motion (✎ on its card): the tools over the square, like Edit's -->
+    <div class="ed-toolbar" id="draw-toolbar" hidden>
+      <span class="data dimmed" id="dr-name"></span>
+      <button class="btn" id="dr-pen" title="Draw · Shift: straight line">Draw</button>
+      <button class="btn" id="dr-erase" title="Erase">Erase</button>
+      <button class="btn" id="dr-move" title="Move the drawing">Move</button>
+      <button class="btn" id="dr-run" title="Run the drawing once · P">Run</button>
+      <button class="btn" id="dr-done" title="Done · Esc">Done</button>
     </div>
     <!-- Moments: a colored chip per moment; hover shows its name, click its card.
          M enters moment mode: tap the square for a hit, hold for a span, drag to
@@ -285,22 +294,22 @@
     window.getStroke = getStroke;
   </script>
   <!-- ?v=N: bump it when files change, so browsers load the new ones instead of old copies -->
-  <script src="score.js?v=178"></script>
-  <script src="assets/engine.js?v=178"></script>
-  <script src="assets/elements.js?v=178"></script>
-  <script src="assets/geom.js?v=178"></script>
-  <script src="assets/motions.js?v=178"></script>
-  <script src="assets/shapes.js?v=178"></script>
-  <script src="assets/shapedoc.js?v=178"></script>
-  <script src="assets/tools.js?v=178"></script>
-  <script src="assets/trace.js?v=178"></script>
-  <script src="assets/editor.js?v=178"></script>
-  <script src="assets/sound.js?v=178"></script>
-  <script src="assets/sources.js?v=178"></script>
-  <script src="assets/spotify.js?v=178"></script>
-  <script src="assets/tempo.js?v=178"></script>
-  <script src="assets/listen.js?v=178"></script>
-  <script src="assets/waveform.js?v=178"></script>
-  <script src="assets/studio.js?v=178"></script>
+  <script src="score.js?v=179"></script>
+  <script src="assets/engine.js?v=179"></script>
+  <script src="assets/elements.js?v=179"></script>
+  <script src="assets/geom.js?v=179"></script>
+  <script src="assets/motions.js?v=179"></script>
+  <script src="assets/shapes.js?v=179"></script>
+  <script src="assets/shapedoc.js?v=179"></script>
+  <script src="assets/tools.js?v=179"></script>
+  <script src="assets/trace.js?v=179"></script>
+  <script src="assets/editor.js?v=179"></script>
+  <script src="assets/sound.js?v=179"></script>
+  <script src="assets/sources.js?v=179"></script>
+  <script src="assets/spotify.js?v=179"></script>
+  <script src="assets/tempo.js?v=179"></script>
+  <script src="assets/listen.js?v=179"></script>
+  <script src="assets/waveform.js?v=179"></script>
+  <script src="assets/studio.js?v=179"></script>
 </body>
 </html>

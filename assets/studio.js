@@ -1251,7 +1251,7 @@ function setEdit(on, layer = EDIT.layer, clip = EDIT.clip) {
   EDIT.layer = layer;
   EDIT.clip = clip;
   if (!on) { pickSpot(null); EDIT.drag = null; if (canvasCursor) cursor(canvasCursor = "default"); }
-  $("sq-toolbar").hidden = !editing() || !hasSpots(editLayer());
+  syncSquareBars();
   $("edit").classList.toggle("on", on);
   LAYER_BOXES.forEach((row, li) => row.classList.toggle("editing", on && li === EDIT.layer));
 }
@@ -1694,6 +1694,35 @@ function renderMoments() {
     });
     rail.append(all);
   }
+  syncSquareBars();
+}
+
+// Drawing a moment's motion: ✎ on its card puts the square in draw mode, and
+// the tools sit over the square — draw, erase, move, run it once, done. One
+// tool at a time; null is out of draw mode.
+function drawTool() {
+  if (MO_OPEN == null) return null;
+  return DRAW_INTO === MO_OPEN ? "pen" : ERASE_FROM === MO_OPEN ? "erase" : MOVE_FROM === MO_OPEN ? "move" : null;
+}
+
+function setDrawTool(tool) {
+  DRAW_INTO = tool === "pen" ? MO_OPEN : null;
+  ERASE_FROM = tool === "erase" ? MO_OPEN : null;
+  MOVE_FROM = tool === "move" ? MO_OPEN : null;
+  if (tool && MOMENT_MODE) setMomentMode(false);
+  renderMoments();
+}
+
+// The square's toolbars: drawing's while in draw mode, else Edit's when a
+// shape with spots is being edited.
+function syncSquareBars() {
+  const tool = drawTool(), bare = document.body.classList.contains("bare"), m = SCORE.moments?.[MO_OPEN];
+  $("draw-toolbar").hidden = !tool || bare;
+  $("sq-toolbar").hidden = !!tool || !editing() || !hasSpots(editLayer());
+  if (!tool) return;
+  setText("dr-name", m.name);
+  for (const [id, t] of [["dr-pen", "pen"], ["dr-erase", "erase"], ["dr-move", "move"]]) $(id).classList.toggle("on", tool === t);
+  for (const id of ["dr-erase", "dr-move", "dr-run"]) $(id).disabled = !m.path?.length;
 }
 
 function momentMeta(m) {
@@ -1717,7 +1746,7 @@ function closeMomentCard() {
 
 function wireMomentClose() {
   document.addEventListener("pointerdown", (e) => {
-    if (MO_OPEN == null || e.target.closest(".mo-chip")) return;
+    if (MO_OPEN == null || e.target.closest(".mo-chip, #draw-toolbar")) return;
     if (e.target.tagName === "CANVAS") {
       if (DRAW_INTO != null || ERASE_FROM != null || MOVE_FROM != null || MOMENT_MODE) return;
       const tl = timelineHeight();
@@ -1775,10 +1804,10 @@ function moChip(m, mi) {
 function moCard(m, mi) {
   const card = document.createElement("div");
   card.className = "moment-card mo-card";
-  const penBtn = `<button class="mini pen${DRAW_INTO === mi ? " on" : ""}" title="Draw on the square: each gesture becomes a stroke of this moment's drawing">✎</button>`;
+  const penBtn = `<button class="mini pen${MO_OPEN === mi && drawTool() ? " on" : ""}" title="Draw on the square">✎</button>`;
   card.innerHTML =
     `<div class="moment-row"><input class="input name" type="text" spellcheck="false" autocomplete="off">` +
-    (m.path ? "" : penBtn) +
+    penBtn +
     `<button class="mini eye" title="${m.hide ? "Show its marker on the timeline" : "Hide its marker (it still anchors and triggers)"}">${m.hide ? EYE_OFF : EYE}</button>` +
     `<button class="mini" data-close title="Close the card">×</button></div>` +
     `<span class="data dimmed">${momentMeta(m)}</span>` +
@@ -1804,44 +1833,14 @@ function moCard(m, mi) {
   card.querySelector("[data-close]").addEventListener("click", closeMomentCard);
   if (!m.hold) card.append(moQuantizeRow(m), moRepeatRow(m));
   if (m.path) {
-    // the ▶ and ✎ live inside the animation, top right
     const anim = document.createElement("div");
     anim.className = "mo-anim";
     anim.append(pathPreview(m));
-    anim.insertAdjacentHTML("beforeend",
-      `<div class="fx"><button class="mini play" title="Run the drawing once on the square">▶</button>${penBtn}` +
-      `<button class="mini erase${ERASE_FROM === mi ? " on" : ""}" title="Erase from the drawing">${ERASER}</button>` +
-      `<button class="mini move${MOVE_FROM === mi ? " on" : ""}" title="Move the drawing">${MOVE}</button></div>`);
-    anim.querySelector(".erase").addEventListener("click", (e) => {
-      e.currentTarget.blur();
-      ERASE_FROM = ERASE_FROM === mi ? null : mi;
-      if (ERASE_FROM != null) {
-        DRAW_INTO = MOVE_FROM = null;
-        if (MOMENT_MODE) setMomentMode(false);
-      }
-      renderMoments();
-    });
-    anim.querySelector(".move").addEventListener("click", (e) => {
-      e.currentTarget.blur();
-      MOVE_FROM = MOVE_FROM === mi ? null : mi;
-      if (MOVE_FROM != null) {
-        DRAW_INTO = ERASE_FROM = null;
-        if (MOMENT_MODE) setMomentMode(false);
-      }
-      renderMoments();
-    });
-    anim.querySelector(".play").addEventListener("click", (e) => {
-      e.currentTarget.blur();
-      PATH_PLAY = { mi, t0: millis() };
-    });
     card.append(anim);
   }
   card.querySelector(".pen").addEventListener("click", (e) => {
     e.currentTarget.blur();
-    DRAW_INTO = DRAW_INTO === mi ? null : mi;
-    if (DRAW_INTO != null) ERASE_FROM = MOVE_FROM = null;
-    if (DRAW_INTO != null && MOMENT_MODE) setMomentMode(false);
-    renderMoments();
+    setDrawTool(drawTool() ? null : "pen");
   });
   card.append(moShapes(m));
   return card;
@@ -3481,6 +3480,12 @@ function wireControls() {
   button("sq-order", () => { ORDER.next = 0; ORDER.at = millis(); });
   button("sq-del", () => { if (pickedSpots().length) removeSpot(pickedSpots()); });
   button("sq-key", setKeyAtPlayhead);
+  // the draw toolbar over the square
+  button("dr-pen", () => setDrawTool("pen"));
+  button("dr-erase", () => setDrawTool("erase"));
+  button("dr-move", () => setDrawTool("move"));
+  button("dr-run", () => { if (SCORE.moments?.[MO_OPEN]?.path) PATH_PLAY = { mi: MO_OPEN, t0: millis() }; });
+  button("dr-done", () => setDrawTool(null));
   button("add-layer", () => {
     rememberScore();
     let n = SCORE.layers.length + 1;
@@ -3606,6 +3611,7 @@ function wireControls() {
     else if ((e.key === "p" || e.key === "P") && SCORE.moments?.[MO_OPEN]?.path) {
       PATH_PLAY = PATH_PLAY ? null : { mi: MO_OPEN, t0: millis() }; // preview the open drawing, or stop it
     }
+    else if (e.key === "Escape" && drawTool()) setDrawTool(null);
     else if (e.key === "Escape" && MOMENT_MODE) setMomentMode(false);
     else if (e.key === "Escape" && editing() && EDIT.spot != null) pickSpot(null);
     else if (e.key === "Escape") undoTaps();
@@ -3756,7 +3762,7 @@ function toggleSound() {
 
 function toggleBare() {
   document.body.classList.toggle("bare");
-  $("sq-toolbar").hidden = !editing() || !hasSpots(editLayer());
+  syncSquareBars();
   if (canvasCursor) cursor(canvasCursor = "default");
   windowResized();
 }
