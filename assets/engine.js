@@ -240,21 +240,21 @@ function colorsNow(score, B) {
   for (const cm of moves) {
     const base = col[cm.slot];
     if (typeof base !== "string") continue;
+    // the pulse runs only inside its window (from / until); outside, nothing
+    const win = fxWindow(score, cm.from, cm.until);
+    if (!win || B < win[0] || B >= win[1]) continue;
     if (cm.on) {
-      // the pulse rides a moment's taps: one pulse per hit, bright right on
-      // the tap and dying away over `beats`
+      // the pulse rides a moment's hits: one pulse per hit, bright right on
+      // the hit and dying away over `beats`
       const hits = momentHits(score, cm.on); // repeats included
       let h = null;
-      for (const x of hits) if (x <= B && (h == null || x > h)) h = x;
+      for (const x of hits) if (x >= win[0] && x <= B && (h == null || x > h)) h = x;
       const ph = h == null ? 1 : (B - h) / (cm.beats || 1);
       if (ph >= 1) continue;
       col = { ...col, [cm.slot]: mix(base, col[cm.to] ?? cm.to, smoothstep(1 - ph) * (cm.amount ?? 1)) };
       continue;
     }
-    const from = cm.from ? momentStart(score, cm.from) : 0;
-    const until = cm.until ? momentEnd(score, cm.until) : songBeats(score);
-    if (from == null || until == null || B < from || B >= until) continue;
-    const phase = ((((B - from) / (cm.beats || 4)) % 1) + 1) % 1;
+    const phase = ((((B - win[0]) / (cm.beats || 4)) % 1) + 1) % 1;
     // the pulse's shape: "snap" builds and snaps back, "fade" breathes both
     // ways, "decay" lands bright on the beat and dies away (a drum hit)
     const wave = cm.back === "fade" ? 1 - Math.abs(2 * phase - 1) : cm.back === "decay" ? 1 - phase : phase;
@@ -262,6 +262,15 @@ function colorsNow(score, B) {
     col = { ...col, [cm.slot]: mix(base, col[cm.to] ?? cm.to, t * (cm.amount ?? 1)) };
   }
   return col;
+}
+
+// An effect's window in beats from its from / until: a moment's name (its
+// start / its end) or a bar number (an until bar is included); open ends run
+// from the song's start / to its end. Null when a named moment is missing.
+function fxWindow(score, from, until) {
+  const a = from == null ? 0 : typeof from === "string" ? momentStart(score, from) : barToBeats(score, from);
+  const b = until == null ? songBeats(score) : typeof until === "string" ? momentEnd(score, until) : barToBeats(score, until + 1);
+  return a == null || b == null ? null : [a, b];
 }
 
 // ---- Layers ------------------------------------------------------------------

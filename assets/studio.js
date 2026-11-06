@@ -2475,6 +2475,8 @@ function appendFxControls(card, f, L) {
     if (!(f.slot === "shape" && (f.mode ?? "flash") === "flash")) card.append(colorRow);
     card.append(fxSlider(f, "amount", 0, 1, 0.05, 0.35, "intensity"));
     card.append(fxSlider(f, "beats", 0.25, 8, 0.25, 3, "decay (beats)"));
+    // its window: a pulse's `to` is its color, so the window ends at `until`
+    card.append(whenRow(f, "from", "from", "until"), whenRow(f, "until", "until", "until"));
     return;
   }
   if (f.kind === "fill") {
@@ -2742,7 +2744,7 @@ function momentRow(L) {
 }
 
 // A menu for when a layer comes in or leaves: its bar, or any moment.
-function whenRow(L, key, label) {
+function whenRow(L, key, label, endKey = "to") {
   const row = document.createElement("label");
   row.className = "param";
   row.innerHTML = `<span>${label}</span><span></span><select class="input"></select>`;
@@ -2751,7 +2753,7 @@ function whenRow(L, key, label) {
     ? L[key]
     : Math.max(1, Math.floor((momentStart(SCORE, L[key]) ?? 0) / SCORE.beatsPerBar) + 1);
   // "during <hold>" on the from row anchors both ends to the hold at once
-  const duringSel = (m) => key === "from" && m.hold && L.from === m.name && L.to === m.name;
+  const duringSel = (m) => key === "from" && m.hold && L.from === m.name && L[endKey] === m.name;
   const during = key === "from"
     ? (SCORE.moments || []).filter((m) => m.hold)
         .map((m) => `<option value="d:${m.name}"${duringSel(m) ? " selected" : ""}>during ${m.name}</option>`).join("")
@@ -2763,7 +2765,7 @@ function whenRow(L, key, label) {
   sel.addEventListener("change", () => {
     rememberScore();
     if (sel.value === "#none") delete L[key];
-    else if (sel.value.startsWith("d:")) L.from = L.to = sel.value.slice(2);
+    else if (sel.value.startsWith("d:")) L.from = L[endKey] = sel.value.slice(2);
     else L[key] = sel.value === "#bar" ? bar : sel.value.slice(2);
     sel.blur();
     buildLayers();

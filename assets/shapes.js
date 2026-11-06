@@ -56,9 +56,10 @@ ELEMENTS.shape = {
     // a pulse on the shape itself: flash shows the shape only on the pulse
     // (its own look, fading out over the decay); tint keeps it showing and
     // washes it toward the pulse color on each hit
-    const selfPulse = P.fx?.find((f) => f.kind === "pulse" && f.slot === "shape");
+    const found = P.fx?.find((f) => f.kind === "pulse" && f.slot === "shape");
+    const pw = found ? flashNow(found, s.B) : null;
+    const selfPulse = pw == null ? null : found; // outside its window it does nothing
     const flashing = !!selfPulse && (selfPulse.mode ?? "flash") === "flash";
-    const pw = selfPulse ? flashNow(selfPulse, s.B) : 0;
     if (flashing && pw <= 0.001) return;
     P.spots.forEach(([x, y, size, flip = 1, deg = 0, skew = 0], i) => {
       if (step && i > shown) return; // take turns: spot i waits for the i-th hit
@@ -181,11 +182,14 @@ function spotHitBeats(P, s, st, cyc = 0) {
 }
 
 // A pulse worn on the shape itself (slot "shape"): how strong it is now,
-// 0..1 — full right on a trigger hit, dying away over `beats`.
+// 0..1 — full right on a trigger hit, dying away over `beats`. Null outside
+// its window (from / until): there it does nothing and the shape shows plainly.
 function flashNow(f, B) {
+  const win = fxWindow(SCORE, f.from, f.until);
+  if (!win || B < win[0] || B >= win[1]) return null;
   if (!f.on) return 0;
   let h = null;
-  for (const x of momentHits(SCORE, f.on)) if (x <= B && (h == null || x > h)) h = x;
+  for (const x of momentHits(SCORE, f.on)) if (x >= win[0] && x <= B && (h == null || x > h)) h = x;
   const ph = h == null ? 1 : (B - h) / (f.beats || 1);
   return ph >= 1 ? 0 : smoothstep(1 - ph) * (f.amount ?? 0.35);
 }

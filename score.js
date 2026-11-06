@@ -99,7 +99,8 @@ const SCORE = {
   // beats each spot takes to fade in }. A pulse effect on a shape flares a
   // palette slot, or with slot: "shape" the shape itself: mode "flash" shows
   // it only on each hit (its own look, fading out over `beats`), "tint" keeps
-  // it showing and washes it toward the pulse color on each hit.
+  // it showing and washes it toward the pulse color on each hit. A pulse runs
+  // between from and until (a bar, included, or a moment); outside, nothing.
   // A follow effect sets a property
   // from the song: { kind: "follow", source: "pitch" | "loudness", target:
   // "height" | "size", mapping: "relative" (lowest hit to min, highest to max)
@@ -122,7 +123,7 @@ const SCORE = {
           from: 1,
           to: 216,
           spots: [[0.5, 0.5, 0.5]],
-          fx: [{ kind: "pulse", on: "Pulse", to: "#ffffff", amount: 0.9, beats: 3 }],
+          fx: [{ kind: "pulse", on: "Pulse", to: "#ffffff", amount: 0.9, beats: 3, until: 10 }],
         },
       ],
     },
@@ -176,13 +177,13 @@ const SCORE = {
     },
     {
       // A bar of four squares across the bottom of the square, built one step
-      // per background pulse (the pulses fall on the bars). Every piece pulses
-      // with the background: a flash on each "Pulse" hit, fading out over 3
-      // beats. The black squares: the right from "Bongo drums", the left from
-      // the next pulse (bar 9), in step with it. The middle two flash the
-      // gradient on the pulse after (bar 10). From bar 11 the whole square is
-      // the chromatic gradient and stays, washing toward white with the
-      // background on every pulse.
+      // per background pulse (the pulses fall on the bars). Until bar 11 every
+      // piece pulses with the background: a flash on each "Pulse" hit, fading
+      // out over 3 beats. The black squares: the right from "Bongo drums", the
+      // left from the next pulse (bar 9), in step with it. The middle two
+      // flash the gradient on the pulse after (bar 10). On bar 11 everything
+      // appears at once and stays: the black squares, the middle two, and the
+      // whole square as the chromatic gradient — no more white pulses.
       name: "squares",
       clips: [
         {
@@ -190,30 +191,27 @@ const SCORE = {
           from: 11,
           to: 16,
           spots: [[0.5, 0.5, 0.5]],
-          fx: [
-            { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 },
-            { kind: "pulse", on: "Pulse", slot: "shape", mode: "tint", to: "#ffffff", amount: 0.9, beats: 3 },
-          ],
+          fx: [{ kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 }],
         },
         {
           shape: "square",
           from: "Bongo drums",
-          to: 10,
+          to: 16,
           spots: [[0.875, 0.875, 0.125], [0.125, 0.875, 0.125]],
           fx: [
             { kind: "fill", on: "Pulse" },
             { kind: "paint", style: "solid", color: "#000000" },
-            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3 },
+            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3, until: 10 },
           ],
         },
         {
           shape: "square",
           from: 10,
-          to: 10,
+          to: 16,
           spots: [[0.375, 0.875, 0.125], [0.625, 0.875, 0.125]],
           fx: [
             { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 },
-            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3 },
+            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3, until: 10 },
           ],
         },
       ],
