@@ -332,9 +332,15 @@ function drawTimeline(B, top) {
           hover = `${m.name} — drag the name to move every hit together`;
         }
       }
-      if (Math.abs(mouseX - x) <= 5 && mouseY >= y && mouseY <= y + 16) hover = m.note ? `${m.name} · ${m.note}` : m.name;
+      if (Math.abs(mouseX - x) <= 5 && mouseY >= y && mouseY <= y + 16) {
+        hover = `${m.name}${m.note ? ` · ${m.note}` : ""} · beat ${h} — ⌥ click removes this hit`;
+      }
     });
   });
+  // ⌥ over empty lane: a click adds a hit to the open moment, right there
+  if (!hover && !HIDE_MOMENTS && keyIsDown(ALT) && MO_OPEN != null && overMarkerLane() && SCORE.moments?.[MO_OPEN] && !SCORE.moments[MO_OPEN].hold) {
+    hover = `⌥ click: add a hit to ${SCORE.moments[MO_OPEN].name} at beat ${round2(msToBeats(SCORE, mouseMs()))}`;
+  }
 
   // sections
   if (SCORE.sections?.length) {
@@ -564,6 +570,13 @@ function mousePressed(e) {
       return;
     }
     if (mouseX < TL_GUT) return; // empty gutter space is dead
+    if (e.altKey) { // ⌥ edits single hits: delete on a marker, add on empty lane
+      const mark = momentMarkerAt();
+      if (mark && mark.hi != null) return deleteHit(mark.mi, mark.hi);
+      if (!mark && MO_OPEN != null && overMarkerLane()) {
+        return addHit(MO_OPEN, round2(msToBeats(SCORE, mouseMs())));
+      }
+    }
     MOMENT_DRAG = momentMarkerAt();
     if (MOMENT_DRAG) return;
     KEY_DRAG = keyAt();
@@ -1304,6 +1317,31 @@ function deleteMoment(mi) {
   SCORE.moments.splice(mi, 1);
   MO_OPEN = null;
   MO_HOVER = null;
+  momentsChanged();
+}
+
+// ⌥-click on the timeline edits a moment hit by hit: on a marker, that hit
+// goes (the last one takes its moment along); on empty lane, the open moment
+// gets a hit right there.
+function overMarkerLane() {
+  const y = height - timelineHeight() + 34;
+  return mouseX >= TL_GUT && mouseY >= y && mouseY <= y + 16;
+}
+
+function deleteHit(mi, hi) {
+  const m = SCORE.moments?.[mi];
+  if (!m?.hits) return;
+  if (m.hits.length <= 1) return deleteMoment(mi);
+  rememberScore();
+  m.hits.splice(hi, 1);
+  momentsChanged();
+}
+
+function addHit(mi, beat) {
+  const m = SCORE.moments?.[mi];
+  if (!m?.hits) return;
+  rememberScore();
+  m.hits.push(beat);
   momentsChanged();
 }
 
