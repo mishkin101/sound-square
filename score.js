@@ -824,8 +824,8 @@ const SCORE = {
     {
       // From the longer key press until the end: contour rings around the
       // bottom left corner (a blob in the corner, thin rings and one thick
-      // one), each line drawn along itself from its left end through the key
-      // press, breathing out from the corner on every beat, the thick ring
+      // one), each line drawn along itself from its left end over the whole
+      // stretch, breathing out from the corner on every beat, the thick ring
       // swelling further (the drawing's own motions).
       name: "rings",
       clips: [
@@ -834,7 +834,7 @@ const SCORE = {
           from: "longer key press",
           to: "end",
           spots: [[0.5, 0.5, 0.5]],
-          fx: [{ kind: "reveal", style: "draw", until: "longer key press" }],
+          fx: [{ kind: "reveal", style: "draw" }],
         },
       ],
     },
