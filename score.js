@@ -179,15 +179,15 @@ const SCORE = {
       // A bar of four squares across the bottom of the square from the "Bongo
       // drums" moment. The outer two pulse black with the background's tempo
       // (a flash on every "Pulse" hit, fading over 3 beats), fading in one at a
-      // time: the right one first, the left one on the next pulse. The middle
-      // two are a soft gradient in vivid tones of the background color. On the
-      // pulse after that ("tick") the whole square becomes the gradient,
-      // beneath the bar.
+      // time: the right one first, the left one on the next pulse. Only then,
+      // on the pulse after ("tick"), the middle two come in: a soft gradient
+      // in vivid tones of the background color. On the next pulse (bar 11) the
+      // whole square becomes the gradient, beneath the bar.
       name: "squares",
       clips: [
         {
           shape: "square",
-          from: "tick",
+          from: 11,
           to: 16,
           in: "fade",
           inBeats: 2,
@@ -206,8 +206,10 @@ const SCORE = {
         },
         {
           shape: "square",
-          from: "Bongo drums",
+          from: "tick",
           to: 16,
+          in: "fade",
+          inBeats: 1,
           spots: [[0.375, 0.875, 0.125], [0.625, 0.875, 0.125]],
           fx: [{ kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 0.25 }],
         },
