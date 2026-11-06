@@ -73,6 +73,7 @@ const SCORE = {
       name: "bongo drum start",
       hits: [12.38, 12.92, 13.49, 14.04, 15.21, 15.76, 16.32, 16.88, 17.43, 17.98],
     },
+    { name: "tick", hits: [36.03] },
   ],
   // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
   // A clip: el is a coded shape from assets/elements.js; shape is a drawing,
