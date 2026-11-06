@@ -42,9 +42,13 @@ ELEMENTS.shape = {
     const step = mode === "all" ? null : spotStep(P, s, st);
     if (mode === "one") return drawOneSpot(sh, P, s, st, step);
     const fx = fxNow(P, s, st);
-    const waveBeats = P.sizeFrom === "wave" && step ? spotHitBeats(P, s, st) : null;
+    // loop: once every spot has shown, the turns start over from the first
+    const cyc = step && P.loop ? Math.floor(step.n / P.spots.length) : 0;
+    const shown = step ? (P.loop ? step.n % P.spots.length : step.n) : 0;
+    const waveBeats = P.sizeFrom === "wave" && step ? spotHitBeats(P, s, st, cyc) : null;
+    const tall = P.heightFrom === "pitch" && step ? pitchHeights(P, s, st, sh, cyc) : null;
     P.spots.forEach(([x, y, size, flip = 1, deg = 0, skew = 0], i) => {
-      if (step && i > step.n) return; // take turns: spot i waits for the i-th hit
+      if (step && i > shown) return; // take turns: spot i waits for the i-th hit
       const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
       if (frame?.hidden) return;
       const wv = waveBeats ? waveSizeAt(waveBeats[i] ?? s.B) : 1;
@@ -53,6 +57,11 @@ ELEMENTS.shape = {
       if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
       if (skew) shearX((-skew * Math.PI) / 180);
       scale(flip * size * P.size * fx.k * wv, size * P.size * fx.k * wv);
+      if (tall && tall[i] !== 1) { // stretch from the edge that stays put
+        translate(0, tall.anchor[i]);
+        scale(1, tall[i]);
+        translate(0, -tall.anchor[i]);
+      }
       drawShape(sh, s.col, drawingContext, frame);
       pop();
     });
@@ -117,15 +126,36 @@ function fxNow(P, s, st) {
 // hit ("stay", the default, stops there).
 // sizeFrom "wave": a spot appearing on a hit takes its size from the song's
 // loudness right there — tall on a peak, small in a dip (needs a waveform).
-function spotHitBeats(P, s, st) {
-  const inAt = st.T?.inAt ?? 0;
+function spotHitBeats(P, s, st, cyc = 0) {
+  const inAt = st.T?.inAt ?? 0, first = cyc * P.spots.length;
   const every = stepBeats(P, s);
   if (every) {
     const g0 = Math.round(inAt / every);
-    return P.spots.map((_, i) => (i ? (g0 + i) * every : inAt));
+    return P.spots.map((_, i) => (first + i ? (g0 + first + i) * every : inAt));
   }
   if (!P.moveOn) return null;
-  return s.hits(P.moveOn, inAt + 1e-6, 1e9).map((h) => h[1]);
+  return s.hits(P.moveOn, inAt + 1e-6, 1e9).map((h) => h[1]).slice(first);
+}
+
+// heightFrom "pitch": each spot's height follows how high the sound sits at
+// its hit (the recorded pitch), from shortest (0.45) to full across the clip's
+// hits. A spot grows away from the middle of the spot set: above the middle it
+// keeps its bottom edge, below it its top edge, so the edges facing the middle
+// stay in line. Null (full height) without recorded pitch.
+function pitchHeights(P, s, st, sh, cyc = 0) {
+  const beats = spotHitBeats(P, s, st, cyc);
+  const dur = (typeof source !== "undefined" && source.durationMs) || Waveform.ms;
+  if (!beats || !Waveform.pitch || !dur) return null;
+  const frac = (b) => beatsToMs(SCORE, b) / dur;
+  const ps = P.spots.map((_, i) => (beats[i] == null ? null : Waveform.pitchNear(frac(beats[i] - 0.1), frac(beats[i] + 0.4))));
+  const known = ps.filter((v) => v != null);
+  if (!known.length) return null;
+  const lo = Math.min(...known), span = Math.max(Math.max(...known) - lo, 0.04);
+  const mid = P.spots.reduce((a, sp) => a + sp[1], 0) / P.spots.length;
+  const b = sh.moves.box, top = (b.y0 - sh.cy) * sh.k, bottom = (b.y1 - sh.cy) * sh.k;
+  const out = ps.map((v) => (v == null ? 1 : 0.45 + (0.55 * (v - lo)) / span));
+  out.anchor = P.spots.map((sp) => (sp[1] < mid - 1e-6 ? bottom : sp[1] > mid + 1e-6 ? top : 0));
+  return out;
 }
 
 function waveSizeAt(beat) {
