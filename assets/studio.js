@@ -286,6 +286,7 @@ function drawTimeline(B, top) {
   drawingContext.beginPath();
   drawingContext.rect(TL_GUT, top, width - TL_GUT, height - top);
   drawingContext.clip();
+  if (WAVE_SHOW) drawWave(top); // the song's loudness, behind everything else
 
   // ruler: a tick per bar, a number every 8 bars
   let y = top + 12;
@@ -2740,6 +2741,8 @@ function decimals(step) {
 function wireControls() {
   const button = (id, fn) => $(id).addEventListener("click", (e) => { fn(); e.currentTarget.blur(); });
   button("play", togglePlay);
+  button("wave", toggleWave);
+  $("wave").classList.toggle("on", WAVE_SHOW);
   button("sound", toggleSound);
   button("hide", toggleBare);
   button("copy", copyScore);
@@ -2904,6 +2907,7 @@ function wireControls() {
     else if (e.key === "Escape") undoTaps();
     else if (e.key === "m" || e.key === "M") { if (!e.repeat) setMomentMode(!MOMENT_MODE); }
     else if (e.key === "v" || e.key === "V") flipTimelineView();
+    else if (e.key === "w" || e.key === "W") toggleWave();
     else if (e.key === "s" || e.key === "S") toggleSound();
     else if (e.key === "h" || e.key === "H") toggleBare();
     else if (e.key === "f" || e.key === "F") toggleFullscreen();
@@ -2919,6 +2923,47 @@ function seekBar(bar) {
 
 function togglePlay() {
   run(() => (source.playing ? source.pause() : source.play()));
+}
+
+// ---- The waveform on the timeline ---------------------------------------------
+// The song's loudness, behind the markers (assets/waveform.js). A loaded file
+// computes it from its samples; a Spotify song asks the audio-analysis API,
+// since Spotify never hands over the audio itself. W (or the Wave button)
+// shows and hides it; both the choice and each song's waveform are kept.
+let WAVE_SHOW = storeGet("soundsquare.waveShow") ?? true;
+
+function toggleWave() {
+  WAVE_SHOW = !WAVE_SHOW;
+  storeSet("soundsquare.waveShow", WAVE_SHOW);
+  $("wave").classList.toggle("on", WAVE_SHOW);
+}
+
+function ensureWave() {
+  const key = songKey();
+  Waveform.load(key);
+  if (!key || Waveform.data || Waveform.busy || Waveform.failed === key) return;
+  if (source === FileSource && FileSource.buffer) return Waveform.fromBuffer(key, FileSource.buffer);
+  if (source.trackId) {
+    Waveform.busy = true;
+    Waveform.fromSpotify(key, source.trackId)
+      .catch(() => {
+        Waveform.failed = key;
+        setText("tap-status", "Spotify won't share this song's analysis — load its file for a waveform");
+      })
+      .finally(() => { Waveform.busy = false; });
+  }
+}
+
+function drawWave(top) {
+  ensureWave();
+  if (!Waveform.data || !source.durationMs) return;
+  const w = width - TL_GUT - TL_PAD, bottom = height - 2, band = height - top - 6;
+  noStroke();
+  fill(255, 26);
+  for (let px = 0; px < w; px += 2) {
+    const v = Waveform.at((TL_VIEW.startMs + (px / w) * tlSpanMs()) / source.durationMs);
+    if (v) rect(TL_GUT + px, bottom - v * band, 2, v * band);
+  }
 }
 
 function toggleSound() {
