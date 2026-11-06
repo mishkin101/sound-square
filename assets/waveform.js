@@ -90,6 +90,16 @@ const Waveform = {
     return w ? sum / w : null;
   },
 
+  // The loudest bucket over a stretch of the song (fractions of it), 0..1.
+  levelNear(fa, fb) {
+    const d = this.data;
+    if (!d) return null;
+    const n = d.length, i0 = Math.max(0, Math.floor(fa * n)), i1 = Math.min(n - 1, Math.floor(fb * n));
+    let m = 0;
+    for (let i = i0; i <= i1; i++) m = Math.max(m, d[i] ?? 0);
+    return m;
+  },
+
   // an older save at another resolution, stretched onto n buckets
   resample(list, n) {
     if (!list) return new Array(n).fill(0);

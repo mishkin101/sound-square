@@ -79,8 +79,7 @@ const SCORE = {
   // shapes/<name>.svg, drawn at each of its spots. On from `from` through `to`:
   // a bar number, or a moment's name to land right on it. in / out: "cut",
   // "fade" or "clap". spotsMode: all (every spot), turns (one per hit of moveOn;
-  // moveOn as a number steps every that many beats; loop: true starts the
-  // turns over once every spot has shown),
+  // moveOn as a number steps every that many beats),
   // one (a single copy moves between spots, switching by jump, blink or slide;
   // moveBars caps the moving). A spot is [x, y, size]; add -1 to mirror it there,
   // then degrees to turn it, then degrees to skew it (a parallelogram lean,
@@ -94,9 +93,14 @@ const SCORE = {
   // from, to }] are effects on the shape (spin, breathe, wobble), each running
   // in its own window or the clip's whole life — or with keys of its own:
   // keys: [{ at, amount }], the amount eased over time (0 is off), replacing
-  // from/to as the envelope. sizeFrom: "wave" scales each appearing spot by
-  // the song's loudness at its hit (needs a kept waveform); heightFrom:
-  // "pitch" sets each one's height by the recorded pitch at its hit.
+  // from/to as the envelope. A fill effect shows the spots one at a time in
+  // list order: { kind: "fill", on: a moment, or every: beats per step; loop:
+  // true starts over once all have shown }. A follow effect sets a property
+  // from the song: { kind: "follow", source: "pitch" | "loudness", target:
+  // "height" | "size", mapping: "relative" (lowest hit to min, highest to max)
+  // | "absolute", min, max: scales, before, after: the beats read around each
+  // hit, anchor: "inner" | "center" | "top" | "bottom" (the edge a height
+  // change keeps) }. Pitch comes from waveform recordings.
   layers: [
     {
       name: "background",
@@ -113,26 +117,25 @@ const SCORE = {
     },
     {
       // Two rows of eight parallelograms, leaning opposite ways (skew 30 and
-      // -30: flat tops and bottoms, sides at 30 degrees). One lands every
-      // half beat from "bongo drum start": the top row rightward, then the bottom
-      // row back leftward. One spacing unit throughout: the gap between
-      // neighbors (measured square to their sides) equals the gap between rows.
-      // Each bar's height follows the pitch at its hit, growing outward from
-      // the gap between the rows, so the inner edges stay in line. It loops
-      // until the "Bongo drums" moment: once all 16 have landed, it fills again.
+      // -30: flat tops and bottoms, sides at 30 degrees), the top row filling
+      // rightward, then the bottom row back leftward. One spacing unit
+      // throughout: the gap between neighbors (measured square to their sides)
+      // equals the gap between rows. Its effects: fill (one bar per quarter
+      // beat, looping until the "Bongo drums" moment) and follow (each bar's
+      // height from the pitch at its hit, growing out from the gap between rows).
       name: "bongos",
       clips: [
         {
           shape: "line",
           from: "bongo drum start",
           to: "Bongo drums",
-          spotsMode: "turns",
-          moveOn: 0.5,
-          loop: true,
-          heightFrom: "pitch",
           spots: [
             [0.1779, 0.4049, 0.1023, 1, 0, 30], [0.2699, 0.4049, 0.1023, 1, 0, 30], [0.362, 0.4049, 0.1023, 1, 0, 30], [0.454, 0.4049, 0.1023, 1, 0, 30], [0.546, 0.4049, 0.1023, 1, 0, 30], [0.638, 0.4049, 0.1023, 1, 0, 30], [0.7301, 0.4049, 0.1023, 1, 0, 30], [0.8221, 0.4049, 0.1023, 1, 0, 30],
             [0.8221, 0.5951, 0.1023, 1, 0, -30], [0.7301, 0.5951, 0.1023, 1, 0, -30], [0.638, 0.5951, 0.1023, 1, 0, -30], [0.546, 0.5951, 0.1023, 1, 0, -30], [0.454, 0.5951, 0.1023, 1, 0, -30], [0.362, 0.5951, 0.1023, 1, 0, -30], [0.2699, 0.5951, 0.1023, 1, 0, -30], [0.1779, 0.5951, 0.1023, 1, 0, -30],
+          ],
+          fx: [
+            { kind: "fill", every: 0.25, loop: true },
+            { kind: "follow", source: "pitch", target: "height", mapping: "relative", min: 0.45, max: 1, before: 0.1, after: 0.4, anchor: "inner" },
           ],
         },
       ],

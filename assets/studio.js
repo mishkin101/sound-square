@@ -197,6 +197,15 @@ function paramsFor(el, L) {
     if (hop.under) P.switchUnder = hop.under;
     else delete P.switchUnder;
   }
+  // a fill effect: the spots appear one at a time in list order, on its
+  // trigger's taps or every `every` beats; loop starts over once all have shown
+  const fill = !hop && P.fx?.find((f) => f.kind === "fill");
+  if (fill) {
+    P.spotsMode = "turns";
+    P.moveOn = fill.on || (fill.every ?? 1);
+    if (fill.loop) P.loop = true;
+    else delete P.loop;
+  }
   return P;
 }
 
@@ -859,7 +868,7 @@ function removeSpot(i) {
 
 function setKeyAtPlayhead() {
   const L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
-  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "pulse"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (hops and pulses have no envelope)
+  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "pulse", "fill", "follow"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (hops, pulses, fills and follows have no envelope)
   if (!L?.shape) return;
   rememberScore();
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
@@ -2387,11 +2396,15 @@ function buildFxPanel(R, L) {
     const open = FX_OPEN === fi;
     const head = document.createElement("div");
     head.className = "fx-head" + (open ? " on" : "");
-    const meta = f.kind === "hop" || f.kind === "pulse"
-      ? (f.on ?? "pick a moment")
+    const meta = f.kind === "hop" || f.kind === "pulse" ? (f.on ?? "pick a moment")
+      : f.kind === "fill" ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}`
+      : f.kind === "follow" ? `${f.source ?? "pitch"} → ${f.target ?? "height"}`
       : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`;
+    const metaTitle = f.kind === "hop" || f.kind === "pulse" ? "its trigger"
+      : f.kind === "fill" ? "its step" : f.kind === "follow" ? "source → property"
+      : `intensity now${f.keys?.length ? " (keyed)" : ""}`;
     head.innerHTML = `<span class="caret dimmed">${open ? "▾" : "▸"}</span><span class="kind">${f.kind}</span>` +
-      `<span class="data dimmed" title="${f.kind === "hop" || f.kind === "pulse" ? "its trigger" : `intensity now${f.keys?.length ? " (keyed)" : ""}`}">${meta}</span>` +
+      `<span class="data dimmed" title="${metaTitle}">${meta}</span>` +
       `<button class="mini" data-x title="Remove the effect">×</button>`;
     head.addEventListener("click", (e) => {
       if (e.target.dataset.x != null) {
@@ -2435,7 +2448,7 @@ function buildFxPanel(R, L) {
 // What a clip can wear: drawn shapes move and turn; the background (and other
 // coded elements) pulse their color.
 function fxKinds(L) {
-  return L.shape ? ["spin", "breathe", "wobble", "hop", "pulse"] : ["pulse"];
+  return L.shape ? ["spin", "breathe", "wobble", "hop", "fill", "follow", "pulse"] : ["pulse"];
 }
 
 // The open effect's controls, under its header row.
@@ -2456,6 +2469,30 @@ function appendFxControls(card, f, L) {
     card.append(colorRow);
     card.append(fxSlider(f, "amount", 0, 1, 0.05, 0.35, "intensity"));
     card.append(fxSlider(f, "beats", 0.25, 8, 0.25, 3, "decay (beats)"));
+    return;
+  }
+  if (f.kind === "fill") {
+    // the spots appear one at a time in list order: on a moment's taps, or
+    // in steady steps; repeat: once, or loop back to empty and fill again
+    card.append(menuRow(f, "on", "trigger", [["", "steady steps"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
+    if (!f.on) card.append(fxSlider(f, "every", 0.125, 4, 0.125, 1, "step (beats)"));
+    card.append(boolRow(f, "loop", "repeat", "once", "loop"));
+    return;
+  }
+  if (f.kind === "follow") {
+    // a property set by the song at each spot's hit (or at the playhead when
+    // the spots have no steps): relative maps the lowest hit to min and the
+    // highest to max, absolute maps the value itself (0..1)
+    card.append(menuRow(f, "source", "source", [["pitch", "pitch"], ["loudness", "loudness"]], "pitch"));
+    card.append(menuRow(f, "target", "property", [["height", "height"], ["size", "size"]], "height"));
+    card.append(menuRow(f, "mapping", "mapping", [["relative", "relative"], ["absolute", "absolute"]], "relative"));
+    card.append(fxSlider(f, "min", 0, 2, 0.05, 0.45, "min scale"));
+    card.append(fxSlider(f, "max", 0, 2, 0.05, 1, "max scale"));
+    card.append(fxSlider(f, "before", 0, 1, 0.05, 0.1, "window before (beats)"));
+    card.append(fxSlider(f, "after", 0, 1, 0.05, 0.4, "window after (beats)"));
+    if ((f.target ?? "height") === "height") {
+      card.append(menuRow(f, "anchor", "anchor", [["inner", "inner edge"], ["center", "center"], ["top", "top"], ["bottom", "bottom"]], "inner"));
+    }
     return;
   }
   if (f.kind === "hop") {
@@ -2547,6 +2584,22 @@ function fxAmountSlider(f) {
   slider.addEventListener("change", () => {
     SLIDING = false;
     if (f.keys?.length) buildLayerDetail();
+  });
+  return row;
+}
+
+function boolRow(f, key, label, off, on) {
+  const row = document.createElement("label");
+  row.className = "param";
+  row.innerHTML = `<span>${label}</span><span></span><select class="input">` +
+    `<option value=""${f[key] ? "" : " selected"}>${off}</option><option value="1"${f[key] ? " selected" : ""}>${on}</option></select>`;
+  const sel = row.querySelector("select");
+  sel.addEventListener("change", () => {
+    rememberScore();
+    if (sel.value) f[key] = true;
+    else delete f[key];
+    sel.blur();
+    buildLayers();
   });
   return row;
 }
