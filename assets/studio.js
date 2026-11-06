@@ -103,9 +103,37 @@ function stageRect() {
   return { width: Math.max(1, Math.floor(r.width)), height: Math.max(1, Math.floor(r.height)) };
 }
 
+// The layer whose stretch of the song plays on repeat (the studio's, not the
+// score's), and when the last jump back was asked for: a seek can take a
+// moment to land.
+let LOOP_LAYER = null, LOOP_JUMPED = 0;
+
+// A layer's stretch of the song in beats: its first clip coming in to its
+// last one gone. Null with no clips.
+function layerSpan(R) {
+  if (!R?.clips?.length) return null;
+  const T = R.clips.map((L) => layerTiming(SCORE, WORLD, L));
+  return [Math.min(...T.map((t) => t.inAt)), Math.max(...T.map((t) => t.outAt + t.outLen))];
+}
+
+// The looping layer's stretch, while it's still in the score.
+function loopSpan() {
+  return LOOP_LAYER && SCORE.layers.includes(LOOP_LAYER) ? layerSpan(LOOP_LAYER) : null;
+}
+
+// While the song plays, the end of the looping layer's stretch jumps back to its start.
+function keepLooping() {
+  const span = loopSpan();
+  if (!span || !source.playing || scrubMs != null || millis() - LOOP_JUMPED < 1000) return;
+  if (msToBeats(SCORE, source.now()) < span[1]) return;
+  LOOP_JUMPED = millis();
+  run(() => source.seek(beatsToMs(SCORE, span[0])));
+}
+
 function draw() {
   if (source.durationMs) coverSong(source.durationMs);
   else if (source.loops && source.now() >= songMs(SCORE)) source.seek(0); // the stand-in loops
+  keepLooping();
   const B = msToBeats(SCORE, songNow());
   const tl = timelineHeight();
   background(0);
@@ -323,6 +351,8 @@ function drawTimeline(B, top) {
     const every = TL_VIEW.zoom >= 8 ? 1 : TL_VIEW.zoom >= 2 ? 4 : 8;
     if (bar % every === 1 % every && bar <= SCORE.bars) { noStroke(); fill(140); text(bar, x + 3, y); }
   }
+  const loop = loopSpan(); // the looping layer's stretch, under the ticks
+  if (loop) { noStroke(); fill(85, 209, 135); rect(X(loop[0]), y + 17, X(loop[1]) - X(loop[0]), 2); }
 
   // moments: a marker per hit, named at the first; hidden ones stay off the ruler
   y += 22;
@@ -2097,6 +2127,7 @@ function buildLayers() {
       : `<span class="fold-btn"></span>`;
     row.innerHTML = `${caret}<span class="grip" title="Drag to restack (lower layers draw on top)">⋮⋮</span>${name}` +
       `<span class="dimmed">${meta}</span>` +
+      `<button class="mini loop${LOOP_LAYER === R ? " on" : ""}" data-act="loop" title="${LOOP_LAYER === R ? "Stop the loop" : "Loop playback over this layer"}">${LOOP}</button>` +
       `<button class="mini lock${R.locked ? " on" : ""}" data-act="lock" title="${R.locked ? "Unlock: its spots take clicks on the square again" : "Lock: clicks on the square pass it by (the panel still edits it)"}">${R.locked ? LOCK : LOCK_OPEN}</button>` +
       `<button class="mini eye" data-act="eye" title="${R.hidden ? "Show the layer" : "Hide the layer on the square"}">${R.hidden ? EYE_OFF : EYE}</button>` +
       `<button class="mini" data-act="del" title="Remove the layer and its shapes">×</button>`;
@@ -2106,6 +2137,11 @@ function buildLayers() {
       if (act === "fold") {
         if (FOLDED.has(R.name)) FOLDED.delete(R.name);
         else FOLDED.add(R.name);
+        buildLayers();
+      } else if (act === "loop") {
+        LOOP_LAYER = LOOP_LAYER === R ? null : R;
+        const span = loopSpan();
+        if (span) run(() => source.seek(beatsToMs(SCORE, span[0])));
         buildLayers();
       } else if (act === "lock") {
         rememberScore();
