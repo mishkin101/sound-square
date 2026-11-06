@@ -514,7 +514,10 @@ const SCORE = {
   // grid step in beats; loop: true starts over once all have shown; fade:
   // beats each spot takes to fade in — a lone spot fades in from the clip's
   // start; flash: a color each spot comes in washed with, settling to its own
-  // look over flashBeats }. A pulse effect on a shape flares a
+  // look over flashBeats }. A reveal effect draws the shape in from one side
+  // across its width: { kind: "reveal", side: "left" (the default) | "right" |
+  // "top" | "bottom" }, done at the end of its window (from / until, else the
+  // clip's life). A pulse effect on a shape flares a
   // palette slot, or with slot: "shape" the shape itself: mode "flash" shows
   // it only on each hit (its own look, fading out over `beats`), "tint" keeps
   // it showing and washes it toward the pulse color on each hit. A pulse runs

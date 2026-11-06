@@ -1151,7 +1151,7 @@ function removeSpot(list) {
 
 function setKeyAtPlayhead() {
   const L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
-  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "scatter", "trail", "pulse", "fill", "follow", "paint", "ripple"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (these have no envelope)
+  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "scatter", "trail", "reveal", "pulse", "fill", "follow", "paint", "ripple"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (these have no envelope)
   if (!L?.shape) return;
   rememberScore();
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
@@ -2847,6 +2847,7 @@ function buildFxPanel(R, L) {
       : ["fill", "ripple", "scatter", "trail"].includes(f.kind) ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}${f.apart ? " · apart" : ""}`
       : f.kind === "follow" ? `${f.source ?? "pitch"} → ${f.target ?? "height"}`
       : f.kind === "paint" ? `${f.style ?? "gradient"} · ${f.color ?? "ground"}`
+      : f.kind === "reveal" ? `from the ${f.side ?? "left"}`
       : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`) +
       (f.steps?.length ? ` · ${f.steps.join(",")}/${f.of ?? Math.max(...f.steps)}` : "");
     const metaTitle = ["hop", "pulse", "ripple", "scatter", "trail"].includes(f.kind) ? "its trigger"
@@ -2897,7 +2898,7 @@ function buildFxPanel(R, L) {
 // What a clip can wear: drawn shapes move and turn; the background (and other
 // coded elements) pulse their color.
 function fxKinds(L) {
-  return L.shape ? ["spin", "breathe", "wobble", "oscillate", "hop", "scatter", "trail", "fill", "follow", "paint", "pulse", "ripple"] : ["pulse"];
+  return L.shape ? ["spin", "breathe", "wobble", "oscillate", "hop", "scatter", "trail", "reveal", "fill", "follow", "paint", "pulse", "ripple"] : ["pulse"];
 }
 
 // The open effect's controls, under its header row.
@@ -2979,6 +2980,13 @@ function appendFxControls(card, f, L) {
     if (!f.on) card.append(fxSlider(f, "every", 0.05, 8, 0.01, 1, "step (beats)"));
     card.append(fxSlider(f, "spacing", 0.01, 0.5, 0.01, 0.08, "spacing"));
     card.append(fxSlider(f, "beats", 0.25, 8, 0.25, 1, "fade out (beats)"));
+    return;
+  }
+  if (f.kind === "reveal") {
+    // drawn in from one side across its width (or height), finished at the
+    // end of its window — the clip's own life unless from / until say
+    card.append(menuRow(f, "side", "from", [["left", "the left"], ["right", "the right"], ["top", "the top"], ["bottom", "the bottom"]], "left"));
+    card.append(whenRow(f, "from", "start", "until"), whenRow(f, "until", "done", "until"));
     return;
   }
   if (f.kind === "paint") {

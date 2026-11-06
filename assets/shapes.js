@@ -101,7 +101,7 @@ ELEMENTS.shape = {
         scale(1, kf);
         translate(0, -reach.anchor[i]);
       }
-      if (shapeAlpha > 0.001) drawPainted(sh, s, P, i, frame, sp);
+      if (shapeAlpha > 0.001 && clipReveal(sh, P, s.B, st)) drawPainted(sh, s, P, i, frame, sp);
       for (const r of mine) drawRing(sh, s, r, size * P.size * fx.k * wv);
       pop();
     });
@@ -120,7 +120,7 @@ function drawKeyed(sh, P, s, st) {
   translate(k.x + fx.dx, k.y + fx.dy);
   if (k.deg || fx.rot) rotate((k.deg * Math.PI) / 180 + fx.rot);
   scale(k.flip * k.size * P.size * fx.k, k.size * P.size * fx.k);
-  drawShape(sh, s.col, drawingContext, frame);
+  if (clipReveal(sh, P, s.B, st)) drawShape(sh, s.col, drawingContext, frame);
   pop();
 }
 
@@ -306,6 +306,33 @@ function ripplesNow(f, B, st) {
     out.push({ t: (B - h) / life, f });
   }
   return out;
+}
+
+// The reveal effect: the drawing comes in from one side (`side`: left, the
+// default, right, top or bottom) across its own width or height, finished
+// when its window ends (from / until; else the clip's own life). Clips the
+// spot's drawing to what has come in so far, in its frame; false when none
+// of it has. Call after the spot is placed.
+function clipReveal(sh, P, B, st) {
+  const f = P.fx?.find((x) => x.kind === "reveal");
+  if (!f) return true;
+  const at = (v, end) => (typeof v === "string" ? (end ? momentEnd(SCORE, v) : momentStart(SCORE, v)) : barToBeats(SCORE, end ? v + 1 : v));
+  const a = f.from == null ? st.T?.s ?? 0 : at(f.from, false) ?? 0;
+  const b = f.until == null ? st.T?.e ?? a + 1 : at(f.until, true) ?? a + 1;
+  const t = clamp01((B - a) / Math.max(1e-6, b - a));
+  if (t >= 1) return true;
+  if (t <= 0) return false;
+  const box = sh.moves.box, k = sh.k, pad = 0.1; // room for lines drawn wider than their outline
+  const x0 = (box.x0 - sh.cx) * k - pad, x1 = (box.x1 - sh.cx) * k + pad, y0 = (box.y0 - sh.cy) * k - pad, y1 = (box.y1 - sh.cy) * k + pad;
+  const w = x1 - x0, h = y1 - y0, side = f.side ?? "left";
+  const ctx = drawingContext;
+  ctx.beginPath();
+  if (side === "right") ctx.rect(x1 - t * w, y0, t * w, h);
+  else if (side === "top") ctx.rect(x0, y0, w, t * h);
+  else if (side === "bottom") ctx.rect(x0, y1 - t * h, w, t * h);
+  else ctx.rect(x0, y0, t * w, h);
+  ctx.clip();
+  return true;
 }
 
 // The scatter effect: on each hit of its trigger (a moment), or on the grid
@@ -615,7 +642,7 @@ function drawOneSpot(sh, P, s, st, step) {
   const kb = spotBreath(P, s.B, st, i);
   scale(flip * size * P.size * fx.k * kb, size * P.size * fx.k * kb);
   if (squash !== 1) scale(1, squash);
-  drawPainted(sh, s, P, i, frame, sp);
+  if (clipReveal(sh, P, s.B, st)) drawPainted(sh, s, P, i, frame, sp);
   pop();
 }
 
