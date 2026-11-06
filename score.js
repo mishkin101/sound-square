@@ -3,16 +3,16 @@
 // Edit by hand, or tune with the studio's sliders and use "Copy score.js".
 
 const SCORE = {
-  // The song.
+  // The song. The Spotify id gets filled in when we connect Spotify.
   song: {
     title: "I Haven't Recovered From Last Night With You",
     artist: "Divorce from New York",
     spotifyId: "0KJKIGebZqDyMoxI2NMpL0",
   },
-  // Timing grid: tapped along to the real song.
-  bpm: 125.874,
+  // Timing grid: a placeholder until we tap along to the real song.
+  bpm: 126,
   beatsPerBar: 4,
-  firstDownbeatMs: 731,
+  firstDownbeatMs: 1615,
   bars: 216,
   // Energy from 0 to 1 at chosen bars; bars in between blend smoothly.
   energy: [[1, 0.2], [9, 0.4], [17, 0.65], [25, 0.7], [33, 0.85], [41, 0.55], [48, 0.3]],
@@ -53,12 +53,7 @@ const SCORE = {
   // Which palette starts at which bar. Changes blend over colorFadeBars.
   colors: [[1, "salmon"], [33, "dream"], [41, "deep"]],
   colorFadeBars: 2,
-  // Color pulses: a palette slot moving toward a color. With `on`, the pulse
-  // rides that moment's taps: one pulse per hit, bright right on the tap and
-  // dying away over `beats`. With from/until instead, it cycles between two
-  // moments: back "snap" builds then snaps back, "fade" breathes, "decay"
-  // lands bright on the beat and dies away. amount: how far it goes.
-  // (The background's own pulse lives on its clip now, as a pulse effect.)
+  // Color pulses: a palette slot breathing toward a color between two moments.
   colorMoves: [],
   // Names for the timeline. Number keys 1-6 jump to them.
   sections: [],
@@ -66,18 +61,15 @@ const SCORE = {
   // down, M marks a hold: [start, end] in beats, a span like the bongo section).
   // Layers come in and leave on them, spots move on their hits, pulses run between them.
   // Each can carry a note; hide: true keeps its marker off the timeline.
-  // repeat: { every, times } plays the tapped pattern again `times` more
-  // times, `every` beats apart — hops and pulses follow, markers don't multiply.
   moments: [
-    // Every tap of "eye moves" moves the eye — the moment IS the choreography.
-    // "eye panning" keeps her full tapped record (all ten taps, the felt beats
-    // too), off the timeline but there to retap or mine later.
-    { name: "eye moves", hits: [9.25, 13.28] },
-    { name: "eye panning", hits: [6.31, 6.99, 7.71, 8.81, 9.25, 10.31, 11.04, 11.76, 12.83, 13.28], hide: true },
-    { name: "Bongo drum Start", hits: [14.28] },
-    // Moved to the song's start, its tapped spacing kept; it triggers the
-    // background's pulse effect.
-    { name: "Pulse", hits: [0, 4.04] },
+    { name: "eye moves", hits: [9.3, 13.28], hide: true },
+    {
+      name: "eye panning",
+      hits: [4.15, 5.06, 5.78, 6.88, 7.32, 8.38, 9.11, 9.83, 10.9, 11.35],
+      repeat: { every: 8, times: 3 },
+    },
+    { name: "Bongo drum Start", hits: [14.28], hide: true },
+    { name: "Pulse", hits: [0.05], repeat: { every: 4, times: 610 } },
   ],
   // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
   // A clip: el is a coded shape from assets/elements.js; shape is a drawing,
@@ -85,58 +77,42 @@ const SCORE = {
   // a bar number, or a moment's name to land right on it. in / out: "cut",
   // "fade" or "clap". spotsMode: all (every spot), turns (one per hit of moveOn),
   // one (a single copy moves between spots, switching by jump, blink or slide;
-  // moveBars caps the moving; switchUnder: only a hit within that many beats
-  // of the hit before moves it). A spot is [x, y, size]; add -1 to mirror it there,
+  // moveBars caps the moving). A spot is [x, y, size]; add -1 to mirror it there,
   // then degrees to turn it. hidden: true keeps a whole layer off the square.
   // keys: [{ at, x, y, size, deg, fade, flip }] ease the clip's place over time
   // (K in the studio); at is "bar:beat" or a moment's name; flip: -1 mirrors
-  // from that key on; ease: "line" keeps the approach linear, "snap" holds
-  // and jumps there right on the key (a flash). Keys replace the
+  // from that key on; ease: "line" keeps the approach linear. Keys replace the
   // spot modes. keysFrom names the moment whose drawn path made them: editing
   // that path in the studio re-samples the keys. fx: [{ kind, amount, rate,
   // from, to }] are effects on the shape (spin, breathe, wobble), each running
   // in its own window or the clip's whole life — or with keys of its own:
   // keys: [{ at, amount }], the amount eased over time (0 is off), replacing
-  // from/to as the envelope. A hop effect moves one copy between the spots:
-  // { kind: "hop", on: a moment's name — every tap moves it to the next spot.
-  // order: "cycle" (default), "bounce" (back and forth) or "random" (stable);
-  // by: jump, blink or slide; under: an optional filter — only a tap within
-  // that many beats of the tap before moves it, for a moment whose taps
-  // aren't all moves }. On a raw clip the same order is spotOrder.
-  // A pulse effect: { kind: "pulse", on: its trigger moment — one flare per
-  // tap (none: a steady cycle), slot: the palette slot it flares ("ground"
-  // unless said), to: the color, amount: intensity, beats: the decay }.
+  // from/to as the envelope.
   layers: [
-    // The square is a blank canvas; the background is a shape from the
-    // library (shapes/background.svg, its fill on the ground slot), filling
-    // the square from one centered spot. Its pulse effect flares the ground
-    // color toward white on each tap of "Pulse", decaying over 3 beats.
     {
       name: "background",
-      locked: true, // clicks on the square pass it by; the panel still edits it
-      clips: [{
-        shape: "background",
-        from: 1,
-        to: 216,
-        spots: [[0.5, 0.5, 0.5]],
-        fx: [{ kind: "pulse", on: "Pulse", to: "#ffffff", amount: 0.35, beats: 3 }],
-      }],
+      locked: true,
+      clips: [
+        {
+          shape: "background",
+          from: 1,
+          to: 216,
+          spots: [[0.5, 0.5, 0.5]],
+          fx: [{ kind: "pulse", on: "Pulse", to: "#ffffff", amount: 0.9, beats: 3 }],
+        },
+      ],
     },
     {
       name: "eyes",
       clips: [
-        // The opening: one eye, top left, facing right. The hop rides
-        // "eye moves": each tap flashes it to the other corner (mirrored to
-        // face back). It leaves when the bongo drums start. Re-tapping the
-        // moment retimes it all.
         {
           shape: "eye",
           from: 1,
-          to: "Bongo drum Start",
+          to: 8,
           out: "fade",
           outBeats: 2,
           spots: [[0.11, 0.11, 0.055], [0.89, 0.11, 0.055, -1]],
-          fx: [{ kind: "hop", on: "eye moves" }],
+          fx: [{ kind: "hop", on: "eye panning" }],
         },
       ],
     },
