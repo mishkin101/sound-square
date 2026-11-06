@@ -197,7 +197,7 @@ function fitTimeline() {
 
 // While the song plays, the end of the loop jumps back to its start.
 function keepLooping() {
-  if (!LOOP || !source.playing || scrubMs != null || millis() - LOOP_JUMPED < 1000) return;
+  if (!LOOP || Export.on || !source.playing || scrubMs != null || millis() - LOOP_JUMPED < 1000) return;
   if (msToBeats(SCORE, source.now()) < LOOP[1]) return;
   LOOP_JUMPED = millis();
   run(() => source.seek(beatsToMs(SCORE, LOOP[0])));
@@ -225,6 +225,7 @@ function draw() {
   SQ_X = Math.round((width - SQ) / 2);
   SQ_Y = Math.round((height - tl - SQ) / 2);
   renderSquare(B, SQ_X, SQ_Y);
+  Export.frame(drawingContext.canvas, SQ_X, SQ_Y, SQ); // the square alone, before any overlay
   drawMarkPath();
   drawMarkFx();
   drawMomentPath();
@@ -3524,6 +3525,8 @@ function updatePanel(B) {
   setText("pos", `bar ${bar} · beat ${Math.floor(b % SCORE.beatsPerBar) + 1}`);
   setText("time", `${clockText(songNow())} / ${clockText(songMs(SCORE))}`);
   setText("play", source.playing ? "Pause" : "Play");
+  setText("export", Export.on ? "Stop" : "Export");
+  $("export").classList.toggle("on", Export.on);
   $("play").classList.toggle("on", source.playing);
   updateWaveRec();
   setText("song-status", source.label);
@@ -3559,6 +3562,7 @@ function wireControls() {
   button("sound", toggleSound);
   button("hide", toggleBare);
   button("copy", copyScore);
+  button("export", () => Export.toggle());
   button("forget", forgetWork);
   button("edit", () => { setEdit(!EDIT.on); if (EDIT.on) { buildLayers(); revealLayerPanel(); } });
   // the spot toolbar over the square, acting on the selected spot

@@ -68,6 +68,7 @@ const FileSource = {
     const node = this.ctx.createBufferSource();
     node.buffer = this.buffer;
     node.connect(this.ctx.destination);
+    if (this.tap) node.connect(this.tap); // an export recording the sound
     node.onended = () => {
       if (this.node !== node) return;
       this.offset = this.durationMs;
