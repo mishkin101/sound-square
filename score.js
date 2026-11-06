@@ -481,7 +481,10 @@ const SCORE = {
     },
     { name: "snare", hits: [124.94] },
     { name: "longer key press", hits: [172.03] },
-    { name: "bright keys", hits: [75.92] },
+    {
+      name: "bright keys",
+      hits: [75.92, 76.46, 77.07, 78.2, 78.75, 93.94, 94.48, 98.44, 100.13, 101.8],
+    },
     { name: "end", hits: [199.11] },
   ],
   // Layers are named rows on the timeline, drawn bottom to top; each holds shape clips.
@@ -509,7 +512,8 @@ const SCORE = {
   // list order: { kind: "fill", on: a moment (a spot per hit), or every: the
   // grid step in beats; loop: true starts over once all have shown; fade:
   // beats each spot takes to fade in — a lone spot fades in from the clip's
-  // start }. A pulse effect on a shape flares a
+  // start; flash: a color each spot comes in washed with, settling to its own
+  // look over flashBeats }. A pulse effect on a shape flares a
   // palette slot, or with slot: "shape" the shape itself: mode "flash" shows
   // it only on each hit (its own look, fading out over `beats`), "tint" keeps
   // it showing and washes it toward the pulse color on each hit. A pulse runs
@@ -967,6 +971,38 @@ const SCORE = {
               beats: 0.5,
               amount: 1,
             },
+          ],
+        },
+      ],
+    },
+    {
+      // From the bright keys until the snare: a row of ten slim keys on the
+      // right, one coming in on each bright keys hit, fading in and arriving
+      // washed in white that settles into its dreamy color (1, 3 and 4 in
+      // turn, as the triangles had).
+      name: "bright keys",
+      clips: [
+        {
+          shape: "rectangle",
+          from: "bright keys",
+          to: "snare",
+          spots: [
+            [0.49, 0.42, 0.1],
+            [0.538, 0.42, 0.1],
+            [0.586, 0.42, 0.1],
+            [0.634, 0.42, 0.1],
+            [0.682, 0.42, 0.1],
+            [0.73, 0.42, 0.1],
+            [0.778, 0.42, 0.1],
+            [0.826, 0.42, 0.1],
+            [0.874, 0.42, 0.1],
+            [0.922, 0.42, 0.1],
+          ],
+          fx: [
+            { kind: "fill", on: "bright keys", fade: 1, flash: "#ffffff", flashBeats: 1.5 },
+            { kind: "paint", style: "solid", color: "dreamy1", spots: [1, 4, 7, 10] },
+            { kind: "paint", style: "solid", color: "dreamy3", spots: [2, 5, 8] },
+            { kind: "paint", style: "solid", color: "dreamy4", spots: [3, 6, 9] },
           ],
         },
       ],

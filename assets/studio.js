@@ -2927,6 +2927,9 @@ function appendFxControls(card, f, L) {
     if (!f.on) card.append(fxSlider(f, "every", 0.125, 4, 0.125, 1, "step (beats)"));
     card.append(boolRow(f, "loop", "repeat", "once", "loop"));
     card.append(fxSlider(f, "fade", 0, 8, 0.25, 0, "fade in (beats)"));
+    // a flash: each spot comes in washed with a color that settles away
+    card.append(colorSwatches(f.flash ?? null, null, (c) => (c == null ? delete f.flash : (f.flash = c)), { label: "flash", none: true }));
+    if (f.flash) card.append(fxSlider(f, "flashBeats", 0.25, 8, 0.25, 1.5, "flash (beats)"));
     return;
   }
   if (f.kind === "follow") {
@@ -3206,25 +3209,28 @@ function keepColor(hex) {
 // A color row of swatches: the palette's slots (shown as they are at the
 // playhead), the colors picked lately, and a picker for any other. `cur` is
 // a slot's name or a hex; set(c) takes the pick, null for the default.
-function colorSwatches(cur, def, set) {
+function colorSwatches(cur, def, set, { label = "color", none = false } = {}) {
   const row = document.createElement("div");
   row.className = "param";
   const col = paletteAt(SCORE, Math.max(0, msToBeats(SCORE, songNow())));
   const hexOf = (c) => (c.startsWith("#") ? c : slotColor(c, col));
-  const same = (a, b) => a.toLowerCase() === b.toLowerCase();
+  const same = (a, b) => a != null && b != null && a.toLowerCase() === b.toLowerCase();
   const recent = recentColors();
-  if (cur.startsWith("#") && !recent.some((c) => same(c, cur))) recent.unshift(cur.toLowerCase());
+  if (cur?.startsWith("#") && !recent.some((c) => same(c, cur))) recent.unshift(cur.toLowerCase());
   const sw = (c, tip) => `<button class="swatch${same(c, cur) ? " on" : ""}" data-c="${c}" title="${tip}" style="background:${hexOf(c)}"></button>`;
-  row.innerHTML = `<span>color</span><span></span><div class="swatches fx-swatches">` +
+  // with `none`, a first swatch for no color at all (cur null)
+  row.innerHTML = `<span>${label}</span><span></span><div class="swatches fx-swatches">` +
+    (none ? `<button class="swatch none${cur == null ? " on" : ""}" data-c="" title="None"></button>` : "") +
     PAINT_SLOTS.map((s) => sw(s, slotLabel(s))).join("") + `<span class="swatch-break"></span>` +
     recent.map((c) => sw(c, c)).join("") +
-    `<label class="swatch pick" title="Pick a color"><input type="color" value="${hexOf(cur)}"></label></div>`;
+    `<label class="swatch pick" title="Pick a color"><input type="color" value="${cur ? hexOf(cur) : "#ffffff"}"></label></div>`;
   for (const b of row.querySelectorAll("button.swatch")) {
     b.addEventListener("click", () => {
       b.blur();
       rememberScore();
-      if (b.dataset.c.startsWith("#")) keepColor(b.dataset.c);
-      set(b.dataset.c === def ? null : b.dataset.c);
+      const c = b.dataset.c;
+      if (c.startsWith("#")) keepColor(c);
+      set(!c || c === def ? null : c);
       buildLayerDetail();
     });
   }

@@ -56,8 +56,9 @@ ELEMENTS.shape = {
     const byHeight = (fol?.target ?? "height") === "height";
     const mid = fx.osc.length ? [0, 1].map((a) => P.spots.reduce((t, sp) => t + sp[a], 0) / P.spots.length) : null;
     // a fill's fade: each spot fades in over that many beats from its turn
-    const fade = step ? P.fx?.find((f) => f.kind === "fill")?.fade ?? 0 : 0;
-    const turnAt = fade > 0 ? spotHitBeats(P, s, st, cyc) : null;
+    const fill = P.fx?.find((f) => f.kind === "fill");
+    const fade = step ? fill?.fade ?? 0 : 0, flash = step ? fill?.flash : null;
+    const turnAt = fade > 0 || flash ? spotHitBeats(P, s, st, cyc) : null;
     const rings = P.fx?.filter((f) => f.kind === "ripple").flatMap((f) => ripplesNow(f, s.B, st)) ?? [];
     // a scatter's placement moves the spots (not while they're being placed)
     const moved = P.editing ? null : scatterOffsets(sh, P, s, st);
@@ -67,7 +68,13 @@ ELEMENTS.shape = {
       // (its own look, fading out over the decay); tint keeps it showing and
       // washes it toward the pulse color on each hit. A clip can wear several,
       // each in its own window or on its own spots; a ripple can name spots too
-      const sp = selfPulseNow(P, s.B, i, st), shapeAlpha = sp ? sp.alpha : 1;
+      let sp = selfPulseNow(P, s.B, i, st);
+      // a fill's flash: each spot comes in washed with it and settles to its own look
+      if (flash && turnAt?.[i] != null && s.B >= turnAt[i]) {
+        const w = smoothstep(1 - clamp01((s.B - turnAt[i]) / (fill.flashBeats || 1.5)));
+        if (w > 0.001) sp = { alpha: sp?.alpha ?? 1, tint: { w: Math.max(w, sp?.tint?.w ?? 0), to: flash } };
+      }
+      const shapeAlpha = sp ? sp.alpha : 1;
       const mine = rings.filter((r) => !r.f.spots?.length || r.f.spots.includes(i + 1));
       if (shapeAlpha <= 0.001 && !mine.length) return;
       const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
