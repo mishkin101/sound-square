@@ -60,14 +60,12 @@ const Waveform = {
     this.keep(key, out, total * 1000);
   },
 
-  // the level at a song position, 0..1, blended between buckets so a deep
-  // zoom draws slopes instead of slabs (null without a waveform)
+  // the level at a song position, 0..1 (null without a waveform). Buckets
+  // stay stepped on purpose: a level change reads as a clean edge.
   at(frac) {
     const d = this.data;
     if (!d) return null;
-    const x = Math.max(0, Math.min(d.length - 1, frac * d.length - 0.5));
-    const i = Math.floor(x), t = x - i;
-    return (d[i] ?? 0) * (1 - t) + (d[Math.min(d.length - 1, i + 1)] ?? 0) * t;
+    return d[Math.max(0, Math.min(d.length - 1, Math.floor(frac * d.length)))] ?? 0;
   },
 
   // an older save at another resolution, stretched onto n buckets
