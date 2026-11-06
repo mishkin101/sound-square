@@ -821,6 +821,22 @@ const SCORE = {
       ],
     },
     {
+      // Bars 12 to 18: contour rings around the bottom left corner (a blob in
+      // the corner, thin rings and one thick one), drawn in from the left
+      // across the bars, breathing out from the corner on every beat, the
+      // thick ring swelling further (the drawing's own motions).
+      name: "rings",
+      clips: [
+        {
+          shape: "rings",
+          from: 12,
+          to: 18,
+          spots: [[0.5, 0.5, 0.5]],
+          fx: [{ kind: "reveal" }],
+        },
+      ],
+    },
+    {
       // From the heavy kick until the end, the black squares in their own
       // layer: they stay and pulse by size, swelling on every beat from bar 12
       // and settling (breathe), with a very quick ripple off their rim on the

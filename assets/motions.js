@@ -12,7 +12,7 @@
 // Amounts are in shape sizes: 1 is the shape's half-width, as a spot's size is.
 // Every spot gets its own randomness, so a row of eyes doesn't move as one.
 
-const PIVOTS = ["center", "top", "bottom", "left", "right"];
+const PIVOTS = ["center", "top", "bottom", "left", "right", "top left", "top right", "bottom left", "bottom right"];
 const KICKS = ["beat", "bar", "claps", "bongos"];
 
 // Each motion: what it follows (the first is the default) and its sliders,
@@ -101,6 +101,7 @@ function pivotOf(box, pivot) {
   const cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2;
   return {
     center: [cx, cy], top: [cx, box.y0], bottom: [cx, box.y1], left: [box.x0, cy], right: [box.x1, cy],
+    "top left": [box.x0, box.y0], "top right": [box.x1, box.y0], "bottom left": [box.x0, box.y1], "bottom right": [box.x1, box.y1],
   }[pivot ?? "center"] ?? [cx, cy];
 }
 
