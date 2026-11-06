@@ -2801,11 +2801,12 @@ function buildFxPanel(R, L) {
     const open = FX_OPEN === fi;
     const head = document.createElement("div");
     head.className = "fx-head" + (open ? " on" : "");
-    const meta = f.kind === "hop" || f.kind === "pulse" ? (f.on ?? "pick a moment")
+    const meta = (f.kind === "hop" || f.kind === "pulse" ? (f.on ?? "pick a moment")
       : ["fill", "ripple", "scatter", "trail"].includes(f.kind) ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}${f.apart ? " · apart" : ""}`
       : f.kind === "follow" ? `${f.source ?? "pitch"} → ${f.target ?? "height"}`
       : f.kind === "paint" ? `${f.style ?? "gradient"} · ${f.color ?? "ground"}`
-      : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`;
+      : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`) +
+      (f.steps?.length ? ` · ${f.steps.join(",")}/${f.of ?? Math.max(...f.steps)}` : "");
     const metaTitle = ["hop", "pulse", "ripple", "scatter", "trail"].includes(f.kind) ? "its trigger"
       : f.kind === "fill" ? "its step" : f.kind === "follow" ? "source → property" : f.kind === "paint" ? "style · color"
       : `${f.kind === "oscillate" ? "distance" : "intensity"} now${f.keys?.length ? " (keyed)" : ""}`;
@@ -2863,10 +2864,11 @@ function appendFxControls(card, f, L) {
   if (f.kind === "pulse") {
     // one flare per trigger tap on a palette slot, decaying back to the palette
     card.append(menuRow(f, "on", "trigger", [["", "none — a steady cycle"], ...(SCORE.moments || []).map((m) => [m.name, m.name])], ""));
+    if (f.on) card.append(stepsRow(f));
     card.append(menuRow(f, "slot", "slot", [...["ground", "glow", "line", "ink", "light"].map((s) => [s, s]), ["shape", "this shape"]], "ground"));
     // on the shape itself: flash shows it only on the pulse, tint washes it
     // toward the color; a flash uses the shape's own look, so it has no color
-    if (f.slot === "shape") card.append(menuRow(f, "mode", "mode", [["flash", "flash"], ["tint", "tint"]], "flash"));
+    if (f.slot === "shape") card.append(menuRow(f, "mode", "mode", [["flash", "flash"], ["tint", "tint"]], "flash"), paintSpotsRow(f, L));
     const colorRow = colorSwatches(f.to ?? "#ffffff", "#ffffff", (c) => (c == null ? delete f.to : (f.to = c)));
     if (!(f.slot === "shape" && (f.mode ?? "flash") === "flash")) card.append(colorRow);
     card.append(fxSlider(f, "amount", 0, 1, 0.05, 0.35, "intensity"));
@@ -2950,6 +2952,7 @@ function appendFxControls(card, f, L) {
     // fading as it travels
     card.append(menuRow(f, "on", "trigger", gridOrMoments(), ""));
     if (!f.on) card.append(fxSlider(f, "every", 0.125, 8, 0.125, 1, "step (beats)"));
+    card.append(stepsRow(f), paintSpotsRow(f, L));
     card.append(colorPickRow(f, "#000000"));
     card.append(fxSlider(f, "distance", 0.01, 0.5, 0.01, 0.12, "distance"));
     card.append(fxSlider(f, "width", 0.002, 0.05, 0.002, 0.012, "width"));
@@ -3091,6 +3094,34 @@ function paintSpotsRow(f, L) {
 // An effect's color: a palette slot (it follows the palette), or any color.
 function colorPickRow(f, def) {
   return colorSwatches(f.color ?? def, def, (c) => (c == null ? delete f.color : (f.color = c)));
+}
+
+// Which of the trigger's hits act: all of them, or some of each round —
+// "1, 5 of 6" takes the first and fifth of every six.
+function stepsRow(f) {
+  const row = document.createElement("label");
+  row.className = "param";
+  const shown = f.steps?.length ? `${f.steps.join(", ")} of ${f.of ?? Math.max(...f.steps)}` : "all";
+  row.innerHTML = `<span>hits</span><span></span><input type="text" class="input" spellcheck="false" title="all, or which of each round: 1, 5 of 6" value="${shown}">`;
+  const box = row.querySelector("input");
+  box.addEventListener("change", () => {
+    const text = box.value.trim().toLowerCase();
+    if (text === "" || text === "all") {
+      rememberScore();
+      delete f.steps;
+      delete f.of;
+      return buildLayerDetail();
+    }
+    const [list, of] = text.split(/\s*(?:of|\/)\s*/);
+    const steps = [...new Set((list ?? "").split(/[\s,]+/).filter(Boolean).map(Number))].sort((a, b) => a - b);
+    const n = of ? Number(of) : Math.max(...steps);
+    if (!steps.length || !Number.isInteger(n) || steps.some((v) => !(Number.isInteger(v) && v >= 1 && v <= n))) return buildLayerDetail();
+    rememberScore();
+    f.steps = steps;
+    f.of = n;
+    buildLayerDetail();
+  });
+  return row;
 }
 
 // The colors picked lately, newest first, kept in this browser: every color

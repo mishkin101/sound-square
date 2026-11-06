@@ -58,18 +58,18 @@ ELEMENTS.shape = {
     // a fill's fade: each spot fades in over that many beats from its turn
     const fade = step ? P.fx?.find((f) => f.kind === "fill")?.fade ?? 0 : 0;
     const turnAt = fade > 0 ? spotHitBeats(P, s, st, cyc) : null;
-    // a pulse on the shape itself: flash shows the shape only on the pulse
-    // (its own look, fading out over the decay); tint keeps it showing and
-    // washes it toward the pulse color on each hit
-    // (a clip can wear several, each in its own window; the one in its window acts)
-    const sp = selfPulseNow(P, s.B);
-    const shapeAlpha = sp?.flashing ? sp.w : 1;
     const rings = P.fx?.filter((f) => f.kind === "ripple").flatMap((f) => ripplesNow(f, s.B, st)) ?? [];
-    if (shapeAlpha <= 0.001 && !rings.length) return;
     // a scatter's placement moves the spots (not while they're being placed)
     const moved = P.editing ? null : scatterOffsets(sh, P, s, st);
     P.spots.forEach(([x, y, size, flip = 1, deg = 0, skew = 0], i) => {
       if (step && i > shown) return; // take turns: spot i waits for the i-th hit
+      // a pulse on the shape itself: flash shows the shape only on the pulse
+      // (its own look, fading out over the decay); tint keeps it showing and
+      // washes it toward the pulse color on each hit. A clip can wear several,
+      // each in its own window or on its own spots; a ripple can name spots too
+      const sp = selfPulseNow(P, s.B, i, st), shapeAlpha = sp?.flashing ? sp.w : 1;
+      const mine = rings.filter((r) => !r.f.spots?.length || r.f.spots.includes(i + 1));
+      if (shapeAlpha <= 0.001 && !mine.length) return;
       const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
       if (frame?.hidden) return;
       const fadeIn = turnAt && turnAt[i] != null ? clamp01((s.B - turnAt[i]) / fade) : 1;
@@ -95,7 +95,7 @@ ELEMENTS.shape = {
         translate(0, -reach.anchor[i]);
       }
       if (shapeAlpha > 0.001) drawPainted(sh, s, P, i, frame, sp);
-      for (const r of rings) drawRing(sh, s, r, size * P.size * fx.k * wv);
+      for (const r of mine) drawRing(sh, s, r, size * P.size * fx.k * wv);
       pop();
     });
   },
@@ -192,12 +192,14 @@ function paintFor(P, i) {
   return paints.find((f) => f.spots?.includes(i + 1)) ?? paints.find((f) => !f.spots?.length) ?? null;
 }
 
-// The shape pulse acting now: of the clip's pulses on itself, the one in its
-// window. { f, w, flashing } or null.
-function selfPulseNow(P, B) {
+// The shape pulse acting now on spot i: of the clip's pulses on itself, the
+// one in its window (and, if it names spots, naming this one). Steps count
+// from the clip coming in (st) when the pulse has no from. { f, w, flashing } or null.
+function selfPulseNow(P, B, i = 0, st = null) {
   for (const f of P.fx ?? []) {
     if (f.kind !== "pulse" || f.slot !== "shape") continue;
-    const w = flashNow(f, B);
+    if (f.spots?.length && !f.spots.includes(i + 1)) continue;
+    const w = flashNow(f, B, st?.T?.inAt);
     if (w != null) return { f, w, flashing: (f.mode ?? "flash") === "flash" };
   }
   return null;
@@ -217,14 +219,15 @@ function drawPainted(sh, s, P, i, frame, sp) {
 }
 
 // A pulse worn on the shape itself (slot "shape"): how strong it is now,
-// 0..1 — full right on a trigger hit, dying away over `beats`. Null outside
-// its window (from / until): there it does nothing and the shape shows plainly.
-function flashNow(f, B) {
+// 0..1 — full right on a trigger hit (one of its steps, counted from its
+// from, else from `start`), dying away over `beats`. Null outside its window
+// (from / until): there it does nothing and the shape shows plainly.
+function flashNow(f, B, start) {
   const win = fxWindow(SCORE, f.from, f.until);
   if (!win || B < win[0] || B >= win[1]) return null;
   if (!f.on) return 0;
   let h = null;
-  for (const x of momentHits(SCORE, f.on)) if (x >= win[0] && x <= B && (h == null || x > h)) h = x;
+  for (const x of stepsKept(f, momentHits(SCORE, f.on), f.from == null ? start ?? win[0] : win[0])) if (x >= win[0] && x <= B && (h == null || x > h)) h = x;
   const ph = h == null ? 1 : (B - h) / (f.beats || 1);
   return ph >= 1 ? 0 : smoothstep(1 - ph) * (f.amount ?? 0.35);
 }
@@ -239,10 +242,11 @@ function ripplesNow(f, B, st) {
   if (!win || B < win[0] || B >= win[1]) return [];
   const lo = f.from == null ? Math.max(win[0], st.T?.inAt ?? 0) : win[0];
   let times = [];
-  if (f.on) times = momentHits(SCORE, f.on);
+  if (f.on) times = stepsKept(f, momentHits(SCORE, f.on), lo);
   else {
-    const every = f.every || 1;
-    for (let g = Math.ceil(Math.max(lo, B - life) / every - 1e-9); g * every <= B; g++) times.push(g * every);
+    // grid lines from the window's start; with steps, only those of its rounds
+    const every = f.every || 1, g0 = Math.ceil(lo / every - 1e-9);
+    for (let g = Math.ceil(Math.max(lo, B - life) / every - 1e-9); g * every <= B; g++) if (stepOn(f, g - g0)) times.push(g * every);
   }
   const out = [];
   for (const h of times) {
@@ -326,11 +330,12 @@ function drawTrail(sh, P, s, st, f) {
   const fol = followOf(P), scales = fol ? followMap(fol, drops, true) : null;
   const byHeight = (fol?.target ?? "height") === "height";
   const b = sh.moves.box, anchor = { top: (b.y0 - sh.cy) * sh.k, bottom: (b.y1 - sh.cy) * sh.k }[fol?.anchor] ?? 0;
-  const fx = fxNow(P, s, st), sp = selfPulseNow(P, s.B);
-  if (sp?.flashing && sp.w <= 0.001) return;
+  const fx = fxNow(P, s, st);
   drops.forEach((t, k) => {
     if (t > s.B || s.B - t >= life) return;
     const j = k % P.spots.length, [x0, y0, size, flip = 1, deg = 0, skew = 0] = P.spots[j];
+    const sp = selfPulseNow(P, s.B, j, st);
+    if (sp?.flashing && sp.w <= 0.001) return;
     const [x, y] = walk ? walkAt(walk, (k * spacing) % walk.len) : [x0, y0];
     const kf = scales ? scales[k] : 1, wv = byHeight ? 1 : kf;
     push();
@@ -545,7 +550,7 @@ function drawOneSpot(sh, P, s, st, step) {
   }
   const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
   if (frame?.hidden) return;
-  const sp = selfPulseNow(P, s.B);
+  const sp = selfPulseNow(P, s.B, i, st);
   if (sp?.flashing && sp.w <= 0.001) return;
   const fx = fxNow(P, s, st);
   push();
@@ -624,6 +629,15 @@ function paintShape(sh, s, f, seed, ctx = drawingContext) {
   const b = sh.moves.box, w = b.x1 - b.x0, h = b.y1 - b.y0;
   for (const it of sh.items) {
     ctx.save();
+    if (!it.fill && it.stroke && it.width > 0) { // a line drawn as a line: the line takes the paint
+      ctx.strokeStyle = under;
+      ctx.lineWidth = it.width;
+      ctx.lineCap = it.cap;
+      ctx.lineJoin = it.join;
+      ctx.stroke(it.path);
+      ctx.restore();
+      continue;
+    }
     ctx.clip(it.path, it.rule);
     ctx.fillStyle = under;
     ctx.fillRect(b.x0, b.y0, w, h);

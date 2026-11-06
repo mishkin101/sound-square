@@ -56,6 +56,19 @@ function momentHits(score, name) {
   return momentHitsAll(score.moments?.find((m) => m.name === name));
 }
 
+// With `steps` (and `of`), an effect acts on only some of its trigger's hits:
+// counted from `start` in rounds of `of`, the listed places (1 is the first of
+// each round). Without, every hit from `start` on.
+function stepsKept(f, hits, start) {
+  const from = hits.filter((h) => h >= start - 1e-6);
+  return f.steps?.length ? from.filter((_, k) => stepOn(f, k)) : from;
+}
+
+// Whether the k-th hit (from 0) of the rounds is one of the effect's steps.
+function stepOn(f, k) {
+  return !f.steps?.length || f.steps.includes((k % (f.of || Math.max(...f.steps))) + 1);
+}
+
 // Where a moment starts: a hold's start, or its first hit. Null if no such moment.
 function momentStart(score, name) {
   const m = score.moments?.find((x) => x.name === name);
@@ -234,7 +247,10 @@ function colorsNow(score, B) {
   const moves = [];
   for (const R of score.layers || []) for (const L of R.clips || []) {
     for (const f of L.fx || []) if (f.kind === "pulse") {
-      moves.push({ slot: f.slot ?? "ground", to: f.to ?? "#ffffff", amount: f.amount ?? 0.35, beats: f.beats ?? 3, back: f.back ?? "decay", on: f.on, from: f.from, until: f.until });
+      // its steps count from its from, else from the clip's start
+      const start = f.from != null ? null : L.from == null ? 0
+        : typeof L.from === "string" ? momentStart(score, L.from) ?? 0 : barToBeats(score, L.from);
+      moves.push({ slot: f.slot ?? "ground", to: f.to ?? "#ffffff", amount: f.amount ?? 0.35, beats: f.beats ?? 3, back: f.back ?? "decay", on: f.on, from: f.from, until: f.until, steps: f.steps, of: f.of, start });
     }
   }
   for (const cm of moves) {
@@ -246,7 +262,7 @@ function colorsNow(score, B) {
     if (cm.on) {
       // the pulse rides a moment's hits: one pulse per hit, bright right on
       // the hit and dying away over `beats`
-      const hits = momentHits(score, cm.on); // repeats included
+      const hits = stepsKept(cm, momentHits(score, cm.on), cm.start ?? win[0]); // repeats included
       let h = null;
       for (const x of hits) if (x >= win[0] && x <= B && (h == null || x > h)) h = x;
       const ph = h == null ? 1 : (B - h) / (cm.beats || 1);
