@@ -67,7 +67,7 @@ ELEMENTS.shape = {
       // (its own look, fading out over the decay); tint keeps it showing and
       // washes it toward the pulse color on each hit. A clip can wear several,
       // each in its own window or on its own spots; a ripple can name spots too
-      const sp = selfPulseNow(P, s.B, i, st), shapeAlpha = sp?.flashing ? sp.w : 1;
+      const sp = selfPulseNow(P, s.B, i, st), shapeAlpha = sp ? sp.alpha : 1;
       const mine = rings.filter((r) => !r.f.spots?.length || r.f.spots.includes(i + 1));
       if (shapeAlpha <= 0.001 && !mine.length) return;
       const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
@@ -192,28 +192,35 @@ function paintFor(P, i) {
   return paints.find((f) => f.spots?.includes(i + 1)) ?? paints.find((f) => !f.spots?.length) ?? null;
 }
 
-// The shape pulse acting now on spot i: of the clip's pulses on itself, the
-// one in its window (and, if it names spots, naming this one). Steps count
-// from the clip coming in (st) when the pulse has no from. { f, w, flashing } or null.
+// The shape pulses acting now on spot i: of the clip's pulses on itself in
+// their windows (and naming this spot, if they name spots), the first flash —
+// how much of the shape shows (alpha) — and the first tint — how far it
+// washes toward its color — acting together. Steps count from the clip
+// coming in (st) when a pulse has no from. { alpha, tint: { w, to } } or null.
 function selfPulseNow(P, B, i = 0, st = null) {
+  let alpha = null, tint = null;
   for (const f of P.fx ?? []) {
     if (f.kind !== "pulse" || f.slot !== "shape") continue;
     if (f.spots?.length && !f.spots.includes(i + 1)) continue;
+    const flash = (f.mode ?? "flash") === "flash";
+    if (flash ? alpha != null : tint) continue;
     const w = flashNow(f, B, st?.T?.inAt);
-    if (w != null) return { f, w, flashing: (f.mode ?? "flash") === "flash" };
+    if (w == null) continue;
+    if (flash) alpha = w;
+    else tint = { w, to: f.to ?? "#ffffff" };
   }
-  return null;
+  return alpha == null && !tint ? null : { alpha: alpha ?? 1, tint };
 }
 
-// Draws one copy with its paint and its shape pulse (the caller has placed it).
+// Draws one copy with its paint and its shape pulses (the caller has placed it).
 function drawPainted(sh, s, P, i, frame, sp) {
   const ctx = drawingContext, a0 = ctx.globalAlpha, paint = paintFor(P, i);
-  if (sp?.flashing) ctx.globalAlpha = a0 * sp.w;
+  if (sp) ctx.globalAlpha = a0 * sp.alpha;
   if (paint) paintShape(sh, s, paint, i);
   else drawShape(sh, s.col, ctx, frame);
-  if (sp && !sp.flashing && sp.w > 0.001) {
-    ctx.globalAlpha *= sp.w;
-    paintShape(sh, s, { style: "solid", color: sp.f.to ?? "#ffffff" }, i);
+  if (sp?.tint && sp.tint.w > 0.001) {
+    ctx.globalAlpha *= sp.tint.w;
+    paintShape(sh, s, { style: "solid", color: sp.tint.to }, i);
   }
   ctx.globalAlpha = a0;
 }
@@ -337,7 +344,7 @@ function drawTrail(sh, P, s, st, f) {
     if (t > s.B || s.B - t >= life) return;
     const j = k % P.spots.length, [x0, y0, size, flip = 1, deg = 0, skew = 0] = P.spots[j];
     const sp = selfPulseNow(P, s.B, j, st);
-    if (sp?.flashing && sp.w <= 0.001) return;
+    if (sp && sp.alpha <= 0.001) return;
     const [x, y] = walk ? walkAt(walk, (k * spacing) % walk.len) : [x0, y0];
     const kf = scales ? scales[k] : 1, wv = byHeight ? 1 : kf;
     push();
@@ -553,7 +560,7 @@ function drawOneSpot(sh, P, s, st, step) {
   const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
   if (frame?.hidden) return;
   const sp = selfPulseNow(P, s.B, i, st);
-  if (sp?.flashing && sp.w <= 0.001) return;
+  if (sp && sp.alpha <= 0.001) return;
   const fx = fxNow(P, s, st);
   push();
   translate(x + fx.dx, y + fx.dy);

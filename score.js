@@ -513,7 +513,8 @@ const SCORE = {
   // it only on each hit (its own look, fading out over `beats`), "tint" keeps
   // it showing and washes it toward the pulse color on each hit. A pulse runs
   // between from and until (a bar, included, or a moment); outside, nothing.
-  // A clip can wear several, in separate windows, and a shape pulse can name
+  // A clip can wear several, in separate windows (a flash and a tint act
+  // together), and a shape pulse can name
   // its spots: [1, 2] (1 is the first). A pulse steps on a moment (on) or on
   // the grid (every: beats). steps: [1, 5], of: 6 has a pulse or a
   // ripple act on only the first and fifth of every six trigger hits, counted
@@ -682,9 +683,9 @@ const SCORE = {
       // laid out as the moment's drawing has them, where the triangles were,
       // stepping every half beat as the triangles did, and like them each
       // showing on its step and fading out over three beats — the top left
-      // line, then the bottom right one, then both circles (with a quick
-      // ripple close to their rim); then the bottom right line, the top left
-      // one, the circles again; and around.
+      // line, then the bottom right one, then both circles (washing to white
+      // and quickly back, with a quick ripple close to their rim); then the
+      // bottom right line, the top left one, the circles again; and around.
       name: "line and circle",
       clips: [
         {
@@ -724,6 +725,17 @@ const SCORE = {
           spots: [[0.3363, 0.2549, 0.064], [0.1217, 0.4731, 0.064]],
           fx: [
             { kind: "pulse", every: 0.5, steps: [3, 6], of: 6, slot: "shape", mode: "flash", amount: 1, beats: 3 },
+            {
+              kind: "pulse",
+              every: 0.5,
+              steps: [3, 6],
+              of: 6,
+              slot: "shape",
+              mode: "tint",
+              to: "#ffffff",
+              amount: 1,
+              beats: 0.75,
+            },
             {
               kind: "ripple",
               every: 0.5,
