@@ -2298,7 +2298,8 @@ function spotsWords(L) {
   const mode = L.spotsMode ?? "all";
   const n = (L.spots ?? elementOf(L)?.spots ?? []).length;
   if (mode === "all" || n < 2) return null;
-  const on = { beat: "every beat", bar: "every bar", "": "nothing" }[L.moveOn ?? ""] ?? `"${L.moveOn}"`;
+  const on = typeof L.moveOn === "number" ? `every ${L.moveOn} beats`
+    : { beat: "every beat", bar: "every bar", "": "nothing" }[L.moveOn ?? ""] ?? `"${L.moveOn}"`;
   const bits = [mode === "one" ? `1 copy · ${n} spots` : `${n} spots, one per hit`, `moves on ${on}`];
   if (L.thenEvery && L.thenEvery !== "stay") bits.push(`then every ${L.thenEvery}`);
   if (L.moveBars) bits.push(`first ${L.moveBars} bar${L.moveBars > 1 ? "s" : ""}`);

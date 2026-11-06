@@ -119,9 +119,9 @@ function fxNow(P, s, st) {
 // loudness right there — tall on a peak, small in a dip (needs a waveform).
 function spotHitBeats(P, s, st) {
   const inAt = st.T?.inAt ?? 0;
-  const every = { beat: 1, bar: s.bpb }[P.moveOn];
+  const every = stepBeats(P, s);
   if (every) {
-    const g0 = Math.floor(inAt / every + 1e-6);
+    const g0 = Math.round(inAt / every);
     return P.spots.map((_, i) => (i ? (g0 + i) * every : inAt));
   }
   if (!P.moveOn) return null;
@@ -134,16 +134,24 @@ function waveSizeAt(beat) {
   return v == null ? 1 : 0.3 + 0.9 * v; // a quiet hit still leaves a mark
 }
 
+// moveOn as a step length in beats: "beat", "bar", or a number of beats
+// (0.5 steps every half beat); null when it names a moment.
+function stepBeats(P, s) {
+  if (typeof P.moveOn === "number") return P.moveOn > 0 ? P.moveOn : null;
+  return { beat: 1, bar: s.bpb }[P.moveOn] ?? null;
+}
+
 function spotStep(P, s, st) {
   const inAt = st.T?.inAt ?? 0;
   // `moveBars` ends the moving after that many bars; the copy stays where it is
   const Bc = P.moveBars ? Math.min(s.B, inAt + P.moveBars * s.bpb - 1e-6) : s.B;
   let n = 0, at = inAt, prevAt = inAt;
-  const every = { beat: 1, bar: s.bpb }[P.moveOn];
+  const every = stepBeats(P, s);
   if (every) {
     // grid lines crossed since the clip came in: a clip that comes in off the
-    // grid (on a tapped moment) still steps right on the beats or bars
-    const g0 = Math.floor(inAt / every + 1e-6);
+    // grid (on a tapped moment) still steps right on the grid, and its first
+    // step waits at least half a step, so two never land together
+    const g0 = Math.round(inAt / every);
     n = Math.max(0, Math.floor(Bc / every + 1e-6) - g0);
     at = n ? (g0 + n) * every : inAt;
     prevAt = n > 1 ? (g0 + n - 1) * every : inAt;

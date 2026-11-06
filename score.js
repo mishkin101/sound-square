@@ -78,7 +78,8 @@ const SCORE = {
   // A clip: el is a coded shape from assets/elements.js; shape is a drawing,
   // shapes/<name>.svg, drawn at each of its spots. On from `from` through `to`:
   // a bar number, or a moment's name to land right on it. in / out: "cut",
-  // "fade" or "clap". spotsMode: all (every spot), turns (one per hit of moveOn),
+  // "fade" or "clap". spotsMode: all (every spot), turns (one per hit of moveOn;
+  // moveOn as a number steps every that many beats),
   // one (a single copy moves between spots, switching by jump, blink or slide;
   // moveBars caps the moving). A spot is [x, y, size]; add -1 to mirror it there,
   // then degrees to turn it, then degrees to skew it (a parallelogram lean,
@@ -106,13 +107,12 @@ const SCORE = {
           spots: [[0.5, 0.5, 0.5]],
           fx: [{ kind: "pulse", on: "Pulse", to: "#ffffff", amount: 0.9, beats: 3 }],
         },
-        { shape: "line", from: 10, to: 13, in: "fade", out: "fade", spots: [[0.5, 0.5, 0.15]] },
       ],
     },
     {
       // Two rows of eight parallelograms, leaning opposite ways (skew 30 and
-      // -30: flat tops and bottoms, sides at 30 degrees). One lands on every
-      // beat from "bongo drum start": the top row rightward, then the bottom
+      // -30: flat tops and bottoms, sides at 30 degrees). One lands every
+      // half beat from "bongo drum start": the top row rightward, then the bottom
       // row back leftward. One spacing unit throughout: the gap between
       // neighbors (measured square to their sides) equals the gap between rows.
       name: "bongos",
@@ -122,7 +122,7 @@ const SCORE = {
           from: "bongo drum start",
           to: 40,
           spotsMode: "turns",
-          moveOn: "beat",
+          moveOn: 0.5,
           spots: [
             [0.1779, 0.4049, 0.1023, 1, 0, 30], [0.2699, 0.4049, 0.1023, 1, 0, 30], [0.362, 0.4049, 0.1023, 1, 0, 30], [0.454, 0.4049, 0.1023, 1, 0, 30], [0.546, 0.4049, 0.1023, 1, 0, 30], [0.638, 0.4049, 0.1023, 1, 0, 30], [0.7301, 0.4049, 0.1023, 1, 0, 30], [0.8221, 0.4049, 0.1023, 1, 0, 30],
             [0.8221, 0.5951, 0.1023, 1, 0, -30], [0.7301, 0.5951, 0.1023, 1, 0, -30], [0.638, 0.5951, 0.1023, 1, 0, -30], [0.546, 0.5951, 0.1023, 1, 0, -30], [0.454, 0.5951, 0.1023, 1, 0, -30], [0.362, 0.5951, 0.1023, 1, 0, -30], [0.2699, 0.5951, 0.1023, 1, 0, -30], [0.1779, 0.5951, 0.1023, 1, 0, -30],
