@@ -5,7 +5,7 @@
 // result is cached in this browser per song, like a grid.
 
 const Waveform = {
-  N: 1536,      // buckets across the whole song
+  N: 6144,      // buckets across the whole song (~67 ms each on a 7-minute song)
   data: null,   // the current song's buckets, each 0..1
   ms: null,     // the song length the buckets cover
   for: null,    // the song key the buckets belong to
@@ -60,10 +60,21 @@ const Waveform = {
     this.keep(key, out, total * 1000);
   },
 
-  // the level at a song position, 0..1 (null without a waveform)
+  // the level at a song position, 0..1, blended between buckets so a deep
+  // zoom draws slopes instead of slabs (null without a waveform)
   at(frac) {
-    if (!this.data) return null;
-    return this.data[Math.max(0, Math.min(this.N - 1, Math.floor(frac * this.N)))] ?? 0;
+    const d = this.data;
+    if (!d) return null;
+    const x = Math.max(0, Math.min(d.length - 1, frac * d.length - 0.5));
+    const i = Math.floor(x), t = x - i;
+    return (d[i] ?? 0) * (1 - t) + (d[Math.min(d.length - 1, i + 1)] ?? 0) * t;
+  },
+
+  // an older save at another resolution, stretched onto n buckets
+  resample(list, n) {
+    if (!list) return new Array(n).fill(0);
+    if (list.length === n) return [...list];
+    return Array.from({ length: n }, (_, i) => list[Math.floor((i / n) * list.length)] ?? 0);
   },
 
   // ---- Recording through the audio input ---------------------------------------
@@ -95,7 +106,7 @@ const Waveform = {
     const ctx = new AudioContext();
     await ctx.resume();
     const kept = this.stored()[key];
-    const base = (Array.isArray(kept) ? kept : kept?.v) ?? new Array(this.N).fill(0);
+    const base = this.resample(Array.isArray(kept) ? kept : kept?.v, this.N);
     const rec = (this.rec = {
       key, stream, ctx, base,
       raw: new Array(this.N).fill(0), top: 0.004, savedAt: 0, level: 0,

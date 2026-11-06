@@ -3063,11 +3063,11 @@ function drawWave(top) {
   if (!Waveform.data || !dur) return;
   const w = width - TL_GUT - TL_PAD;
   fill(255, 52);
-  for (let px = 0; px < w; px += 2) {
+  for (let px = 0; px < w; px += 1) {
     const v = Waveform.at((TL_VIEW.startMs + (px / w) * tlSpanMs()) / dur);
     if (v) {
       const h = Math.max(1, v * (WAVE_H - 6));
-      rect(TL_GUT + px, mid - h / 2, 2, h);
+      rect(TL_GUT + px, mid - h / 2, 1, h);
     }
   }
 }
