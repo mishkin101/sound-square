@@ -1550,7 +1550,6 @@ function moQuantizeRow(m) {
   QUANT = storeGet("soundsquare.quant") ?? QUANT;
   row.innerHTML = `<span class="data dimmed">quantize</span>` +
     `<input type="number" class="input" min="0.05" max="8" step="0.05" value="${QUANT}" title="The division, in beats">` +
-    `<span class="data dimmed">beats</span>` +
     `<button class="mini" title="Move every hit to its nearest line">snap</button>`;
   row.querySelector("button").addEventListener("click", (e) => {
     e.currentTarget.blur();
