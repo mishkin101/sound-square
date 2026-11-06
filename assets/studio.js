@@ -2977,6 +2977,8 @@ function appendFxControls(card, f, L) {
   };
   const [label, mn, mx, st] = rates[f.kind] ?? ["rate", 0.25, 8, 0.25];
   card.append(fxSlider(f, "rate", mn, mx, st, 1, label));
+  // a breathe can swell only on some of its steps, and on some spots
+  if (f.kind === "breathe") card.append(stepsRow(f), paintSpotsRow(f, L));
   if (f.keys?.length) {
     // the envelope: the effect's own keys, in place of from/until
     card.insertAdjacentHTML("beforeend",

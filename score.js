@@ -501,7 +501,8 @@ const SCORE = {
   // from that key on; ease: "line" keeps the approach linear. Keys replace the
   // spot modes. keysFrom names the moment whose drawn path made them: editing
   // that path in the studio re-samples the keys. fx: [{ kind, amount, rate,
-  // from, to }] are effects on the shape (spin, breathe, wobble), each running
+  // from, to }] are effects on the shape (spin, breathe, wobble; a breathe can
+  // name spots and steps, as a pulse does, to swell only there), each running
   // in its own window or the clip's whole life — or with keys of its own:
   // keys: [{ at, amount }], the amount eased over time (0 is off), replacing
   // from/to as the envelope. A fill effect shows the spots one at a time in
@@ -682,10 +683,11 @@ const SCORE = {
       // From the line and circle until the snare: two lines and two circles,
       // laid out as the moment's drawing has them, where the triangles were,
       // stepping every half beat as the triangles did, and like them each
-      // showing on its step and fading out over three beats — the top left
-      // line, then the bottom right one, then both circles (washing to white
-      // and quickly back, with a quick ripple close to their rim); then the
-      // bottom right line, the top left one, the circles again; and around.
+      // showing on its step and fading out over three beats, washing to white
+      // and quickly back — the top left line, then the bottom right one (each
+      // line swelling as it comes), then both circles (with a quick white
+      // ripple close to their rim); then the bottom right line, the top left
+      // one, the circles again; and around.
       name: "line and circle",
       clips: [
         {
@@ -716,6 +718,32 @@ const SCORE = {
               amount: 1,
               beats: 3,
             },
+            {
+              kind: "pulse",
+              every: 0.5,
+              steps: [1, 5],
+              of: 6,
+              slot: "shape",
+              mode: "tint",
+              spots: [1],
+              to: "#ffffff",
+              amount: 1,
+              beats: 0.75,
+            },
+            {
+              kind: "pulse",
+              every: 0.5,
+              steps: [2, 4],
+              of: 6,
+              slot: "shape",
+              mode: "tint",
+              spots: [2],
+              to: "#ffffff",
+              amount: 1,
+              beats: 0.75,
+            },
+            { kind: "breathe", amount: 1, rate: 0.5, steps: [1, 5], of: 6, spots: [1] },
+            { kind: "breathe", amount: 1, rate: 0.5, steps: [2, 4], of: 6, spots: [2] },
           ],
         },
         {
@@ -741,7 +769,7 @@ const SCORE = {
               every: 0.5,
               steps: [3, 6],
               of: 6,
-              color: "ink",
+              color: "#ffffff",
               distance: 0.012,
               width: 0.01,
               beats: 0.5,

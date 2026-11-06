@@ -74,7 +74,7 @@ ELEMENTS.shape = {
       if (frame?.hidden) return;
       const fadeIn = turnAt && turnAt[i] != null ? clamp01((s.B - turnAt[i]) / fade) : 1;
       if (fadeIn <= 0.001) return;
-      const kf = reach ? reach[i] : 1, wv = byHeight ? 1 : kf;
+      const kf = reach ? reach[i] : 1, wv = (byHeight ? 1 : kf) * spotBreath(P, s.B, st, i);
       let ox = 0, oy = 0;
       for (const o of fx.osc) {
         const away = o.axis === "y" ? y - mid[1] : x - mid[0];
@@ -128,6 +128,7 @@ function fxNow(P, s, st) {
   let dx = 0, dy = 0, rot = 0, k = 1;
   const osc = [];
   for (const f of P.fx) {
+    if (f.kind === "breathe" && f.spots?.length) continue; // spot by spot (spotBreath)
     let amt, from;
     if (f.keys?.length) {
       // the effect's own keys are its envelope: amount over time, 0 is off
@@ -146,8 +147,7 @@ function fxNow(P, s, st) {
     if (f.kind === "spin") {
       rot += amt * ((s.B - from) / (rate * s.bpb)) * 2 * Math.PI; // rate: bars per turn
     } else if (f.kind === "breathe") {
-      const phase = ((s.B % rate) + rate) % rate; // rate: beats per breath, swelling on the grid
-      k *= 1 + 0.4 * amt * Math.exp(-3 * phase);
+      k *= breathK(f, s.B, st);
     } else if (f.kind === "wobble") {
       dx += 0.08 * amt * (noise(s.B * 1.5 * rate, 7) - 0.5) * 2; // rate: how fast it shivers
       dy += 0.08 * amt * (noise(s.B * 1.5 * rate, 13) - 0.5) * 2;
@@ -163,6 +163,42 @@ function fxNow(P, s, st) {
     }
   }
   return { dx, dy, rot, k, osc };
+}
+
+// A breathe's swell now (1 at rest): right on its grid every `rate` beats
+// (beats per breath) it swells and settles — with steps, only on those of its
+// rounds, counted from its start (its from, its first key, else the clip's).
+function breathK(f, B, st) {
+  let amt, from;
+  if (f.keys?.length) {
+    amt = keyedValue(SCORE, f.keys, B, "amount", 0);
+    from = keyBeat(SCORE, f.keys[0].at);
+  } else {
+    from = f.from == null ? st.T?.s ?? 0
+      : typeof f.from === "string" ? momentStart(SCORE, f.from) ?? 0 : barToBeats(SCORE, f.from);
+    const to = f.to == null ? st.T?.e ?? 1e9
+      : typeof f.to === "string" ? momentEnd(SCORE, f.to) ?? 1e9 : barToBeats(SCORE, f.to + 1);
+    if (B < from || B >= to) return 1;
+    amt = f.amount ?? 0.5;
+  }
+  if (amt <= 0.001) return 1;
+  const rate = f.rate ?? 1;
+  let phase = ((B % rate) + rate) % rate;
+  if (f.steps?.length) {
+    let h = null;
+    const back = ((f.of || Math.max(...f.steps)) + 1) * rate;
+    for (const [x, k] of gridHits(from, rate, Math.max(from, B - back), B)) if (stepOn(f, k) && (h == null || x > h)) h = x;
+    if (h == null) return 1;
+    phase = B - h;
+  }
+  return 1 + 0.4 * amt * Math.exp(-3 * phase);
+}
+
+// The swell of spot i from the breathes that name it (spots: [1, 2]).
+function spotBreath(P, B, st, i) {
+  let k = 1;
+  for (const f of P.fx ?? []) if (f.kind === "breathe" && f.spots?.includes(i + 1)) k *= breathK(f, B, st);
+  return k;
 }
 
 // The grid line the steps count from: the first step lands on the first grid
@@ -346,7 +382,7 @@ function drawTrail(sh, P, s, st, f) {
     const sp = selfPulseNow(P, s.B, j, st);
     if (sp && sp.alpha <= 0.001) return;
     const [x, y] = walk ? walkAt(walk, (k * spacing) % walk.len) : [x0, y0];
-    const kf = scales ? scales[k] : 1, wv = byHeight ? 1 : kf;
+    const kf = scales ? scales[k] : 1, wv = (byHeight ? 1 : kf) * spotBreath(P, s.B, st, j);
     push();
     drawingContext.globalAlpha *= smoothstep(1 - (s.B - t) / life);
     translate(x + fx.dx, y + fx.dy);
@@ -566,7 +602,8 @@ function drawOneSpot(sh, P, s, st, step) {
   translate(x + fx.dx, y + fx.dy);
   if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
   if (skew) shearX((-skew * Math.PI) / 180);
-  scale(flip * size * P.size * fx.k, size * P.size * fx.k);
+  const kb = spotBreath(P, s.B, st, i);
+  scale(flip * size * P.size * fx.k * kb, size * P.size * fx.k * kb);
   if (squash !== 1) scale(1, squash);
   drawPainted(sh, s, P, i, frame, sp);
   pop();
