@@ -66,7 +66,11 @@ const SCORE = {
       repeat: { every: 8, times: 3 },
     },
     { name: "Pulse", hits: [0.05], repeat: { every: 4, times: 610 } },
-    { name: "Bongo drums", hits: [28.11] },
+    {
+      name: "Bongo drums",
+      hits: [28.11, 29.25, 30.35, 30.95, 31.53, 32.61, 33.19, 33.76, 34.85],
+      repeat: { every: 8, times: 1 },
+    },
     {
       name: "bongo drum start",
       hits: [12.38, 12.92, 13.49, 14.04, 15.21, 15.76, 16.32, 16.88, 17.43, 17.98],
@@ -118,7 +122,8 @@ const SCORE = {
   // amount: the distance, rate: beats per cycle } — out on the grid, back to
   // rest halfway. A paint effect fills the shape with its own color: { kind:
   // "paint", style: "solid" | "gradient", color: a palette slot or a hex,
-  // spread: the gradient's hue range in degrees, drift: turns per bar }.
+  // spread: the gradient's hue range in degrees, drift: turns per bar, spots:
+  // which spots it covers, numbered from 1 (all when left out) }.
   layers: [
     {
       name: "background",
@@ -182,12 +187,12 @@ const SCORE = {
       ],
     },
     {
-      // A bar of four squares across the bottom of the square, built on the
-      // background's pulses (they fall on the bars). The black squares flash
-      // on each "Pulse" hit from bar 8 through bar 11, fading out over 3 beats;
-      // the middle two flash the gradient on bar 10. From bar 11 the whole
-      // square is the chromatic gradient; at the heavy kick the "heavy kick"
-      // layer takes over the black squares.
+      // A bar of four squares across the bottom of the square. On every hit of
+      // "Bongo drums" (its tapped sequence, played twice) one of the four,
+      // picked at random and never the same twice running, flashes and fades
+      // — black at the corners, the gradient in the middle. From bar 11 the
+      // whole square is the chromatic gradient; at the heavy kick the "heavy
+      // kick" layer takes over the black squares.
       name: "squares",
       clips: [
         {
@@ -199,23 +204,14 @@ const SCORE = {
         },
         {
           shape: "square",
-          from: 8,
-          to: 11,
-          spots: [[0.875, 0.875, 0.125], [0.125, 0.875, 0.125]],
+          from: "Bongo drums",
+          to: "heavy kick",
+          spots: [[0.875, 0.875, 0.125], [0.125, 0.875, 0.125], [0.375, 0.875, 0.125], [0.625, 0.875, 0.125]],
           fx: [
-            { kind: "fill", on: "Pulse" },
-            { kind: "paint", style: "solid", color: "#000000" },
-            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3 },
-          ],
-        },
-        {
-          shape: "square",
-          from: 10,
-          to: 10,
-          spots: [[0.375, 0.875, 0.125], [0.625, 0.875, 0.125]],
-          fx: [
-            { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 1.25 },
-            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3, until: 10 },
+            { kind: "hop", on: "Bongo drums", order: "random" },
+            { kind: "pulse", on: "Bongo drums", slot: "shape", mode: "flash", amount: 1, beats: 0.5 },
+            { kind: "paint", style: "solid", color: "#000000", spots: [1, 2] },
+            { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 1.25, spots: [3, 4] },
           ],
         },
       ],
@@ -233,7 +229,7 @@ const SCORE = {
           spots: [[0.875, 0.875, 0.125], [0.125, 0.875, 0.125]],
           fx: [
             { kind: "paint", style: "solid", color: "#000000" },
-            { kind: "breathe", amount: 1, rate: 4, from: 12 },
+            { kind: "breathe", amount: 1, rate: 1, from: 12 },
             { kind: "ripple", on: "Pulse", from: 12, color: "#000000", distance: 0.04, width: 0.02, beats: 0.5, amount: 1 },
           ],
         },

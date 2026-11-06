@@ -2504,6 +2504,7 @@ function appendFxControls(card, f, L) {
     // gradient around it (spread: the hue range; drift: turns per bar)
     card.append(menuRow(f, "style", "style", [["gradient", "gradient"], ["solid", "solid"]], "gradient"));
     card.append(colorPickRow(f, "ground"));
+    card.append(paintSpotsRow(f, L));
     if ((f.style ?? "gradient") === "gradient") {
       card.append(fxSlider(f, "spread", 0, 90, 1, 20, "spread (degrees)"));
       card.append(fxSlider(f, "drift", 0, 2, 0.05, 0.25, "drift (turns per bar)"));
@@ -2630,6 +2631,25 @@ function keyAtPick(k, list, rebuild) {
     settle();
   });
   return wrap;
+}
+
+// Which of the clip's spots a paint covers: "all", or their numbers ("1, 2"),
+// so two paints on one clip can color different spots.
+function paintSpotsRow(f, L) {
+  const row = document.createElement("label");
+  row.className = "param";
+  row.innerHTML = `<span>spots</span><span></span><input type="text" class="input" spellcheck="false" title="all, or spot numbers: 1, 2" value="${f.spots?.length ? f.spots.join(", ") : "all"}">`;
+  const box = row.querySelector("input");
+  box.addEventListener("change", () => {
+    const n = (L.spots ?? []).length, text = box.value.trim().toLowerCase();
+    const list = text === "" || text === "all" ? [] : [...new Set(text.split(/[\s,]+/).map(Number))];
+    if (list.some((v) => !(Number.isInteger(v) && v >= 1 && v <= n))) return buildLayerDetail();
+    rememberScore();
+    if (list.length) f.spots = list.sort((a, b) => a - b);
+    else delete f.spots;
+    buildLayerDetail();
+  });
+  return row;
 }
 
 // An effect's color: a palette slot (it follows the palette), or custom.

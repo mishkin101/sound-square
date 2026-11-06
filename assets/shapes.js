@@ -49,7 +49,6 @@ ELEMENTS.shape = {
     const reach = fol ? followScales(P, s, st, sh, cyc, fol) : null;
     const byHeight = (fol?.target ?? "height") === "height";
     const mid = fx.osc.length ? [0, 1].map((a) => P.spots.reduce((t, sp) => t + sp[a], 0) / P.spots.length) : null;
-    const paint = P.fx?.find((f) => f.kind === "paint");
     // a fill's fade: each spot fades in over that many beats from its turn
     const fade = step ? P.fx?.find((f) => f.kind === "fill")?.fade ?? 0 : 0;
     const turnAt = fade > 0 ? spotHitBeats(P, s, st, cyc) : null;
@@ -57,14 +56,8 @@ ELEMENTS.shape = {
     // (its own look, fading out over the decay); tint keeps it showing and
     // washes it toward the pulse color on each hit
     // (a clip can wear several, each in its own window; the one in its window acts)
-    let selfPulse = null, pw = 0;
-    for (const f of P.fx ?? []) {
-      if (f.kind !== "pulse" || f.slot !== "shape") continue;
-      const w = flashNow(f, s.B);
-      if (w != null) { selfPulse = f; pw = w; break; }
-    }
-    const flashing = !!selfPulse && (selfPulse.mode ?? "flash") === "flash";
-    const shapeAlpha = flashing ? pw : 1;
+    const sp = selfPulseNow(P, s.B);
+    const shapeAlpha = sp?.flashing ? sp.w : 1;
     const rings = P.fx?.filter((f) => f.kind === "ripple").flatMap((f) => ripplesNow(f, s.B)) ?? [];
     if (shapeAlpha <= 0.001 && !rings.length) return;
     P.spots.forEach(([x, y, size, flip = 1, deg = 0, skew = 0], i) => {
@@ -92,17 +85,7 @@ ELEMENTS.shape = {
         scale(1, kf);
         translate(0, -reach.anchor[i]);
       }
-      const a0 = drawingContext.globalAlpha;
-      if (shapeAlpha > 0.001) {
-        drawingContext.globalAlpha = a0 * shapeAlpha;
-        if (paint) paintShape(sh, s, paint, i);
-        else drawShape(sh, s.col, drawingContext, frame);
-        if (selfPulse && !flashing && pw > 0.001) {
-          drawingContext.globalAlpha *= pw;
-          paintShape(sh, s, { style: "solid", color: selfPulse.to ?? "#ffffff" }, i);
-        }
-      }
-      drawingContext.globalAlpha = a0;
+      if (shapeAlpha > 0.001) drawPainted(sh, s, P, i, frame, sp);
       for (const r of rings) drawRing(sh, s, r, size * P.size * fx.k * wv);
       pop();
     });
@@ -191,6 +174,37 @@ function spotHitBeats(P, s, st, cyc = 0) {
   if (!P.moveOn) return null;
   const hits = s.hits(P.moveOn, inAt + 1e-6, 1e9).map((h) => h[1]);
   return P.spots.map((_, i) => (first + i ? hits[first + i - 1] ?? null : inAt));
+}
+
+// The paint for spot i (0-based): the paint effect listing it in `spots`
+// (1-based, as the pane numbers them), else one with no `spots`.
+function paintFor(P, i) {
+  const paints = P.fx?.filter((f) => f.kind === "paint") ?? [];
+  return paints.find((f) => f.spots?.includes(i + 1)) ?? paints.find((f) => !f.spots?.length) ?? null;
+}
+
+// The shape pulse acting now: of the clip's pulses on itself, the one in its
+// window. { f, w, flashing } or null.
+function selfPulseNow(P, B) {
+  for (const f of P.fx ?? []) {
+    if (f.kind !== "pulse" || f.slot !== "shape") continue;
+    const w = flashNow(f, B);
+    if (w != null) return { f, w, flashing: (f.mode ?? "flash") === "flash" };
+  }
+  return null;
+}
+
+// Draws one copy with its paint and its shape pulse (the caller has placed it).
+function drawPainted(sh, s, P, i, frame, sp) {
+  const ctx = drawingContext, a0 = ctx.globalAlpha, paint = paintFor(P, i);
+  if (sp?.flashing) ctx.globalAlpha = a0 * sp.w;
+  if (paint) paintShape(sh, s, paint, i);
+  else drawShape(sh, s.col, ctx, frame);
+  if (sp && !sp.flashing && sp.w > 0.001) {
+    ctx.globalAlpha *= sp.w;
+    paintShape(sh, s, { style: "solid", color: sp.f.to ?? "#ffffff" }, i);
+  }
+  ctx.globalAlpha = a0;
 }
 
 // A pulse worn on the shape itself (slot "shape"): how strong it is now,
@@ -367,6 +381,8 @@ function drawOneSpot(sh, P, s, st, step) {
   }
   const frame = sh.motions.length ? motionFrame(sh.motions, sh.moves, s, st.age, i) : null;
   if (frame?.hidden) return;
+  const sp = selfPulseNow(P, s.B);
+  if (sp?.flashing && sp.w <= 0.001) return;
   const fx = fxNow(P, s, st);
   push();
   translate(x + fx.dx, y + fx.dy);
@@ -374,7 +390,7 @@ function drawOneSpot(sh, P, s, st, step) {
   if (skew) shearX((-skew * Math.PI) / 180);
   scale(flip * size * P.size * fx.k, size * P.size * fx.k);
   if (squash !== 1) scale(1, squash);
-  drawShape(sh, s.col, drawingContext, frame);
+  drawPainted(sh, s, P, i, frame, sp);
   pop();
 }
 
