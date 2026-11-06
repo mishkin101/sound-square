@@ -246,8 +246,8 @@ const SCORE = {
     },
     {
       // From the triangle tick until the line and circle: three outline
-      // triangles, stepped up to the right, landing somewhere new in the
-      // left middle half of the square on every beat.
+      // triangles, stepped up to the right in dreamy 1, 3 and 4, landing
+      // somewhere new in the left middle half of the square on every beat.
       name: "triangles",
       clips: [
         {
@@ -255,7 +255,12 @@ const SCORE = {
           from: "triangle tick",
           to: "line and circle",
           spots: [[0.1784, 0.5335, 0.08], [0.25, 0.5, 0.08], [0.3216, 0.4665, 0.08]],
-          fx: [{ kind: "scatter", every: 1, area: [0, 0.25, 0.5, 0.75] }],
+          fx: [
+            { kind: "scatter", every: 1, area: [0, 0.25, 0.5, 0.75] },
+            { kind: "paint", style: "solid", color: "dreamy1", spots: [1] },
+            { kind: "paint", style: "solid", color: "dreamy3", spots: [2] },
+            { kind: "paint", style: "solid", color: "dreamy4", spots: [3] },
+          ],
         },
       ],
     },
