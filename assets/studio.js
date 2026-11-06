@@ -2666,9 +2666,6 @@ function buildLayerDetail() {
         `<span>${Math.round(x * 100)}, ${Math.round(y * 100)}</span>` +
         `<span class="dimmed">${deg ? `${deg}°` : ""}${flip === -1 ? " ⇄" : ""}</span>` +
         pinMenu +
-        `<button class="mini" data-a="flip" title="Flip across the vertical axis · X">⇄</button>` +
-        `<button class="mini" data-a="flipv" title="Flip across the horizontal axis · Y">⇅</button>` +
-        `<button class="mini" data-a="turn" title="Turn 15° (Alt-click turns back)">↻</button>` +
         `<button class="mini" data-a="dup" title="Another spot of this shape">⧉</button>` +
         `<button class="mini" data-a="del" title="Remove">×</button>`;
       row.querySelector('[data-a="pin"]')?.addEventListener("change", (e) => {
@@ -2688,10 +2685,7 @@ function buildLayerDetail() {
           return buildLayerDetail();
         }
         pickSpot(i);
-        if (a === "flip") flipSpot(i);
-        else if (a === "flipv") flipSpot(i, "v");
-        else if (a === "turn") rotateSpot(i, e.altKey ? -15 : 15);
-        else if (a === "dup") duplicateSpot(i);
+        if (a === "dup") duplicateSpot(i);
         else if (a === "del") removeSpot(i);
         else buildLayerDetail();
       });
