@@ -661,8 +661,8 @@ const SCORE = {
     },
     {
       // From the triangle tick until the line and circle: outline triangles
-      // in dreamy 1, 3 and 4 in turn, one every half beat along the triangle
-      // tick's drawing, each fading out over three beats.
+      // in dreamy 1, 3 and 4 in turn, one on each hit of the Bongo drums along
+      // the triangle tick's drawing, each fading out over three beats.
       name: "triangles",
       clips: [
         {
@@ -671,7 +671,7 @@ const SCORE = {
           to: "line and circle",
           spots: [[0.1784, 0.5335, 0.08], [0.25, 0.5, 0.08], [0.3216, 0.4665, 0.08]],
           fx: [
-            { kind: "trail", every: 0.5, spacing: 0.08, beats: 3 },
+            { kind: "trail", on: "Bongo drums", spacing: 0.08, beats: 3 },
             { kind: "paint", style: "solid", color: "dreamy1", spots: [1] },
             { kind: "paint", style: "solid", color: "dreamy3", spots: [2] },
             { kind: "paint", style: "solid", color: "dreamy4", spots: [3] },

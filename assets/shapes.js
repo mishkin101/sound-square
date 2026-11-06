@@ -400,10 +400,15 @@ function drawTrail(sh, P, s, st, f) {
 }
 
 // When a trail's copies land, from the clip coming in up to beat b: as it
-// comes in, then on each grid line (or trigger hit) after it.
+// comes in, then on each grid line (or trigger hit) after it. A hit right
+// after the clip comes in (within a third of a beat) is its first copy, so
+// two never land at once.
 function trailDrops(f, s, st, b) {
   const inAt = st.T?.inAt ?? 0, out = [inAt];
-  if (f.on) return out.concat(s.hits(f.on, inAt + 1e-6, b).map((h) => h[1]));
+  if (f.on) {
+    const hits = s.hits(f.on, inAt + 1e-6, b).map((h) => h[1]);
+    return hits.length && hits[0] - inAt < 1 / 3 ? hits : out.concat(hits);
+  }
   const every = f.every || 1;
   for (let g = stepOrigin(inAt, every) + 1; g * every <= b + 1e-9; g++) out.push(g * every);
   return out;
