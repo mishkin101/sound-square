@@ -83,8 +83,9 @@ const SCORE = {
   // one (a single copy moves between spots, switching by jump, blink or slide;
   // moveBars caps the moving). A spot is [x, y, size]; add -1 to mirror it there,
   // then degrees to turn it, then degrees to skew it (a parallelogram lean,
-  // + leans the top right, top and bottom kept level). hidden: true keeps a
-  // whole layer off the square.
+  // + leans the top right, top and bottom kept level). crop: [left, top,
+  // right, bottom] (0-1) draws the clip only inside that rectangle. hidden:
+  // true keeps a whole layer off the square.
   // keys: [{ at, x, y, size, deg, fade, flip }] ease the clip's place over time
   // (K in the studio); at is "bar:beat" or a moment's name; flip: -1 mirrors
   // from that key on; ease: "line" keeps the approach linear. Keys replace the
@@ -137,6 +138,29 @@ const SCORE = {
           fx: [
             { kind: "fill", every: 0.25, loop: true },
             { kind: "follow", source: "pitch", target: "height", mapping: "relative", min: 0.45, max: 1, before: 0.1, after: 0.4, anchor: "inner" },
+          ],
+        },
+      ],
+    },
+    {
+      // Pattern 2: a band of 45-degree stripes in the chevrons' frame, thickness
+      // equal to the gap, cut straight at the band's left and right sides by
+      // the crop. Each stripe's length follows the pitch at its hit, stretching
+      // from its middle, so the band staggers around its center line.
+      name: "stripes",
+      clips: [
+        {
+          shape: "stripe",
+          from: "Bongo drums",
+          to: 16,
+          crop: [0.1, 0, 0.9, 1],
+          spots: [
+            [-0.0515, 0.5, 0.278, 1, 45], [0.022, 0.5, 0.278, 1, 45], [0.0955, 0.5, 0.278, 1, 45], [0.1691, 0.5, 0.278, 1, 45], [0.2426, 0.5, 0.278, 1, 45], [0.3162, 0.5, 0.278, 1, 45], [0.3897, 0.5, 0.278, 1, 45], [0.4632, 0.5, 0.278, 1, 45],
+            [0.5368, 0.5, 0.278, 1, 45], [0.6103, 0.5, 0.278, 1, 45], [0.6838, 0.5, 0.278, 1, 45], [0.7574, 0.5, 0.278, 1, 45], [0.8309, 0.5, 0.278, 1, 45], [0.9045, 0.5, 0.278, 1, 45], [0.978, 0.5, 0.278, 1, 45], [1.0515, 0.5, 0.278, 1, 45],
+          ],
+          fx: [
+            { kind: "fill", every: 0.25, loop: true },
+            { kind: "follow", source: "pitch", target: "height", mapping: "relative", min: 0.3, max: 1, before: 0.1, after: 0.4, anchor: "center" },
           ],
         },
       ],

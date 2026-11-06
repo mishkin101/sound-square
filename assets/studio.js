@@ -167,6 +167,12 @@ function renderSquare(B, x, y) {
         drawingContext.rect(0, st.clip[0], 1, st.clip[1] - st.clip[0]);
         drawingContext.clip();
       }
+      if (L.crop) { // [left, top, right, bottom], 0–1 of the square
+        const [x0, y0, x1, y1] = L.crop;
+        drawingContext.beginPath();
+        drawingContext.rect(x0, y0, x1 - x0, y1 - y0);
+        drawingContext.clip();
+      }
       const P = paramsFor(el, L);
       if (editing() && picked) { P.spotsMode = "all"; P.editing = true; } // place the spots while editing
       el.draw(P, s, st);
@@ -2186,6 +2192,7 @@ function buildLayerDetail() {
   // says which moment it rides. Effects go on any clip, the background too.
   if (L.shape) wrap.append(momentRow(L));
   wrap.append(lengthRow(L));
+  wrap.append(cropRow(L));
   wrap.append(fxRow(L));
   // spot-motion menus (spots mode, moves on, …) are gone from the pane:
   // that behavior lives in the hop effect; the score fields still play
@@ -2617,6 +2624,28 @@ function fxSlider(f, key, min, max, step, def, label) {
     out.textContent = f[key];
   });
   slider.addEventListener("change", () => { SLIDING = false; });
+  return row;
+}
+
+// The clip drawn only inside a rectangle of the square: x from left to right,
+// y from top to bottom, 0–1. The full square (0 1 0 1) is no crop.
+function cropRow(L) {
+  const row = document.createElement("div");
+  row.className = "len-row crop-row";
+  const [x0, y0, x1, y1] = L.crop ?? [0, 0, 1, 1];
+  const box = (i, v, title) => `<input type="number" class="input" data-i="${i}" min="0" max="1" step="0.01" value="${v}" title="${title}">`;
+  row.innerHTML = `<span class="data dimmed">crop x</span>${box(0, x0, "Crop left (0–1)")}${box(2, x1, "Crop right (0–1)")}` +
+    `<span class="data dimmed">y</span>${box(1, y0, "Crop top (0–1)")}${box(3, y1, "Crop bottom (0–1)")}`;
+  row.addEventListener("change", (e) => {
+    const i = Number(e.target.dataset.i), v = parseFloat(e.target.value);
+    if (!(v >= 0 && v <= 1)) return buildLayerDetail();
+    rememberScore();
+    const c = [...(L.crop ?? [0, 0, 1, 1])];
+    c[i] = round2(v);
+    if (c[0] === 0 && c[1] === 0 && c[2] === 1 && c[3] === 1) delete L.crop;
+    else L.crop = c;
+    buildLayers();
+  });
   return row;
 }
 
