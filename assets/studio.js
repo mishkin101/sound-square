@@ -1032,14 +1032,26 @@ function addSpot(x, y) {
   buildLayerDetail();
 }
 
-// X: the drawing at these spots (one, or a list) looks the other way.
-function flipSpot(list) {
+// X / Y: the spots (one, or a list) flip across the vertical axis (X) or the
+// horizontal one (Y), as on the screen: a turned or leaning drawing turns and
+// leans the other way. Several flip as a group, their places mirrored across
+// the pick's middle.
+function flipSpot(list, axis = "h") {
   rememberScore();
-  for (const i of [].concat(list)) {
-    const sp = spotsOf(editLayer())[i];
-    sp[3] = sp[3] === -1 ? 1 : -1;
+  const L = editLayer(), spots = spotsOf(L), ids = [].concat(list);
+  const xs = ids.map((i) => spots[i][0]), ys = ids.map((i) => spots[i][1]);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  for (const i of ids) {
+    const sp = spots[i], deg = sp[4] ?? 0;
+    sp[3] = (sp[3] ?? 1) === -1 ? 1 : -1;
+    sp[4] = round2((((axis === "h" ? -deg : 180 - deg) % 360) + 360) % 360);
+    if (sp[5]) sp[5] = -sp[5];
+    if (ids.length > 1) {
+      if (axis === "h") sp[0] = round4(2 * cx - sp[0]);
+      else sp[1] = round4(2 * cy - sp[1]);
+    }
     tidySpot(sp);
-    keyThrough(editLayer(), sp);
+    keyThrough(L, sp);
   }
   buildLayerDetail();
 }
@@ -1089,9 +1101,38 @@ function duplicateClip() {
   buildLayers();
 }
 
+// ⇧D, or ⧉ on a layer's row: a copy of the whole layer — its shapes with
+// their own spots, keys and timing — right above it, a step down and right,
+// named as the next free "<name> 2", picked.
+function duplicateLayer(ri) {
+  const R = SCORE.layers[ri];
+  if (!R) return;
+  rememberScore();
+  const copy = JSON.parse(JSON.stringify(R));
+  let n = 2;
+  const base = R.name.replace(/ \d+$/, "");
+  while (SCORE.layers.some((x) => x.name === `${base} ${n}`)) n++;
+  copy.name = `${base} ${n}`;
+  for (const L of copy.clips) {
+    for (const sp of L.spots ?? []) {
+      sp[0] = round4(clamp01(sp[0] + 0.04));
+      sp[1] = round4(clamp01(sp[1] + 0.04));
+    }
+    for (const k of L.keys ?? []) {
+      k.x = round4(clamp01((k.x ?? 0.5) + 0.04));
+      k.y = round4(clamp01((k.y ?? 0.5) + 0.04));
+    }
+  }
+  SCORE.layers.splice(ri + 1, 0, copy);
+  EDIT.layer = ri + 1;
+  EDIT.clip = null;
+  buildLayers();
+}
+
 // Trailing defaults fall away, so plain spots stay [x, y, size].
 function tidySpot(sp) {
-  if (!sp[4]) sp.length = Math.min(sp.length, 4);
+  if (sp.length > 5 && !sp[5]) sp.length = 5;
+  if (sp.length > 4 && !sp[4]) sp.length = 4;
   if (sp.length === 4 && sp[3] === 1) sp.length = 3;
 }
 
@@ -1300,7 +1341,7 @@ function drawEditOverlay() {
     : onKey >= 0 ? `on key ${onKey + 1} — dragging the ${label} writes into it`
     : L.keys?.length ? `dragging the ${label} adds a key at the playhead`
     : `drag: move · edge: resize · double-click: add ${label}`);
-  for (const id of ["sq-flip", "sq-turn", "sq-del"]) $(id).disabled = !pickedSpots().length;
+  for (const id of ["sq-flip", "sq-flipv", "sq-turn", "sq-del"]) $(id).disabled = !pickedSpots().length;
   $("sq-dup").disabled = false;
   $("sq-order").disabled = P.spots.length < 2;
   $("sq-key").disabled = !L.shape;
@@ -2503,6 +2544,7 @@ function buildLayers() {
       `<span class="dimmed">${meta}</span>` +
       `<button class="mini lock${R.locked ? " on" : ""}" data-act="lock" title="${R.locked ? "Unlock: its spots take clicks on the square again" : "Lock: clicks on the square pass it by (the panel still edits it)"}">${R.locked ? LOCK : LOCK_OPEN}</button>` +
       `<button class="mini eye" data-act="eye" title="${R.hidden ? "Show the layer" : "Hide the layer on the square"}">${R.hidden ? EYE_OFF : EYE}</button>` +
+      `<button class="mini" data-act="dup" title="Duplicate the layer · ⇧D">⧉</button>` +
       `<button class="mini" data-act="del" title="Remove the layer and its shapes">×</button>`;
     row.addEventListener("click", (e) => {
       const act = e.target.closest("[data-act]")?.dataset.act;
@@ -2521,6 +2563,8 @@ function buildLayers() {
         if (R.hidden) delete R.hidden;
         else R.hidden = true;
         buildLayers();
+      } else if (act === "dup") {
+        duplicateLayer(ri);
       } else if (act === "del") {
         rememberScore();
         SCORE.layers.splice(ri, 1);
@@ -2588,7 +2632,9 @@ function buildLayerDetail() {
   const el = elementOf(L);
   wrap.insertAdjacentHTML("beforeend",
     `<div class="head"><span>${clipLabel(R, EDIT.clip)} <span class="dimmed">· ${el ? el.note : `no element called "${L.el}"`}</span></span>` +
-    `<button class="mini" id="layer-remove" title="Take this shape off the square">×</button></div>`);
+    `<span class="head-acts"><button class="mini" id="layer-dup" title="Duplicate the shape · D">⧉</button>` +
+    `<button class="mini" id="layer-remove" title="Take this shape off the square">×</button></span></div>`);
+  $("layer-dup").addEventListener("click", (e) => { e.currentTarget.blur(); duplicateClip(); });
   $("layer-remove").addEventListener("click", () => {
     rememberScore();
     R.clips.splice(EDIT.clip, 1);
@@ -2620,7 +2666,8 @@ function buildLayerDetail() {
         `<span>${Math.round(x * 100)}, ${Math.round(y * 100)}</span>` +
         `<span class="dimmed">${deg ? `${deg}°` : ""}${flip === -1 ? " ⇄" : ""}</span>` +
         pinMenu +
-        `<button class="mini" data-a="flip" title="Mirror (X)">⇄</button>` +
+        `<button class="mini" data-a="flip" title="Flip across the vertical axis · X">⇄</button>` +
+        `<button class="mini" data-a="flipv" title="Flip across the horizontal axis · Y">⇅</button>` +
         `<button class="mini" data-a="turn" title="Turn 15° (Alt-click turns back)">↻</button>` +
         `<button class="mini" data-a="dup" title="Another spot of this shape">⧉</button>` +
         `<button class="mini" data-a="del" title="Remove">×</button>`;
@@ -2642,6 +2689,7 @@ function buildLayerDetail() {
         }
         pickSpot(i);
         if (a === "flip") flipSpot(i);
+        else if (a === "flipv") flipSpot(i, "v");
         else if (a === "turn") rotateSpot(i, e.altKey ? -15 : 15);
         else if (a === "dup") duplicateSpot(i);
         else if (a === "del") removeSpot(i);
@@ -3528,6 +3576,7 @@ function wireControls() {
   });
   $("sq-size").addEventListener("change", (e) => { SLIDING = false; SIZE_FROM = null; e.target.blur(); buildLayerDetail(); });
   button("sq-flip", () => { if (pickedSpots().length) flipSpot(pickedSpots()); });
+  button("sq-flipv", () => { if (pickedSpots().length) flipSpot(pickedSpots(), "v"); });
   $("sq-turn").addEventListener("click", (e) => {
     if (pickedSpots().length) rotateSpot(pickedSpots(), e.altKey ? -15 : 15);
     e.currentTarget.blur();
@@ -3660,6 +3709,8 @@ function wireControls() {
       else SCORE.layers.splice(EDIT.layer, 1);
       buildLayers();
     } else if ((e.key === "x" || e.key === "X") && editing() && EDIT.spot != null) flipSpot(pickedSpots());
+    else if ((e.key === "y" || e.key === "Y") && editing() && EDIT.spot != null) flipSpot(pickedSpots(), "v");
+    else if (e.key === "D" && e.shiftKey && EDIT.layer != null) duplicateLayer(EDIT.layer);
     else if ((e.key === "d" || e.key === "D") && editing() && EDIT.clip != null) duplicateClip();
     else if ((e.key === "r" || e.key === "R") && editing() && EDIT.spot != null) rotateSpot(pickedSpots(), e.shiftKey ? -15 : 15);
     else if (e.key === "k" || e.key === "K") setKeyAtPlayhead();

@@ -9,7 +9,7 @@
     // Spotify only accepts 127.0.0.1 for a local sign-in, so the studio always runs there.
     if (location.hostname === "localhost") location.replace(location.href.replace("//localhost", "//127.0.0.1"));
   </script>
-  <link rel="stylesheet" href="assets/style.css?v=183">
+  <link rel="stylesheet" href="assets/style.css?v=185">
 </head>
 <body>
   <header class="topbar">
@@ -39,7 +39,8 @@
     <!-- Edit mode: spot actions over the square, like the Shapes toolbar -->
     <div class="ed-toolbar" id="sq-toolbar" hidden>
       <button class="btn" id="sq-dup" title="D · a unique copy of the shape: its own spots, keys and timing">Duplicate</button>
-      <button class="btn" id="sq-flip" title="X">Mirror</button>
+      <button class="btn" id="sq-flip" title="Flip across the vertical axis · X">Flip ↔</button>
+      <button class="btn" id="sq-flipv" title="Flip across the horizontal axis · Y">Flip ↕</button>
       <button class="btn" id="sq-turn" title="R · Alt-click turns back">Rotate 15°</button>
       <button class="btn" id="sq-order" title="Then click the spots in the order they open">Order</button>
       <button class="btn" id="sq-del" title="⌫">Delete</button>
@@ -294,22 +295,22 @@
     window.getStroke = getStroke;
   </script>
   <!-- ?v=N: bump it when files change, so browsers load the new ones instead of old copies -->
-  <script src="score.js?v=183"></script>
-  <script src="assets/engine.js?v=183"></script>
-  <script src="assets/elements.js?v=183"></script>
-  <script src="assets/geom.js?v=183"></script>
-  <script src="assets/motions.js?v=183"></script>
-  <script src="assets/shapes.js?v=183"></script>
-  <script src="assets/shapedoc.js?v=183"></script>
-  <script src="assets/tools.js?v=183"></script>
-  <script src="assets/trace.js?v=183"></script>
-  <script src="assets/editor.js?v=183"></script>
-  <script src="assets/sound.js?v=183"></script>
-  <script src="assets/sources.js?v=183"></script>
-  <script src="assets/spotify.js?v=183"></script>
-  <script src="assets/tempo.js?v=183"></script>
-  <script src="assets/listen.js?v=183"></script>
-  <script src="assets/waveform.js?v=183"></script>
-  <script src="assets/studio.js?v=183"></script>
+  <script src="score.js?v=185"></script>
+  <script src="assets/engine.js?v=185"></script>
+  <script src="assets/elements.js?v=185"></script>
+  <script src="assets/geom.js?v=185"></script>
+  <script src="assets/motions.js?v=185"></script>
+  <script src="assets/shapes.js?v=185"></script>
+  <script src="assets/shapedoc.js?v=185"></script>
+  <script src="assets/tools.js?v=185"></script>
+  <script src="assets/trace.js?v=185"></script>
+  <script src="assets/editor.js?v=185"></script>
+  <script src="assets/sound.js?v=185"></script>
+  <script src="assets/sources.js?v=185"></script>
+  <script src="assets/spotify.js?v=185"></script>
+  <script src="assets/tempo.js?v=185"></script>
+  <script src="assets/listen.js?v=185"></script>
+  <script src="assets/waveform.js?v=185"></script>
+  <script src="assets/studio.js?v=185"></script>
 </body>
 </html>

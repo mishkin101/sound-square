@@ -458,6 +458,7 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
 .lay-row.editing { background: var(--live); color: var(--void); }
 #layer-detail:not(:empty) { margin-left: var(--u2); border: var(--hair) solid var(--rule); display: grid; gap: 2px; padding-top: var(--u); }
 #layer-detail .head { display: flex; justify-content: space-between; align-items: center; padding: 0 var(--u); font: var(--t-data); color: var(--live); }
+#layer-detail .head-acts { display: flex; gap: 3px; }
 #layer-detail .note { margin: 0; padding: 4px var(--u) var(--u); font: var(--t-data); color: var(--mid); }
 
 /* ---- Layers as rows of shape clips ---- */
@@ -513,7 +514,7 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
   background: var(--void); border: var(--hair) solid var(--rule); cursor: pointer;
 }
 .mini-sel:hover { border-color: var(--mid); color: var(--live); }
-.spot-row { display: grid; grid-template-columns: 2ch minmax(0, 1fr) auto auto auto auto auto auto; gap: 4px; align-items: center; padding: 2px var(--u); font: var(--t-data); color: var(--mid); border: var(--hair) solid transparent; cursor: pointer; white-space: nowrap; }
+.spot-row { display: grid; grid-template-columns: 2ch minmax(0, 1fr) auto auto auto auto auto auto auto; gap: 3px; align-items: center; padding: 2px var(--u); font: var(--t-data); color: var(--mid); border: var(--hair) solid transparent; cursor: pointer; white-space: nowrap; }
 .spot-row > span { overflow: hidden; text-overflow: ellipsis; }
 .spot-row:hover { border-color: var(--rule); }
 .spot-row.on { border-color: var(--mid); color: var(--live); }
