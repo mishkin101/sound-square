@@ -2848,7 +2848,7 @@ function buildFxPanel(R, L) {
       : ["fill", "ripple", "scatter", "trail"].includes(f.kind) ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}${f.apart ? " · apart" : ""}`
       : f.kind === "follow" ? `${f.source ?? "pitch"} → ${f.target ?? "height"}`
       : f.kind === "paint" ? `${f.style ?? "gradient"} · ${f.color ?? "ground"}`
-      : f.kind === "reveal" ? `from the ${f.side ?? "left"}`
+      : f.kind === "reveal" ? `${f.style === "draw" ? "draw" : "wipe"} from the ${f.side ?? "left"}`
       : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`) +
       (f.steps?.length ? ` · ${f.steps.join(",")}/${f.of ?? Math.max(...f.steps)}` : "");
     const metaTitle = ["hop", "pulse", "ripple", "scatter", "trail"].includes(f.kind) ? "its trigger"
@@ -2986,6 +2986,7 @@ function appendFxControls(card, f, L) {
   if (f.kind === "reveal") {
     // drawn in from one side across its width (or height), finished at the
     // end of its window — the clip's own life unless from / until say
+    card.append(menuRow(f, "style", "style", [["wipe", "wipe across"], ["draw", "draw the lines"]], "wipe"));
     card.append(menuRow(f, "side", "from", [["left", "the left"], ["right", "the right"], ["top", "the top"], ["bottom", "the bottom"]], "left"));
     card.append(whenRow(f, "from", "start", "until"), whenRow(f, "until", "done", "until"));
     return;
@@ -3527,6 +3528,7 @@ function updatePanel(B) {
   setText("play", source.playing ? "Pause" : "Play");
   setText("export", Export.on ? "Stop" : "Export");
   $("export").classList.toggle("on", Export.on);
+  $("export").title = Export.on ? "Stop and save the video · Esc" : "Export the square with the song as a video";
   $("play").classList.toggle("on", source.playing);
   updateWaveRec();
   setText("song-status", source.label);
@@ -3729,6 +3731,7 @@ function wireControls() {
     else if ((e.key === "p" || e.key === "P") && SCORE.moments?.[MO_OPEN]?.path) {
       PATH_PLAY = PATH_PLAY ? null : { mi: MO_OPEN, t0: millis() }; // preview the open drawing, or stop it
     }
+    else if (e.key === "Escape" && Export.on) Export.stop();
     else if (e.key === "Escape" && drawTool()) setDrawTool(null);
     else if (e.key === "Escape" && MOMENT_MODE) setMomentMode(false);
     else if (e.key === "Escape" && editing() && EDIT.spot != null) pickSpot(null);

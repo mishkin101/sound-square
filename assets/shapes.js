@@ -102,6 +102,7 @@ ELEMENTS.shape = {
         translate(0, -reach.anchor[i]);
       }
       if (shapeAlpha > 0.001 && clipReveal(sh, P, s.B, st)) drawPainted(sh, s, P, i, frame, sp);
+      DRAW_ON = null;
       for (const r of mine) drawRing(sh, s, r, size * P.size * fx.k * wv);
       pop();
     });
@@ -121,6 +122,7 @@ function drawKeyed(sh, P, s, st) {
   if (k.deg || fx.rot) rotate((k.deg * Math.PI) / 180 + fx.rot);
   scale(k.flip * k.size * P.size * fx.k, k.size * P.size * fx.k);
   if (clipReveal(sh, P, s.B, st)) drawShape(sh, s.col, drawingContext, frame);
+  DRAW_ON = null;
   pop();
 }
 
@@ -309,10 +311,12 @@ function ripplesNow(f, B, st) {
 }
 
 // The reveal effect: the drawing comes in from one side (`side`: left, the
-// default, right, top or bottom) across its own width or height, finished
-// when its window ends (from / until; else the clip's own life). Clips the
-// spot's drawing to what has come in so far, in its frame; false when none
-// of it has. Call after the spot is placed.
+// default, right, top or bottom), finished when its window ends (from /
+// until; else the clip's own life). style "wipe" (the default) uncovers the
+// whole drawing across its width or height; "draw" draws each line along
+// itself from its end nearest that side, and uncovers each filled piece
+// across its own width. Clips (or sets DRAW_ON) for the spot just placed;
+// false when none of it has come in.
 function clipReveal(sh, P, B, st) {
   const f = P.fx?.find((x) => x.kind === "reveal");
   if (!f) return true;
@@ -322,6 +326,10 @@ function clipReveal(sh, P, B, st) {
   const t = clamp01((B - a) / Math.max(1e-6, b - a));
   if (t >= 1) return true;
   if (t <= 0) return false;
+  if (f.style === "draw") { // each line drawn along itself (drawShape and paintShape read this)
+    DRAW_ON = { t, side: f.side ?? "left" };
+    return true;
+  }
   const box = sh.moves.box, k = sh.k, pad = 0.1; // room for lines drawn wider than their outline
   const x0 = (box.x0 - sh.cx) * k - pad, x1 = (box.x1 - sh.cx) * k + pad, y0 = (box.y0 - sh.cy) * k - pad, y1 = (box.y1 - sh.cy) * k + pad;
   const w = x1 - x0, h = y1 - y0, side = f.side ?? "left";
@@ -333,6 +341,33 @@ function clipReveal(sh, P, B, st) {
   else ctx.rect(x0, y0, t * w, h);
   ctx.clip();
   return true;
+}
+
+// A reveal drawing the lines along themselves, while one is being drawn.
+let DRAW_ON = null; // { t, side }
+
+// A line drawn as far as the reveal has come, from its end nearest the
+// reveal's side; false while none of it shows.
+function drawOnLine(ctx, it) {
+  if (!DRAW_ON || !it.len) return true;
+  const L = it.len, s = DRAW_ON.t * L, [a, b] = it.ends ?? [[0, 0], [0, 0]];
+  if (s < 0.5) return false;
+  const fromEnd = { left: b[0] < a[0], right: b[0] > a[0], top: b[1] < a[1], bottom: b[1] > a[1] }[DRAW_ON.side];
+  ctx.setLineDash([s, L + 1]);
+  ctx.lineDashOffset = fromEnd ? 2 * s : 0; // from the far end: only its last s shows
+  return true;
+}
+
+// A filled piece uncovered from the reveal's side across its own width.
+function drawOnPiece(ctx, it) {
+  if (!DRAW_ON) return;
+  const b = it.box, pad = 2, x0 = b.x0 - pad, y0 = b.y0 - pad, w = b.x1 - b.x0 + 2 * pad, h = b.y1 - b.y0 + 2 * pad, t = DRAW_ON.t;
+  ctx.beginPath();
+  if (DRAW_ON.side === "right") ctx.rect(x0 + (1 - t) * w, y0, t * w, h);
+  else if (DRAW_ON.side === "top") ctx.rect(x0, y0, w, t * h);
+  else if (DRAW_ON.side === "bottom") ctx.rect(x0, y0 + (1 - t) * h, w, t * h);
+  else ctx.rect(x0, y0, t * w, h);
+  ctx.clip();
 }
 
 // The scatter effect: on each hit of its trigger (a moment), or on the grid
@@ -643,6 +678,7 @@ function drawOneSpot(sh, P, s, st, step) {
   scale(flip * size * P.size * fx.k * kb, size * P.size * fx.k * kb);
   if (squash !== 1) scale(1, squash);
   if (clipReveal(sh, P, s.B, st)) drawPainted(sh, s, P, i, frame, sp);
+  DRAW_ON = null;
   pop();
 }
 
@@ -662,11 +698,14 @@ function drawShape(sh, col, ctx = drawingContext, frame = null) {
     if (fx?.m) ctx.transform(fx.m.a, fx.m.b, fx.m.c, fx.m.d, fx.m.e, fx.m.f);
     const alpha = base * (fx?.a ?? 1);
     if (it.fill) {
+      ctx.save();
+      drawOnPiece(ctx, it);
       ctx.globalAlpha = alpha * it.fillA;
       ctx.fillStyle = it.fillSlot ? slotColor(it.fillSlot, col, it.fill) : it.fill;
       ctx.fill(it.path, it.rule);
+      ctx.restore();
     }
-    if (it.stroke && it.width > 0) {
+    if (it.stroke && it.width > 0 && drawOnLine(ctx, it)) {
       ctx.globalAlpha = alpha * it.strokeA;
       ctx.strokeStyle = it.strokeSlot ? slotColor(it.strokeSlot, col, it.stroke) : it.stroke;
       ctx.lineWidth = it.width;
@@ -713,6 +752,7 @@ function paintShape(sh, s, f, seed, ctx = drawingContext) {
   for (const it of sh.items) {
     ctx.save();
     if (!it.fill && it.stroke && it.width > 0) { // a line drawn as a line: the line takes the paint
+      if (!drawOnLine(ctx, it)) { ctx.restore(); continue; }
       ctx.strokeStyle = under;
       ctx.lineWidth = it.width;
       ctx.lineCap = it.cap;
@@ -721,6 +761,7 @@ function paintShape(sh, s, f, seed, ctx = drawingContext) {
       ctx.restore();
       continue;
     }
+    drawOnPiece(ctx, it);
     ctx.clip(it.path, it.rule);
     ctx.fillStyle = under;
     ctx.fillRect(b.x0, b.y0, w, h);
@@ -775,7 +816,14 @@ function parseShape(text) {
       const path = new Path2D();
       path.addPath(new Path2D(elementPathD(el)), chain.matrix);
       const m = chain.matrix, scaleW = Math.sqrt(Math.abs(m.a * m.d - m.b * m.c));
-      items.push({
+      // its length and its two ends, so a reveal can draw it along itself
+      let len = 0, ends = null;
+      try {
+        const n = el.getTotalLength(), a = m.transformPoint(el.getPointAtLength(0)), b = m.transformPoint(el.getPointAtLength(n));
+        len = n * scaleW;
+        ends = [[a.x, a.y], [b.x, b.y]];
+      } catch {}
+      items.push({ len, ends,
         path, parts: chain.parts, box: elementBox(el, chain.matrix),
         fill: fill?.hex, fillA: chain.opacity * parseFloat(cs.fillOpacity) * (fill?.a ?? 1), fillSlot: slotAttr(el, "fill"),
         rule: cs.fillRule === "evenodd" ? "evenodd" : "nonzero",
