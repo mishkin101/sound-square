@@ -109,11 +109,10 @@ const SCORE = {
       ],
     },
     {
-      // Hollow bars in a 3x5 grid: one appears per hit of "bongo drum start",
-      // filling the top row rightward, the middle row back leftward, the
-      // bottom row rightward (the spot order IS the fill order). The lean is
-      // a skew, so tilted bars are parallelograms; each is sized by the
-      // wave's loudness at its hit.
+      // Solid bars in two rows of eight: one appears per hit of "bongo drum
+      // start", filling the top row rightward then the bottom row back
+      // leftward (the spot order IS the fill order). The lean is a skew, so
+      // tilted bars are parallelograms; each is sized by the wave at its hit.
       name: "bongos",
       clips: [
         {
@@ -124,9 +123,8 @@ const SCORE = {
           moveOn: "bongo drum start",
           sizeFrom: "wave",
           spots: [
-            [0.15, 0.2, 0.07, 1, 0, -24], [0.325, 0.2, 0.07, 1, 0, -12], [0.5, 0.2, 0.07], [0.675, 0.2, 0.07, 1, 0, 12], [0.85, 0.2, 0.07, 1, 0, 24],
-            [0.85, 0.5, 0.07, 1, 0, 24], [0.675, 0.5, 0.07, 1, 0, 12], [0.5, 0.5, 0.07], [0.325, 0.5, 0.07, 1, 0, -12], [0.15, 0.5, 0.07, 1, 0, -24],
-            [0.15, 0.8, 0.07, 1, 0, -24], [0.325, 0.8, 0.07, 1, 0, -12], [0.5, 0.8, 0.07], [0.675, 0.8, 0.07, 1, 0, 12], [0.85, 0.8, 0.07, 1, 0, 24],
+            [0.1, 0.25, 0.055, 1, 0, -24], [0.214, 0.25, 0.055, 1, 0, -16], [0.329, 0.25, 0.055, 1, 0, -8], [0.443, 0.25, 0.055], [0.557, 0.25, 0.055], [0.671, 0.25, 0.055, 1, 0, 8], [0.786, 0.25, 0.055, 1, 0, 16], [0.9, 0.25, 0.055, 1, 0, 24],
+            [0.9, 0.7, 0.055, 1, 0, 24], [0.786, 0.7, 0.055, 1, 0, 16], [0.671, 0.7, 0.055, 1, 0, 8], [0.557, 0.7, 0.055], [0.443, 0.7, 0.055], [0.329, 0.7, 0.055, 1, 0, -8], [0.214, 0.7, 0.055, 1, 0, -16], [0.1, 0.7, 0.055, 1, 0, -24],
           ],
         },
       ],

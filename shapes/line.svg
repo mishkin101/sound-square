@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">
   <g id="bar" data-name="bar">
-    <rect x="395" y="150" width="210" height="700" fill="none" stroke="#1c5954" stroke-width="64" data-stroke-slot="ink"/>
+    <rect x="395" y="150" width="210" height="700" fill="#1c5954" data-fill-slot="ink"/>
   </g>
 </svg>
