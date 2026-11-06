@@ -215,6 +215,9 @@ function paramsFor(el, L) {
     if (fill.loop) P.loop = true;
     else delete P.loop;
   }
+  // a trail follows a moment's drawing: the one it names, or the clip's own
+  const trail = P.fx?.find((f) => f.kind === "trail");
+  if (trail) P.trailOf = trail.path ?? (typeof L.from === "string" ? L.from : null);
   return P;
 }
 
@@ -877,7 +880,7 @@ function removeSpot(i) {
 
 function setKeyAtPlayhead() {
   const L = SCORE.layers[EDIT.layer]?.clips?.[EDIT.clip];
-  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "scatter", "pulse", "fill", "follow", "paint", "ripple"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (these have no envelope)
+  if (FX_PANEL && FX_OPEN != null && L?.fx?.[FX_OPEN] && !["hop", "scatter", "trail", "pulse", "fill", "follow", "paint", "ripple"].includes(L.fx[FX_OPEN].kind)) return setFxKey(L.fx[FX_OPEN]); // the open effect takes the key (these have no envelope)
   if (!L?.shape) return;
   rememberScore();
   const B = round2(Math.max(0, msToBeats(SCORE, songNow())));
@@ -1854,7 +1857,10 @@ function renameMoment(m, name) {
   const old = m.name;
   m.name = name;
   for (const R of SCORE.layers) {
-    for (const L of R.clips) for (const k of ["from", "to", "moveOn", "keysFrom"]) if (L[k] === old) L[k] = name;
+    for (const L of R.clips) {
+      for (const k of ["from", "to", "moveOn", "keysFrom"]) if (L[k] === old) L[k] = name;
+      for (const f of L.fx ?? []) for (const k of ["on", "from", "to", "until", "path"]) if (f[k] === old) f[k] = name;
+    }
   }
   momentsChanged();
 }
@@ -2386,11 +2392,11 @@ function buildFxPanel(R, L) {
     const head = document.createElement("div");
     head.className = "fx-head" + (open ? " on" : "");
     const meta = f.kind === "hop" || f.kind === "pulse" ? (f.on ?? "pick a moment")
-      : f.kind === "fill" || f.kind === "ripple" || f.kind === "scatter" ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}${f.apart ? " · apart" : ""}`
+      : ["fill", "ripple", "scatter", "trail"].includes(f.kind) ? `${f.on ?? `every ${f.every ?? 1}`}${f.loop ? " · loop" : ""}${f.apart ? " · apart" : ""}`
       : f.kind === "follow" ? `${f.source ?? "pitch"} → ${f.target ?? "height"}`
       : f.kind === "paint" ? `${f.style ?? "gradient"} · ${f.color ?? "ground"}`
       : `${round2(fxAmountNow(f))}${f.keys?.length ? " ⋄" : ""}`;
-    const metaTitle = f.kind === "hop" || f.kind === "pulse" || f.kind === "ripple" || f.kind === "scatter" ? "its trigger"
+    const metaTitle = ["hop", "pulse", "ripple", "scatter", "trail"].includes(f.kind) ? "its trigger"
       : f.kind === "fill" ? "its step" : f.kind === "follow" ? "source → property" : f.kind === "paint" ? "style · color"
       : `${f.kind === "oscillate" ? "distance" : "intensity"} now${f.keys?.length ? " (keyed)" : ""}`;
     head.innerHTML = `<span class="caret dimmed">${open ? "▾" : "▸"}</span><span class="kind">${f.kind}</span>` +
@@ -2438,7 +2444,7 @@ function buildFxPanel(R, L) {
 // What a clip can wear: drawn shapes move and turn; the background (and other
 // coded elements) pulse their color.
 function fxKinds(L) {
-  return L.shape ? ["spin", "breathe", "wobble", "oscillate", "hop", "scatter", "fill", "follow", "paint", "pulse", "ripple"] : ["pulse"];
+  return L.shape ? ["spin", "breathe", "wobble", "oscillate", "hop", "scatter", "trail", "fill", "follow", "paint", "pulse", "ripple"] : ["pulse"];
 }
 
 // The open effect's controls, under its header row.
@@ -2509,6 +2515,19 @@ function appendFxControls(card, f, L) {
     if (!f.on) card.append(fxSlider(f, "every", 0.125, 8, 0.125, 1, "step (beats)"));
     card.append(boolRow(f, "apart", "spots", "together", "apart"));
     card.append(rectRow(f, "area", "area"));
+    return;
+  }
+  if (f.kind === "trail") {
+    // a copy lands at the next place along a moment's drawing on each step,
+    // `spacing` further on, and fades out; the copies take the spots' looks
+    // in turn. The clip's own moment's drawing unless it names another.
+    const own = typeof L.from === "string" ? L.from : "";
+    const drawn = (SCORE.moments || []).filter((m) => m.path?.length).map((m) => [m.name, m.name]);
+    card.append(menuRow(f, "path", "drawing", [...(drawn.some(([v]) => v === own) ? [] : [[own, "none"]]), ...drawn], own));
+    card.append(menuRow(f, "on", "trigger", gridOrMoments(), ""));
+    if (!f.on) card.append(fxSlider(f, "every", 0.125, 8, 0.125, 1, "step (beats)"));
+    card.append(fxSlider(f, "spacing", 0.01, 0.5, 0.01, 0.08, "spacing"));
+    card.append(fxSlider(f, "beats", 0.25, 8, 0.25, 1, "fade out (beats)"));
     return;
   }
   if (f.kind === "paint") {

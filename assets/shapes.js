@@ -38,6 +38,9 @@ ELEMENTS.shape = {
     if (!sh?.items) return;
     // keys drive the place over time; while editing the spots show instead
     if (P.keys?.length && !P.editing) return drawKeyed(sh, P, s, st);
+    // a trail leaves copies along a drawing, each fading out
+    const trail = !P.editing && P.fx?.find((f) => f.kind === "trail");
+    if (trail) return drawTrail(sh, P, s, st, trail);
     // a lone spot takes no turns — except under a fill, whose fade then
     // fades it in from the clip's start
     const lone = P.spots.length < 2 && !P.fx?.some((f) => f.kind === "fill");
@@ -310,6 +313,80 @@ function scatterUV(seed, n) {
   return m;
 }
 
+// The trail effect: on each hit of its trigger (a moment), or on the grid
+// every `every` beats, a copy lands at the next place along a moment's
+// drawing (P.trailOf), `spacing` further along it (square units), and fades
+// out over `beats`; past the drawing's end it starts again from its start.
+// The copies take the spots' looks in turn (size, mirror, turn, lean, paint);
+// a follow sets each one's size or height from the song where it lands.
+// With no drawing they land on the spots themselves.
+function drawTrail(sh, P, s, st, f) {
+  const walk = drawingWalk(P.trailOf), life = f.beats || 1, spacing = f.spacing ?? 0.08;
+  const drops = trailDrops(f, s, st, Math.max(s.B, st.T?.e ?? s.B));
+  const fol = followOf(P), scales = fol ? followMap(fol, drops, true) : null;
+  const byHeight = (fol?.target ?? "height") === "height";
+  const b = sh.moves.box, anchor = { top: (b.y0 - sh.cy) * sh.k, bottom: (b.y1 - sh.cy) * sh.k }[fol?.anchor] ?? 0;
+  const fx = fxNow(P, s, st), sp = selfPulseNow(P, s.B);
+  if (sp?.flashing && sp.w <= 0.001) return;
+  drops.forEach((t, k) => {
+    if (t > s.B || s.B - t >= life) return;
+    const j = k % P.spots.length, [x0, y0, size, flip = 1, deg = 0, skew = 0] = P.spots[j];
+    const [x, y] = walk ? walkAt(walk, (k * spacing) % walk.len) : [x0, y0];
+    const kf = scales ? scales[k] : 1, wv = byHeight ? 1 : kf;
+    push();
+    drawingContext.globalAlpha *= smoothstep(1 - (s.B - t) / life);
+    translate(x + fx.dx, y + fx.dy);
+    if (deg || fx.rot) rotate((deg * Math.PI) / 180 + fx.rot);
+    if (skew) shearX((-skew * Math.PI) / 180);
+    scale(flip * size * P.size * fx.k * wv, size * P.size * fx.k * wv);
+    if (byHeight && kf !== 1) { // stretch from the edge that stays put
+      translate(0, anchor);
+      scale(1, kf);
+      translate(0, -anchor);
+    }
+    drawPainted(sh, s, P, j, null, sp);
+    pop();
+  });
+}
+
+// When a trail's copies land, from the clip coming in up to beat b: as it
+// comes in, then on each grid line (or trigger hit) after it.
+function trailDrops(f, s, st, b) {
+  const inAt = st.T?.inAt ?? 0, out = [inAt];
+  if (f.on) return out.concat(s.hits(f.on, inAt + 1e-6, b).map((h) => h[1]));
+  const every = f.every || 1;
+  for (let g = stepOrigin(inAt, every) + 1; g * every <= b + 1e-9; g++) out.push(g * every);
+  return out;
+}
+
+// A moment's drawing as one walk: its strokes in the order they were drawn,
+// each point with the length walked to it (the gaps between strokes don't
+// count). Null when the moment has no drawing.
+function drawingWalk(name) {
+  const m = name != null && SCORE.moments?.find((x) => x.name === name);
+  if (!m?.path?.length) return null;
+  const strokes = Array.isArray(m.path[0][0]) ? m.path : [m.path];
+  const pts = [];
+  let len = 0;
+  for (const line of [...strokes].sort((a, c) => a[0][2] - c[0][2])) {
+    line.forEach((p, i) => {
+      if (i) len += Math.hypot(p[0] - line[i - 1][0], p[1] - line[i - 1][1]);
+      pts.push({ x: p[0], y: p[1], d: len });
+    });
+  }
+  return pts.length > 1 && len > 1e-6 ? { pts, len } : null;
+}
+
+// The place `d` along a walk.
+function walkAt(w, d) {
+  const p = w.pts;
+  let i = 1;
+  while (i < p.length - 1 && p[i].d < d) i++;
+  const a = p[i - 1], b = p[i], span = b.d - a.d;
+  const t = span > 1e-9 ? Math.min(1, Math.max(0, (d - a.d) / span)) : 1;
+  return [a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t];
+}
+
 // One ring, drawn in the spot's own frame (scale: the spot's size, so the
 // distance and width stay in square units). It eases out as it travels.
 function drawRing(sh, s, r, scale, ctx = drawingContext) {
@@ -345,6 +422,21 @@ function followOf(P) {
 }
 
 function followScales(P, s, st, sh, cyc, f) {
+  const beats = P.spotsMode === "turns" ? spotHitBeats(P, s, st, cyc) : null;
+  const out = followMap(f, beats ?? P.spots.map(() => s.B), !!beats);
+  if (!out) return null;
+  const b = sh.moves.box, top = (b.y0 - sh.cy) * sh.k, bottom = (b.y1 - sh.cy) * sh.k;
+  const mid = P.spots.reduce((a, sp) => a + sp[1], 0) / P.spots.length, anchor = f.anchor ?? "inner";
+  out.anchor = P.spots.map((sp) => (anchor === "top" ? top : anchor === "bottom" ? bottom : anchor === "center" ? 0
+    : sp[1] < mid - 1e-6 ? bottom : sp[1] > mid + 1e-6 ? top : 0));
+  return out;
+}
+
+// A follow's scales for the song at each of the beats `at` (null: none
+// there): its source over its window, mapped to min..max — relative (when
+// `spread`, the lowest reading to min and the highest to max) or absolute.
+// Null without a recording to read.
+function followMap(f, at, spread) {
   const dur = (typeof source !== "undefined" && source.durationMs) || Waveform.ms;
   const pitch = (f.source ?? "pitch") === "pitch";
   if (!dur || !Waveform.data || (pitch && !Waveform.pitch)) return null;
@@ -353,22 +445,16 @@ function followScales(P, s, st, sh, cyc, f) {
     const fa = beatsToMs(SCORE, b - before) / dur, fb = beatsToMs(SCORE, b + after) / dur;
     return pitch ? Waveform.pitchNear(fa, fb) : Waveform.levelNear(fa, fb);
   };
-  const beats = P.spotsMode === "turns" ? spotHitBeats(P, s, st, cyc) : null;
-  const vals = P.spots.map((_, i) => (beats ? (beats[i] == null ? null : read(beats[i])) : read(s.B)));
+  const vals = at.map((b) => (b == null ? null : read(b)));
   const lo0 = f.min ?? 0.45, hi0 = f.max ?? 1;
   let map = (v) => lo0 + (hi0 - lo0) * v;
-  if ((f.mapping ?? "relative") === "relative" && beats) {
+  if ((f.mapping ?? "relative") === "relative" && spread) {
     const known = vals.filter((v) => v != null);
     if (!known.length) return null;
     const lo = Math.min(...known), span = Math.max(Math.max(...known) - lo, 0.04);
     map = (v) => lo0 + ((hi0 - lo0) * (v - lo)) / span;
   }
-  const out = vals.map((v) => (v == null ? 1 : map(v)));
-  const b = sh.moves.box, top = (b.y0 - sh.cy) * sh.k, bottom = (b.y1 - sh.cy) * sh.k;
-  const mid = P.spots.reduce((a, sp) => a + sp[1], 0) / P.spots.length, anchor = f.anchor ?? "inner";
-  out.anchor = P.spots.map((sp) => (anchor === "top" ? top : anchor === "bottom" ? bottom : anchor === "center" ? 0
-    : sp[1] < mid - 1e-6 ? bottom : sp[1] > mid + 1e-6 ? top : 0));
-  return out;
+  return vals.map((v) => (v == null ? 1 : map(v)));
 }
 
 // moveOn as a step length in beats: "beat", "bar", or a number of beats

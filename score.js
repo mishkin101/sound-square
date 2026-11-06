@@ -75,7 +75,11 @@ const SCORE = {
       name: "bongo drum start",
       hits: [12.38, 12.92, 13.49, 14.04, 15.21, 15.76, 16.32, 16.88, 17.43, 17.98],
     },
-    { name: "triangle tick", hits: [36.03] },
+    {
+      name: "triangle tick",
+      hits: [36.03],
+      path: [[[0.5088, 0.2039, 36.03], [0.4803, 0.2434, 36.18], [0.4518, 0.2873, 36.33], [0.4254, 0.3311, 36.48], [0.3991, 0.375, 36.63], [0.3772, 0.4101, 36.78], [0.3684, 0.432, 36.93], [0.3772, 0.4474, 37.08], [0.4035, 0.4539, 37.23], [0.4518, 0.4474, 37.38], [0.5066, 0.4342, 37.53], [0.5482, 0.4232, 37.68], [0.5658, 0.4342, 37.83], [0.557, 0.4583, 37.98], [0.5351, 0.489, 38.13], [0.5088, 0.5285, 38.28], [0.4825, 0.5702, 38.43], [0.4561, 0.6118, 38.58], [0.4364, 0.6469, 38.73], [0.4276, 0.6711, 38.88], [0.4364, 0.6864, 39.03], [0.4627, 0.6864, 39.18], [0.4934, 0.6754, 39.33], [0.5241, 0.6645, 39.48]]],
+    },
     { name: "heavy kick", hits: [43.89] },
     { name: "line and circle", hits: [56.04] },
   ],
@@ -118,7 +122,11 @@ const SCORE = {
   // every: the grid step in beats, area: [left, top, right, bottom] (0–1 of
   // the square) they stay inside, apart: true places each spot on its own
   // (else they move together, keeping their layout) } — random, but the
-  // same every playback.
+  // same every playback. A trail effect leaves a copy at the next place along
+  // a moment's drawing on each hit: { kind: "trail", path: the moment (else
+  // the clip's own), on: a moment, or every: the grid step in beats, spacing:
+  // how far apart along the drawing, beats: how long each takes to fade out }
+  // — the copies take the spots' looks in turn and start over past the end.
   // A follow effect sets a property
   // from the song: { kind: "follow", source: "pitch" | "loudness", target:
   // "height" | "size", mapping: "relative" (lowest hit to min, highest to max)
@@ -245,9 +253,9 @@ const SCORE = {
       ],
     },
     {
-      // From the triangle tick until the line and circle: three outline
-      // triangles, stepped up to the right in dreamy 1, 3 and 4, landing
-      // somewhere new in the left middle half of the square on every beat.
+      // From the triangle tick until the line and circle: outline triangles
+      // in dreamy 1, 3 and 4 in turn, one every half beat along the triangle
+      // tick's drawing, each fading out quickly, sized by the pitch.
       name: "triangles",
       clips: [
         {
@@ -256,7 +264,8 @@ const SCORE = {
           to: "line and circle",
           spots: [[0.1784, 0.5335, 0.08], [0.25, 0.5, 0.08], [0.3216, 0.4665, 0.08]],
           fx: [
-            { kind: "scatter", every: 1, area: [0, 0.25, 0.5, 0.75] },
+            { kind: "trail", every: 0.5, spacing: 0.08, beats: 1 },
+            { kind: "follow", source: "pitch", target: "size", mapping: "relative", min: 0.5, max: 1.2 },
             { kind: "paint", style: "solid", color: "dreamy1", spots: [1] },
             { kind: "paint", style: "solid", color: "dreamy3", spots: [2] },
             { kind: "paint", style: "solid", color: "dreamy4", spots: [3] },
