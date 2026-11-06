@@ -14,3 +14,6 @@
   `-c user.name="Michelle" -c user.email="57876448+mishkin101@users.noreply.github.com"`.
 - UI wording must be direct and technical (e.g. "quantize", "trigger",
   "intensity", "decay (beats)") — no cute or vague phrasing.
+- NEVER long text in the UI: no explaining sentences in status lines or
+  hints. Prefer a mini button or action; any explanation goes in its hover
+  title. Status messages stay a few words.

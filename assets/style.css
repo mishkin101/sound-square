@@ -496,3 +496,6 @@ body.shapes .side-panel, body.bare .side-panel { display: none; }
 .spot-row > span { overflow: hidden; text-overflow: ellipsis; }
 .spot-row:hover { border-color: var(--rule); }
 .spot-row.on { border-color: var(--mid); color: var(--live); }
+
+/* the waveform record dot: red while recording */
+#wave-rec.rec { color: #e14b4b; border-color: #e14b4b; }

@@ -647,7 +647,21 @@ function mouseReleased() {
   EDIT.drag = null;
 }
 function doubleClicked(e) {
-  if (inTimeline()) { TL_VIEW.zoom = 1; TL_VIEW.startMs = 0; return; }
+  if (inTimeline()) {
+    // on a moment's marker or name: the playhead goes there; elsewhere, zoom out
+    const mark = momentMarkerAt();
+    if (mark) {
+      const m = SCORE.moments[mark.mi];
+      const beat = mark.hold != null
+        ? m.hold[mark.hold === "body" ? 0 : mark.hold]
+        : m.hits[mark.hi ?? 0];
+      run(() => source.seek(beatsToMs(SCORE, beat)));
+      return;
+    }
+    TL_VIEW.zoom = 1;
+    TL_VIEW.startMs = 0;
+    return;
+  }
   if (editing() && hasSpots(editLayer()) && !layerLocked() && onSquare(e) && !liveNow() && !spotAt(...squareMouse())) addSpot(...squareMouse());
 }
 
@@ -1420,7 +1434,7 @@ function zoomToMoment(m) {
   const pad = 2 * SCORE.beatsPerBar;
   const a = beatsToMs(SCORE, Math.min(...hits) - pad), b = beatsToMs(SCORE, Math.max(...hits) + pad);
   TL_VIEW.zoom = constrain(songMs(SCORE) / Math.max(1, b - a), 1, 64);
-  TL_VIEW.startMs = a;
+  TL_VIEW.startMs = (a + b) / 2 - tlSpanMs() / 2; // centered, so edges of the song still read
   clampTlView();
 }
 
@@ -1440,6 +1454,14 @@ function moChip(m, mi) {
     DRAW_INTO = null;
     PATH_PLAY = null;
     if (MO_OPEN === mi) zoomToMoment(m);
+    renderMoments();
+  });
+  // double-click: the playhead jumps to the moment (the card stays open)
+  b.addEventListener("dblclick", () => {
+    MO_OPEN = mi;
+    zoomToMoment(m);
+    const beat = (m.hold ?? m.hits)?.[0];
+    if (beat != null) run(() => source.seek(beatsToMs(SCORE, beat)));
     renderMoments();
   });
   chip.append(b);
@@ -2719,6 +2741,7 @@ function updatePanel(B) {
   setText("time", `${clockText(songNow())} / ${clockText(songMs(SCORE))}`);
   setText("play", source.playing ? "Pause" : "Play");
   $("play").classList.toggle("on", source.playing);
+  updateWaveRec();
   setText("song-status", source.label);
   if (!GRID_EDIT) setText("grid", `${Math.round(SCORE.bpm * 100) / 100} BPM · bar 1 at ${(SCORE.firstDownbeatMs / 1000).toFixed(3)} s · ${SCORE.bars} bars`);
   setText("listen", Listen.on ? "Stop" : "Listen");
@@ -2747,6 +2770,7 @@ function wireControls() {
   button("play", togglePlay);
   $("wave").addEventListener("click", (e) => { toggleWave(e.shiftKey); e.currentTarget.blur(); });
   $("wave").classList.toggle("on", WAVE_SHOW);
+  button("wave-rec", toggleWaveRecord);
   button("sound", toggleSound);
   button("hide", toggleBare);
   button("copy", copyScore);
@@ -2949,11 +2973,11 @@ function toggleWave(shift) {
 function toggleWaveRecord() {
   if (Waveform.rec) {
     Waveform.stopRecording();
-    setText("tap-status", "waveform recording stopped and kept");
+    setText("tap-status", "waveform kept");
     return;
   }
   const key = songKey();
-  if (!key) return setText("tap-status", "Wave: no song to record");
+  if (!key) return;
   if (!WAVE_SHOW) toggleWave();
   Waveform.record(
     key,
@@ -2961,21 +2985,17 @@ function toggleWaveRecord() {
     () => (source.playing && source.durationMs ? songNow() / source.durationMs : null),
     songKey,
   ).then(
-    () => setText("tap-status", "recording the waveform while the song plays — ⇧W stops it"),
-    (e) => setText("tap-status", `Can't record: ${e.message}`),
+    () => setText("tap-status", "● recording"),
+    (e) => setText("tap-status", `can't record: ${e.message}`),
   );
 }
 
-// Why there's no waveform yet, said once per reason on the status line.
-let WAVE_HINTED = "";
-function waveHint() {
-  const key = songKey();
-  const msg = Waveform.rec ? ""
-    : !key ? "Wave: play a song and its waveform draws here"
-    : Waveform.busy ? "Wave: fetching the song's analysis…"
-    : Waveform.failed === key ? "Wave: Spotify refused its analysis — ⇧W records it while the song plays, or load the song's file"
-    : "";
-  if (msg && msg !== WAVE_HINTED) { WAVE_HINTED = msg; setText("tap-status", msg); }
+// The ● button appears when Wave is on with nothing to draw: recording is the
+// action, its title the explanation. It burns red while recording.
+function updateWaveRec() {
+  const b = $("wave-rec"), rec = !!Waveform.rec;
+  b.hidden = !(rec || (WAVE_SHOW && !!songKey() && !Waveform.data && !Waveform.busy));
+  b.classList.toggle("rec", rec);
 }
 
 function ensureWave() {
@@ -2996,7 +3016,7 @@ function ensureWave() {
 
 function drawWave(top) {
   ensureWave();
-  if (!Waveform.data || !source.durationMs) return waveHint();
+  if (!Waveform.data || !source.durationMs) return;
   const w = width - TL_GUT - TL_PAD, bottom = height - 2, band = height - top - 6;
   noStroke();
   fill(255, 26);
