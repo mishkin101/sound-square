@@ -1425,8 +1425,8 @@ function moQuantizeRow(m) {
   const row = document.createElement("div");
   row.className = "mo-quantize";
   row.innerHTML = `<span class="data dimmed">quantize</span>` +
-    [["1", "beat"], ["0.5", "½ beat"], ["0.25", "¼ beat"]].map(([v, t]) =>
-      `<button class="mini" data-q="${v}" title="Move every hit to its nearest ${t} line">${t}</button>`).join("");
+    [["1", "1", "beat"], ["0.5", "½", "half-beat"], ["0.25", "¼", "quarter-beat"]].map(([v, t, say]) =>
+      `<button class="mini" data-q="${v}" title="Move every hit to its nearest ${say} line">${t}</button>`).join("");
   for (const b of row.querySelectorAll("[data-q]")) b.addEventListener("click", (e) => {
     e.currentTarget.blur();
     rememberScore();
