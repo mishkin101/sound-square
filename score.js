@@ -484,6 +484,7 @@ const SCORE = {
     {
       name: "bright keys",
       hits: [75.92, 76.46, 77.07, 78.2, 78.75, 93.94, 94.48, 98.44, 100.13, 101.8],
+      repeat: { every: 32, times: 2 },
     },
     { name: "end", hits: [199.11] },
   ],
@@ -976,16 +977,17 @@ const SCORE = {
       ],
     },
     {
-      // From the bright keys until the snare: a row of ten slim keys on the
+      // From the bright keys through bar 42: a row of ten slim keys on the
       // right, one coming in on each bright keys hit, fading in and arriving
       // washed in white that settles into its dreamy color (1, 3 and 4 in
-      // turn, as the triangles had).
+      // turn, as the triangles had). The bright keys play three times, eight
+      // bars apart; each round the row empties and fills again.
       name: "bright keys",
       clips: [
         {
           shape: "rectangle",
           from: "bright keys",
-          to: "snare",
+          to: 42,
           spots: [
             [0.49, 0.42, 0.1],
             [0.538, 0.42, 0.1],
@@ -999,7 +1001,7 @@ const SCORE = {
             [0.922, 0.42, 0.1],
           ],
           fx: [
-            { kind: "fill", on: "bright keys", fade: 1, flash: "#ffffff", flashBeats: 1.5 },
+            { kind: "fill", on: "bright keys", loop: true, fade: 1, flash: "#ffffff", flashBeats: 1.5 },
             { kind: "paint", style: "solid", color: "dreamy1", spots: [1, 4, 7, 10] },
             { kind: "paint", style: "solid", color: "dreamy3", spots: [2, 5, 8] },
             { kind: "paint", style: "solid", color: "dreamy4", spots: [3, 6, 9] },
