@@ -120,7 +120,10 @@ function fxNow(P, s, st) {
 function spotHitBeats(P, s, st) {
   const inAt = st.T?.inAt ?? 0;
   const every = { beat: 1, bar: s.bpb }[P.moveOn];
-  if (every) return P.spots.map((_, i) => inAt + i * every);
+  if (every) {
+    const g0 = Math.floor(inAt / every + 1e-6);
+    return P.spots.map((_, i) => (i ? (g0 + i) * every : inAt));
+  }
   if (!P.moveOn) return null;
   return s.hits(P.moveOn, inAt + 1e-6, 1e9).map((h) => h[1]);
 }
@@ -138,9 +141,12 @@ function spotStep(P, s, st) {
   let n = 0, at = inAt, prevAt = inAt;
   const every = { beat: 1, bar: s.bpb }[P.moveOn];
   if (every) {
-    n = Math.max(0, Math.floor((Bc - inAt) / every));
-    at = inAt + n * every;
-    prevAt = inAt + Math.max(0, n - 1) * every;
+    // grid lines crossed since the clip came in: a clip that comes in off the
+    // grid (on a tapped moment) still steps right on the beats or bars
+    const g0 = Math.floor(inAt / every + 1e-6);
+    n = Math.max(0, Math.floor(Bc / every + 1e-6) - g0);
+    at = n ? (g0 + n) * every : inAt;
+    prevAt = n > 1 ? (g0 + n - 1) * every : inAt;
   } else if (P.moveOn) {
     let hits = s.hits(P.moveOn, inAt + 1e-6, Bc);
     // switchUnder: only the quick taps move it — a hit counts when it lands

@@ -106,13 +106,15 @@ const SCORE = {
           spots: [[0.5, 0.5, 0.5]],
           fx: [{ kind: "pulse", on: "Pulse", to: "#ffffff", amount: 0.9, beats: 3 }],
         },
+        { shape: "line", from: 10, to: 13, in: "fade", out: "fade", spots: [[0.5, 0.5, 0.15]] },
       ],
     },
     {
-      // Solid bars in two rows of eight: one appears per hit of "bongo drum
-      // start", filling the top row rightward then the bottom row back
-      // leftward (the spot order IS the fill order). The lean is a skew, so
-      // tilted bars are parallelograms; each is sized by the wave at its hit.
+      // Two rows of eight parallelograms, leaning opposite ways (skew 30 and
+      // -30: flat tops and bottoms, sides at 30 degrees). One lands on every
+      // beat from "bongo drum start": the top row rightward, then the bottom
+      // row back leftward. One spacing unit throughout: the gap between
+      // neighbors (measured square to their sides) equals the gap between rows.
       name: "bongos",
       clips: [
         {
@@ -120,11 +122,10 @@ const SCORE = {
           from: "bongo drum start",
           to: 40,
           spotsMode: "turns",
-          moveOn: "bongo drum start",
-          sizeFrom: "wave",
+          moveOn: "beat",
           spots: [
-            [0.1, 0.25, 0.055, 1, 0, -24], [0.214, 0.25, 0.055, 1, 0, -16], [0.329, 0.25, 0.055, 1, 0, -8], [0.443, 0.25, 0.055], [0.557, 0.25, 0.055], [0.671, 0.25, 0.055, 1, 0, 8], [0.786, 0.25, 0.055, 1, 0, 16], [0.9, 0.25, 0.055, 1, 0, 24],
-            [0.9, 0.7, 0.055, 1, 0, 24], [0.786, 0.7, 0.055, 1, 0, 16], [0.671, 0.7, 0.055, 1, 0, 8], [0.557, 0.7, 0.055], [0.443, 0.7, 0.055], [0.329, 0.7, 0.055, 1, 0, -8], [0.214, 0.7, 0.055, 1, 0, -16], [0.1, 0.7, 0.055, 1, 0, -24],
+            [0.1779, 0.4049, 0.1023, 1, 0, 30], [0.2699, 0.4049, 0.1023, 1, 0, 30], [0.362, 0.4049, 0.1023, 1, 0, 30], [0.454, 0.4049, 0.1023, 1, 0, 30], [0.546, 0.4049, 0.1023, 1, 0, 30], [0.638, 0.4049, 0.1023, 1, 0, 30], [0.7301, 0.4049, 0.1023, 1, 0, 30], [0.8221, 0.4049, 0.1023, 1, 0, 30],
+            [0.8221, 0.5951, 0.1023, 1, 0, -30], [0.7301, 0.5951, 0.1023, 1, 0, -30], [0.638, 0.5951, 0.1023, 1, 0, -30], [0.546, 0.5951, 0.1023, 1, 0, -30], [0.454, 0.5951, 0.1023, 1, 0, -30], [0.362, 0.5951, 0.1023, 1, 0, -30], [0.2699, 0.5951, 0.1023, 1, 0, -30], [0.1779, 0.5951, 0.1023, 1, 0, -30],
           ],
         },
       ],
@@ -138,7 +139,7 @@ const SCORE = {
           to: 8,
           out: "fade",
           outBeats: 2,
-          spots: [[0.11, 0.11, 0.055], [0.89, 0.11, 0.055, -1]],
+          spots: [[0.1295, 0.167, 0.0874], [0.8733, 0.1698, 0.085, -1]],
           fx: [{ kind: "hop", on: "eye panning" }],
         },
       ],
