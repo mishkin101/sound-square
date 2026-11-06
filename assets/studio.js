@@ -148,6 +148,7 @@ function draw() {
   drawMarkPath();
   drawMarkFx();
   drawMomentPath();
+  drawEraser();
   if (MOMENT_MODE) { // say so on the square itself, not just the panel
     textSize(11); textAlign(CENTER, TOP); noStroke();
     fill("#55d187");
@@ -565,18 +566,24 @@ function overLoopButton() {
   return inTimeline() && mouseX >= b.x && mouseX <= b.x + b.w && mouseY >= b.y && mouseY <= b.y + b.h;
 }
 
-// The button: a circling arrow, green while the loop is on.
+// The button: the repeat sign (an arrow along the top, one back along the
+// bottom), green while the loop is on.
 function drawLoopButton(over) {
   const b = loopButtonBox(), c = LOOP ? [85, 209, 135] : over ? [230] : [140];
   noFill(); strokeWeight(1);
   stroke(...(LOOP ? c : over ? [120] : [60]));
   rect(b.x + 0.5, b.y + 0.5, b.w, b.h);
-  const cx = b.x + b.w / 2 + 0.5, cy = b.y + b.h / 2 + 0.5, end = 4.4;
-  stroke(...c); strokeWeight(1.3);
-  arc(cx, cy, 9, 9, -1.1, end);
-  const ex = cx + 4.5 * Math.cos(end), ey = cy + 4.5 * Math.sin(end), tx = -Math.sin(end), ty = Math.cos(end);
-  line(ex, ey, ex - 3 * tx - 2.2 * ty, ey - 3 * ty + 2.2 * tx);
-  line(ex, ey, ex - 3 * tx + 2.2 * ty, ey - 3 * ty - 2.2 * tx);
+  const x = b.x + b.w / 2 + 0.5, y = b.y + b.h / 2 + 0.5;
+  stroke(...c); strokeWeight(1.3); strokeCap(ROUND); strokeJoin(ROUND);
+  for (const k of [1, -1]) { // top, then the bottom turned half round
+    beginShape();
+    vertex(x - 5 * k, y + 1 * k); vertex(x - 5 * k, y - 3 * k); vertex(x + 5 * k, y - 3 * k);
+    endShape();
+    beginShape();
+    vertex(x + 3 * k, y - 5 * k); vertex(x + 5 * k, y - 3 * k); vertex(x + 3 * k, y - 1 * k);
+    endShape();
+  }
+  strokeCap(SQUARE); strokeJoin(MITER);
 }
 
 // The loop's end under the mouse on the ruler: 0 its start, 1 its end.
@@ -738,6 +745,7 @@ function mousePressed(e) {
     return;
   }
   if (onSquare(e) && MOMENT_MODE) return pressMark();
+  if (onSquare(e) && ERASE_FROM != null && SCORE.moments?.[ERASE_FROM]?.path?.length) return pressErase();
   if (onSquare(e) && DRAW_INTO != null && SCORE.moments?.[DRAW_INTO]) {
     pressMark();
     SQ_MARK.into = DRAW_INTO;
@@ -757,6 +765,7 @@ function mousePressed(e) {
 }
 function mouseDragged() {
   if (SQ_MARK) dragMark();
+  else if (ERASING) dragErase();
   else if (PATH_DRAG) dragPath();
   else if (MOMENT_DRAG) dragMoment();
   else if (KEY_DRAG) dragKey();
@@ -767,6 +776,7 @@ function mouseDragged() {
 }
 function mouseReleased() {
   if (SQ_MARK) { releaseMark(); return; }
+  if (ERASING) { releaseErase(); return; }
   if (PATH_DRAG) { releasePath(); return; }
   if (MOMENT_DRAG) { MOMENT_DRAG = null; momentsChanged(); return; }
   if (KEY_DRAG) {
@@ -1520,6 +1530,7 @@ function renderMoments() {
   MO_HOVER = null;
   if (MO_OPEN != null && MO_OPEN >= list.length) MO_OPEN = null;
   if (DRAW_INTO != null && (DRAW_INTO >= list.length || DRAW_INTO !== MO_OPEN)) DRAW_INTO = null;
+  if (ERASE_FROM != null && (ERASE_FROM >= list.length || ERASE_FROM !== MO_OPEN)) ERASE_FROM = null;
   const order = list.map((m, mi) => ({ m, mi }))
     .sort((a, b) => (momentStart(SCORE, a.m.name) ?? 0) - (momentStart(SCORE, b.m.name) ?? 0));
   const title = document.createElement("span");
@@ -1554,6 +1565,7 @@ function momentMeta(m) {
 function closeMomentCard() {
   MO_OPEN = null;
   DRAW_INTO = null;
+  ERASE_FROM = null;
   PATH_PLAY = null;
   renderMoments();
 }
@@ -1562,7 +1574,7 @@ function wireMomentClose() {
   document.addEventListener("pointerdown", (e) => {
     if (MO_OPEN == null || e.target.closest(".mo-chip")) return;
     if (e.target.tagName === "CANVAS") {
-      if (DRAW_INTO != null || MOMENT_MODE) return;
+      if (DRAW_INTO != null || ERASE_FROM != null || MOMENT_MODE) return;
       const tl = timelineHeight();
       if (tl > 0 && e.offsetY >= height - tl) return;
     }
@@ -1596,6 +1608,7 @@ function moChip(m, mi) {
     e.currentTarget.blur();
     MO_OPEN = MO_OPEN === mi ? null : mi;
     DRAW_INTO = null;
+    ERASE_FROM = null;
     PATH_PLAY = null;
     if (MO_OPEN === mi) zoomToMoment(m);
     renderMoments();
@@ -1650,7 +1663,17 @@ function moCard(m, mi) {
     anim.className = "mo-anim";
     anim.append(pathPreview(m));
     anim.insertAdjacentHTML("beforeend",
-      `<div class="fx"><button class="mini play" title="Run the drawing once on the square">▶</button>${penBtn}</div>`);
+      `<div class="fx"><button class="mini play" title="Run the drawing once on the square">▶</button>${penBtn}` +
+      `<button class="mini erase${ERASE_FROM === mi ? " on" : ""}" title="Erase from the drawing">${ERASER}</button></div>`);
+    anim.querySelector(".erase").addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      ERASE_FROM = ERASE_FROM === mi ? null : mi;
+      if (ERASE_FROM != null) {
+        DRAW_INTO = null;
+        if (MOMENT_MODE) setMomentMode(false);
+      }
+      renderMoments();
+    });
     anim.querySelector(".play").addEventListener("click", (e) => {
       e.currentTarget.blur();
       PATH_PLAY = { mi, t0: millis() };
@@ -1660,6 +1683,7 @@ function moCard(m, mi) {
   card.querySelector(".pen").addEventListener("click", (e) => {
     e.currentTarget.blur();
     DRAW_INTO = DRAW_INTO === mi ? null : mi;
+    if (DRAW_INTO != null) ERASE_FROM = null;
     if (DRAW_INTO != null && MOMENT_MODE) setMomentMode(false);
     renderMoments();
   });
@@ -1819,6 +1843,100 @@ function attachShape(m, name) {
 let PATH_DRAG = null;
 let PATH_PLAY = null; // { mi, t0 }: the ▶ button runs the drawing once
 let DRAW_INTO = null; // the moment taking new strokes from the square
+
+// The eraser: with it on, pressing and dragging on the square cuts the open
+// drawing away within reach of the pointer, splitting the strokes it
+// crosses; pieces left too short go. Shapes following the drawing re-follow
+// it on release.
+const ERASE_R = 0.025; // the reach, as part of the square
+let ERASE_FROM = null; // the moment whose drawing the square erases
+let ERASING = null; // { x, y }: where the eraser last cut, while it's held
+
+function pressErase() {
+  rememberScore();
+  const [x, y] = squareMouse();
+  ERASING = { x, y };
+  eraseAt(x, y);
+}
+
+function dragErase() {
+  const [x, y] = squareMouse(), { x: px, y: py } = ERASING;
+  // a fast drag cuts all along its way, not only where the frames land
+  const n = Math.max(1, Math.ceil(Math.hypot(x - px, y - py) / (ERASE_R / 2)));
+  for (let i = 1; i <= n; i++) eraseAt(px + ((x - px) * i) / n, py + ((y - py) * i) / n);
+  ERASING = { x, y };
+}
+
+function releaseErase() {
+  ERASING = null;
+  const m = SCORE.moments?.[ERASE_FROM];
+  if (!m) return;
+  if (!m.path?.length) {
+    delete m.path;
+    ERASE_FROM = null;
+  } else {
+    for (const R of SCORE.layers) for (const L of R.clips) if (L.keysFrom === m.name) L.keys = pathKeys(m, L.keys?.[0]?.size ?? 0.12);
+  }
+  momentsChanged();
+}
+
+function eraseAt(x, y) {
+  const m = SCORE.moments?.[ERASE_FROM], strokes = m && strokesOf(m);
+  if (strokes) m.path = cutStrokes(strokes, x, y, ERASE_R);
+}
+
+// Strokes with the circle (x, y, r) cut out: a stroke it crosses splits at
+// the circle's rim, the cut ends keeping their time (interpolated).
+function cutStrokes(strokes, x, y, r) {
+  const out = [];
+  for (const s of strokes) {
+    let cur = [];
+    const keep = () => {
+      let len = 0;
+      for (let i = 1; i < cur.length; i++) len += Math.hypot(cur[i][0] - cur[i - 1][0], cur[i][1] - cur[i - 1][1]);
+      if (cur.length >= 2 && len >= 0.01) out.push(cur);
+      cur = [];
+    };
+    s.forEach((p, i) => {
+      if (i === 0) {
+        if (Math.hypot(p[0] - x, p[1] - y) >= r) cur.push(p);
+        return;
+      }
+      const a = s[i - 1], cut = circleCut(a, p, x, y, r);
+      if (!cut) return void cur.push(p);
+      if (cut[0] > 0) cur.push(lerpPoint(a, p, cut[0]));
+      keep();
+      if (cut[1] < 1) cur.push(lerpPoint(a, p, cut[1]), p);
+    });
+    keep();
+  }
+  return out;
+}
+
+// Where the segment a→b runs inside the circle: [t0, t1] along it (either
+// can fall past its ends), or null when it stays outside.
+function circleCut(a, b, x, y, r) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], fx = a[0] - x, fy = a[1] - y;
+  const A = dx * dx + dy * dy, B2 = 2 * (fx * dx + fy * dy), C = fx * fx + fy * fy - r * r;
+  if (A < 1e-12) return C < 0 ? [0, 1] : null;
+  const disc = B2 * B2 - 4 * A * C;
+  if (disc <= 0) return null;
+  const q = Math.sqrt(disc), t0 = (-B2 - q) / (2 * A), t1 = (-B2 + q) / (2 * A);
+  return t1 <= 0 || t0 >= 1 ? null : [t0, t1];
+}
+
+function lerpPoint(a, b, t) {
+  return [round4(a[0] + (b[0] - a[0]) * t), round4(a[1] + (b[1] - a[1]) * t), round2(a[2] + (b[2] - a[2]) * t)];
+}
+
+// The eraser's reach around the pointer, on the square.
+function drawEraser() {
+  if (ERASE_FROM == null || ERASE_FROM !== MO_OPEN) return;
+  const [x, y] = squareMouse();
+  if (x < 0 || x > 1 || y < 0 || y > 1) return;
+  noFill(); stroke(255, 90, 90); strokeWeight(1.5);
+  circle(SQ_X + x * SQ, SQ_Y + y * SQ, 2 * ERASE_R * SQ);
+}
 
 // A drawing's points in time order, across its strokes.
 function pathFlat(m) {
