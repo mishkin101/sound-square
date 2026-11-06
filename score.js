@@ -189,9 +189,8 @@ const SCORE = {
       // left from the next pulse (bar 9), in step with it. The middle two
       // flash the gradient on the pulse after (bar 10). On bar 11 the black
       // squares and the whole square as the chromatic gradient appear at once
-      // and hold — no more white pulses. From the heavy kick's bar (12) the
-      // black squares flash on every pulse again, a ring leaving their rims
-      // each time, and the middle two come back flashing with them.
+      // and hold — no more white pulses — until the heavy kick, where the
+      // "heavy kick" layer takes over the bar.
       name: "squares",
       clips: [
         {
@@ -204,14 +203,12 @@ const SCORE = {
         {
           shape: "square",
           from: "Bongo drums",
-          to: 16,
+          to: "heavy kick",
           spots: [[0.875, 0.875, 0.125], [0.125, 0.875, 0.125]],
           fx: [
             { kind: "fill", on: "Pulse" },
             { kind: "paint", style: "solid", color: "#000000" },
             { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3, until: 10 },
-            { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3, from: 12 },
-            { kind: "ripple", on: "Pulse", from: 12, color: "#000000", distance: 0.12, width: 0.012, beats: 3, amount: 1 },
           ],
         },
         {
@@ -222,6 +219,26 @@ const SCORE = {
           fx: [
             { kind: "paint", style: "gradient", color: "ground", spread: 20, drift: 1.25 },
             { kind: "pulse", on: "Pulse", slot: "shape", mode: "flash", amount: 1, beats: 3, until: 10 },
+          ],
+        },
+      ],
+    },
+    {
+      // From the heavy kick, the same bar in its own layer: the black squares
+      // stay and pulse by size, swelling on every pulse from bar 12 and
+      // settling (breathe), each swell throwing a very quick ripple off their
+      // rim; the middle two flash the gradient on every pulse.
+      name: "heavy kick",
+      clips: [
+        {
+          shape: "square",
+          from: "heavy kick",
+          to: 16,
+          spots: [[0.875, 0.875, 0.125], [0.125, 0.875, 0.125]],
+          fx: [
+            { kind: "paint", style: "solid", color: "#000000" },
+            { kind: "breathe", amount: 0.5, rate: 4, from: 12 },
+            { kind: "ripple", on: "Pulse", from: 12, color: "#000000", distance: 0.04, width: 0.02, beats: 0.5, amount: 1 },
           ],
         },
         {
