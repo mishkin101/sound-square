@@ -2849,6 +2849,7 @@ function wireControls() {
     const section = SCORE.sections[Number(e.key) - 1];
     if (e.key === "ArrowLeft") seekBar(bar - 1);
     else if (e.key === "ArrowRight") seekBar(bar + 1);
+    else if (e.key === "0" || e.key === "Home") run(() => source.seek(0)); // back to the start
     else if (/^[1-9]$/.test(e.key) && section) seekBar(section.from);
     else if (e.key === "t" || e.key === "T") { if (!e.repeat) tapDownbeat(e); }
     else if (e.key === "[") nudgeGrid(-10);
@@ -2994,13 +2995,17 @@ function restoreAfterSignIn() {
 function wireListen() {
   $("listen").addEventListener("click", (e) => {
     e.currentTarget.blur();
-    listenedFor = songKey(); // pressed by hand: don't start again by itself for this song
     if (Listen.on) Listen.stop();
     else startListening($("listen-device").value || storeGet(LISTEN_DEVICE));
   });
   $("listen-device").addEventListener("change", () => startListening($("listen-device").value));
   Listen.onLock = saveGrid;
   wireGridEdit();
+  // the time readout resets the playhead; 0 and Home do the same
+  const t = $("time");
+  t.title = "Click: playhead back to the start (also 0 or Home)";
+  t.style.cursor = "pointer";
+  t.addEventListener("click", () => run(() => source.seek(0)));
 }
 
 // ---- Setting the grid by hand --------------------------------------------------
@@ -3021,10 +3026,9 @@ function wireGridEdit() {
       if (bpm >= 20 && bpm <= 300) SCORE.bpm = Math.round(bpm * 1000) / 1000;
       if (Number.isFinite(at)) SCORE.firstDownbeatMs = Math.round(at * 1000);
       if (bars >= 1) SCORE.bars = Math.min(999, bars);
-      // a grid set by hand is the song's grid: it's saved for the song, the
-      // listener is stopped if it's running, and it won't start by itself
+      // a grid set by hand is the song's grid: it's saved for the song and
+      // the listener, if it's running, is stopped
       saveGrid();
-      listenedFor = songKey();
       if (Listen.on) Listen.stop();
       setText("tap-status", "set by hand");
     }
@@ -3074,13 +3078,12 @@ async function startListening(deviceId) {
 }
 
 // ---- Each song's grid --------------------------------------------------------
-// Once listening has locked a song's grid, it's kept in this browser and used
-// again whenever that song plays. For a song without one, listening starts by
-// itself, once the browser has been allowed to listen.
+// Once a grid is set — heard, tapped or typed — it's kept in this browser and
+// used again whenever that song plays. Listening only ever starts from the
+// LISTEN button; it never starts by itself.
 
 const GRIDS = "soundsquare.grids", LISTEN_DEVICE = "soundsquare.listenDevice";
 let gridFor = null;     // the song whose saved grid is in use
-let listenedFor = null; // the song listening last started for, by itself or by hand
 
 function songKey() {
   if (source.trackId) return `spotify:${source.trackId}`;
@@ -3095,26 +3098,16 @@ function saveGrid() {
   gridFor = key;
 }
 
-// Every second: use the playing song's saved grid, or start listening for one.
+// Every second: use the playing song's saved grid, if it has one.
 async function followSong() {
   const key = songKey();
   if (!key || !source.playing) return;
   const saved = (storeGet(GRIDS) || {})[key];
-  if (saved) {
-    if (gridFor !== key && !Listen.on) {
-      Object.assign(SCORE, saved);
-      gridFor = key;
-      Listen.status = "Saved grid";
-    }
-    return;
+  if (saved && gridFor !== key && !Listen.on) {
+    Object.assign(SCORE, saved);
+    gridFor = key;
+    Listen.status = "Saved grid";
   }
-  if (Listen.on || listenedFor === key || !(await mayListen())) return;
-  listenedFor = key;
-  startListening(storeGet(LISTEN_DEVICE));
-}
-
-async function mayListen() {
-  try { return (await navigator.permissions.query({ name: "microphone" })).state === "granted"; } catch { return false; }
 }
 
 // ---- Tapping the grid --------------------------------------------------------
